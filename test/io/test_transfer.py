@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import httpx
 import pytest
 from fsspec import AbstractFileSystem
 
@@ -14,13 +15,21 @@ from server.errors import (
 from server.io.connectors import Connectors
 from server.io.transfer import Transfer
 from server.io.workspace import Workspace
+from test.fixtures.http import FetcherFactory
 
 pytestmark = pytest.mark.anyio
 
 
 @pytest.fixture
-def transfer(connectors: Connectors) -> Transfer:
-    return Transfer(connectors, max_file_size=10)
+def transfer(connectors: Connectors, make_fetcher: FetcherFactory) -> Transfer:
+    fetcher = make_fetcher(lambda request: httpx.Response(200, content=b'remote'), max_file_size=10)
+    return Transfer(connectors, fetcher, max_file_size=10)
+
+
+async def test_materializes_http_source(transfer: Transfer, workspace: Workspace):
+    path = await transfer.materialize('https://example.com/a.txt', workspace, {})
+
+    assert path.read_bytes() == b'remote'
 
 
 async def test_materializes_connector_source(transfer: Transfer, workspace: Workspace, memory_fs: AbstractFileSystem):

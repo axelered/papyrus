@@ -21,4 +21,5 @@
 
 - markitdown -> magika -> onnxruntime wheel availability for Python 3.14 is unverified
 - Starlette parses multipart bodies before size checks; the request body limit must also be enforced at the reverse proxy
+- SSRF guard is vulnerable to DNS rebinding until the validated IP is pinned on connect (`server/io/http.py`)
 - clamd inside the image needs a multi-process entrypoint and adds about 1 GB RAM per replica

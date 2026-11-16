@@ -15,6 +15,7 @@ from server.errors import (
     ValidationFailed,
 )
 from server.io.connectors import Connectors
+from server.io.http import HttpFetcher
 from server.io.uri import Uri, parse_uri
 from server.io.workspace import Workspace
 
@@ -24,8 +25,9 @@ logger = logging.getLogger('papyrus.transfer')
 class Transfer:
     """Moves documents between URIs and the request workspace"""
 
-    def __init__(self, connectors: Connectors, max_file_size: int):
+    def __init__(self, connectors: Connectors, http: HttpFetcher, max_file_size: int):
         self._connectors = connectors
+        self._http = http
         self._max_file_size = max_file_size
 
     async def materialize(self, source: str, workspace: Workspace, parts: Mapping[str, Path]) -> Path:
@@ -35,7 +37,7 @@ class Transfer:
                 raise ValidationFailed(f'source {source!r} references a missing file part')
             return parts[uri.authority]
         if uri.is_http:
-            raise UnsupportedUri(f'http(s) sources are not supported yet: {source!r}')
+            return await self._http.fetch(source, workspace)
         filesystem, remote = self._connectors.resolve(uri)
         local = workspace.new_file(uri.filename)
         await asyncio.to_thread(self._get, filesystem, remote, local)

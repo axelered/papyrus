@@ -125,7 +125,11 @@ Anything else: `422 unsupported_uri`. Unknown connector: `422 unknown_connector`
 
 ### HTTP Fetch Policy
 
-- Resolve the host, reject loopback, private, link-local, ULA and metadata ranges unless `http.allow_private`.
+- `http.enabled: false` rejects every http(s) source with `403 source_forbidden`.
+- Resolve the host and reject it if any address is not public (`ipaddress.is_global`, multicast excluded, IPv4-mapped
+  IPv6 unwrapped): loopback, private, CGNAT, link-local/metadata, ULA, unless `http.allow_private`.
+- todo: httpx re-resolves on connect, so DNS rebinding can bypass the check; pin the validated IP in the transport.
+- The file name is the decoded URL basename; when it has no extension, one is guessed from `Content-Type`.
 - If `http.allowed_hosts` is non-empty, only those hosts are allowed.
 - Re-validate on every redirect, at most `http.max_redirects`. Enforce `http.timeout` and `limits.max_file_size`.
 - Rejection: `403 source_forbidden`.
