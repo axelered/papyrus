@@ -93,7 +93,7 @@ class DeadlineExceeded(PapyrusError):
     status, code = 504, 'deadline_exceeded'
 
 
-_HTTP_CODES = {404: 'not_found', 405: 'method_not_allowed'}
+_HTTP_CODES = {400: 'bad_request', 404: 'not_found', 405: 'method_not_allowed'}
 
 
 def validation_errors(errors: Any) -> list[dict[str, Any]]:

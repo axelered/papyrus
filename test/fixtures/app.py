@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from server.config import Config, LimitsConfig, Settings
 from server.factory import create_app
+from test.fixtures.storage import MEMORY_CONNECTORS
 
 API_KEY = 'test-key'
 
@@ -17,8 +18,13 @@ def settings(tmp_path: Path) -> Settings:
 
 
 @pytest.fixture
-def config(tmp_path: Path) -> Config:
-    return Config(limits=LimitsConfig(tmp_dir=tmp_path / 'work'))
+def work_dir(tmp_path: Path) -> Path:
+    return tmp_path / 'work'
+
+
+@pytest.fixture
+def config(work_dir: Path) -> Config:
+    return Config(limits=LimitsConfig(tmp_dir=work_dir), connectors=MEMORY_CONNECTORS)
 
 
 @pytest.fixture

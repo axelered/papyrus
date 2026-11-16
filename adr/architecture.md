@@ -34,15 +34,17 @@ and returns the result as a file or JSON, or writes it to a configured destinati
 - **Coordinator:** the request coroutine itself. It materializes the source into a workspace, awaits one or more
   services, and builds the output. It holds no CPU work.
 - **Deadline:** the whole coordinator runs under `asyncio.timeout(limits.deadline)`; on expiry `504 deadline_exceeded`.
-- **Cancellation:** client disconnect or deadline cancels the coordinator; services propagate the cancel to their
-  backend (pebble future cancel terminates the running worker).
+- **Cancellation:** the deadline cancels the coordinator; services propagate the cancel to their backend (pebble
+  future cancel terminates the running worker). todo: uvicorn does not cancel handlers on client disconnect; watch
+  `request.is_disconnected()` and cancel the coordinator if abandoned requests waste capacity.
 - todo: one global admission limit allows head-of-line blocking (a markdown flood starves thumbnails within a
   container); add per-service queue caps if metrics show a need.
 
 ### Data Plane
 
-- Every request gets a **workspace**: a `TemporaryDirectory` under `limits.tmp_dir`, deleted when the request
-  finishes. For file responses, cleanup runs as a response `BackgroundTask` after the body is sent.
+- Every request gets a **workspace**: a temp directory under `limits.tmp_dir`, deleted when the request finishes. For
+  file responses a `FileResponse` subclass deletes it after streaming, also when the client disconnects mid-stream
+  (a `BackgroundTask` would be skipped in that case).
 - All data moves between components as **file paths** in the workspace, never as in-memory bytes. Original filenames
   (and therefore extensions) are preserved for format detection.
 - Backends without filesystem access (remote sidecars, external APIs) receive streamed file content.
@@ -102,6 +104,10 @@ A request parser dependency (`api/request.py`) dispatches on `Content-Type` and 
 - `application/json`: the body is the model. `file://` sources are rejected (`422`).
 - `multipart/form-data`: the `metadata` field holds the model as a JSON string; file parts are referenced as
   `file://<part-name>`. A missing referenced part or malformed metadata gives `422 validation_error`.
+- Multipart accepts only `metadata` plus file parts (at most 8, unique names); any other form field is rejected so
+  options misplaced outside `metadata` never get silently ignored.
+- JSON bodies are capped at 1 MiB; anything other than JSON or multipart gives `415 unsupported_media_type`.
+- Model errors use the wrapped validation shape; `loc` is relative to the request model (no `body` prefix).
 - Both forms are documented in OpenAPI via `openapi_extra`.
 - todo: multiple file parts referenced from metadata by `file://<key>` (the URI scheme already supports it).
 
@@ -203,6 +209,7 @@ pickles across process pools; workers raise them directly.
 
 | Status | Codes                                                                              |
 |--------|------------------------------------------------------------------------------------|
+| 400    | `bad_request` (malformed multipart)                                                |
 | 401    | `unauthorized`                                                                     |
 | 403    | `source_forbidden`                                                                 |
 | 404    | `source_not_found`, `not_found` (unknown route)                                    |
