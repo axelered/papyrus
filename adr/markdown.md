@@ -5,8 +5,8 @@ service conventions of `adr/architecture.md`.
 
 ## Contract
 
-- Request: the common `OpRequest` fields only; no `options` yet.
-- `output` defaults to `json`.
+- Request: the common `OpRequest` fields plus `options.chunking` (optional, see `adr/chunking.md`).
+- `output` defaults to `json`. With `options.chunking`, `output` must be `json` and the JSON result gains `chunks`.
 
 | Output        | Response                                                                            |
 |---------------|-------------------------------------------------------------------------------------|

@@ -8,8 +8,8 @@ input, and report what was detected. Extends `adr/architecture.md`.
 
 - Content is the source of truth; client file names and `Content-Type` are hints only.
 - One canonical format table drives detection, per-op allowlists, future routes and docs.
-- Detected type travels with the result so downstream steps can use it. todo: context-aware markdown chunking keyed
-  on `source_type` (per sheet for spreadsheets, per slide for presentations, per symbol for code by language).
+- Detected type travels with the result so downstream steps can use it; chunking (`adr/chunking.md`) uses it to
+  pick code languages and slide metadata.
 - Source code and other text formats common in RAG corpora are first-class, with the language preserved.
 
 ## Stack

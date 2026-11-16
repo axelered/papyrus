@@ -275,6 +275,8 @@ Dockerfile
   non-root uid 10001, 30s graceful shutdown. Only runtime dependencies are installed, so anything the server needs
   (uvicorn, python-multipart) must be a main dependency, not only part of `fastapi[standard]`.
 - Config mounted at `/etc/papyrus/config.yml`; secrets via env.
+- No runtime downloads: anything a library would fetch lazily (tree-sitter grammars, tiktoken encodings) is
+  prefetched at Docker build into fixed image paths (`adr/chunking.md`).
 - Container `HEALTHCHECK` on `/health`; orchestrator readiness on `/ready`.
 - Logs: stdlib `logging` under the `papyrus.*` logger namespace, JSON lines on stderr, `X-Request-ID` echoed (if it
   matches `[A-Za-z0-9._:-]{1,128}`) or generated and bound to every line. Uvicorn keeps its own access log format.
