@@ -1,0 +1,37 @@
+from collections.abc import Iterator
+from pathlib import Path
+
+import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+from server.config import Config, LimitsConfig, Settings
+from server.factory import create_app
+
+API_KEY = 'test-key'
+
+
+@pytest.fixture
+def settings(tmp_path: Path) -> Settings:
+    return Settings(api_key=f'old-key,{API_KEY}', config=tmp_path / 'absent.yml')
+
+
+@pytest.fixture
+def config(tmp_path: Path) -> Config:
+    return Config(limits=LimitsConfig(tmp_dir=tmp_path / 'work'))
+
+
+@pytest.fixture
+def app(settings: Settings, config: Config) -> FastAPI:
+    return create_app(settings=settings, config=config)
+
+
+@pytest.fixture
+def client(app: FastAPI) -> Iterator[TestClient]:
+    with TestClient(app, raise_server_exceptions=False) as client:
+        yield client
+
+
+@pytest.fixture
+def auth_headers() -> dict[str, str]:
+    return {'Authorization': f'Bearer {API_KEY}'}

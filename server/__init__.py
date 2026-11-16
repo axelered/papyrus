@@ -8,17 +8,6 @@ Axelered LLC
 
 """
 
-from fastapi import FastAPI
-from pydantic import BaseModel
+from server.factory import create_app
 
-app = FastAPI()
-
-
-class RootResponse(BaseModel):
-    status: str = 'ok'
-    name: str = 'Axelered Papyrus'
-
-
-@app.get('/')
-def read_root():
-    return RootResponse()
+app = create_app()

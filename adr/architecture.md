@@ -29,8 +29,8 @@ and returns the result as a file or JSON, or writes it to a configured destinati
 ## Execution Model
 
 - Synchronous request/response. No job ids, no polling, no shared store.
-- **Admission:** a global `asyncio.BoundedSemaphore(workers.max_queue)` caps in-flight requests per container.
-  Acquire is non-blocking; when it is exhausted, respond `503 queue_full` with `Retry-After`.
+- **Admission:** a global non-blocking counter of size `workers.max_queue` caps in-flight requests per container.
+  When it is exhausted, respond `503 queue_full` with `Retry-After`.
 - **Coordinator:** the request coroutine itself. It materializes the source into a workspace, awaits one or more
   services, and builds the output. It holds no CPU work.
 - **Deadline:** the whole coordinator runs under `asyncio.timeout(limits.deadline)`; on expiry `504 deadline_exceeded`.
@@ -132,6 +132,7 @@ Anything else: `422 unsupported_uri`. Unknown connector: `422 unknown_connector`
 
 | Route                 | Auth | Purpose                                                       |
 |-----------------------|------|---------------------------------------------------------------|
+| `GET /`               | no   | Service name                                                  |
 | `GET /health`         | no   | Liveness, always 200                                          |
 | `GET /ready`          | no   | 503 when admission is exhausted so the LB drains the replica  |
 | `POST /v1/markdown`   | yes  | Extract markdown (markitdown)                                 |
@@ -184,19 +185,22 @@ connectors:
 ## Errors
 
 RFC 9457 problem+json with a stable `code` extension. Codes are part of the public contract.
-`PapyrusError` subclasses carry `status` and `code`; FastAPI validation errors are wrapped into the same shape.
+`PapyrusError` subclasses carry `status` and `code`; FastAPI validation errors are wrapped into the same shape with an
+`errors` list of `{loc, msg, type}` (inputs are never echoed). `PapyrusError` takes a single `detail` argument so it
+pickles across process pools; workers raise them directly.
 
 | Status | Codes                                                                              |
 |--------|------------------------------------------------------------------------------------|
 | 401    | `unauthorized`                                                                     |
 | 403    | `source_forbidden`                                                                 |
-| 404    | `source_not_found`                                                                 |
+| 404    | `source_not_found`, `not_found` (unknown route)                                    |
+| 405    | `method_not_allowed`                                                               |
 | 413    | `source_too_large`                                                                 |
-| 415    | `unsupported_format`                                                               |
+| 415    | `unsupported_format` (document), `unsupported_media_type` (request body)           |
 | 422    | `validation_error`, `unsupported_uri`, `unknown_connector`                         |
-| 500    | `processing_failed`                                                                |
+| 500    | `processing_failed`, `internal_error` (unhandled, details only in logs)            |
 | 502    | `source_fetch_failed`, `destination_failed`                                        |
-| 503    | `queue_full` (with `Retry-After`), `service_unavailable`                           |
+| 503    | `queue_full` (with `Retry-After`), `not_ready` (`/ready`), `service_unavailable`   |
 | 504    | `processing_timeout`, `deadline_exceeded`                                          |
 
 ## Code Layout
@@ -204,12 +208,14 @@ RFC 9457 problem+json with a stable `code` extension. Codes are part of the publ
 ```
 server/
   __init__.py          app = create_app()
-  app.py               create_app, lifespan, service registry
+  factory.py           create_app, lifespan, service registry (not app.py: would shadow the server:app attribute)
+  logs.py              JSON log formatter, X-Request-ID middleware
   config.py            settings models, YAML + ${VAR} loader
   auth.py              bearer dependency
   errors.py            PapyrusError hierarchy, problem+json handlers
   api/
-    request.py         JSON | multipart -> model, admission semaphore
+    admission.py       non-blocking in-flight counter (event loop only, no semaphore needed)
+    request.py         JSON | multipart -> model, op context (admission, workspace, deadline)
     output.py          file | json | destination responses
     health.py          /health, /ready
     markdown.py        route + coordinator
@@ -237,7 +243,8 @@ Dockerfile
 - One container = one uvicorn process. Never use `--workers`: it multiplies pools and splits the admission semaphore.
 - Config mounted at `/etc/papyrus/config.yml`; secrets via env.
 - Container `HEALTHCHECK` on `/health`; orchestrator readiness on `/ready`.
-- Logs: stdlib `logging`, JSON lines, `X-Request-ID` echoed or generated and bound to every line.
+- Logs: stdlib `logging` under the `papyrus.*` logger namespace, JSON lines on stderr, `X-Request-ID` echoed (if it
+  matches `[A-Za-z0-9._:-]{1,128}`) or generated and bound to every line. Uvicorn keeps its own access log format.
 - Memory sizing must account for pool processes plus daemons (about 150-300 MB per soffice, about 1 GB for clamd
   signatures).
 
