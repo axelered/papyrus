@@ -38,8 +38,10 @@ curl -H "Authorization: Bearer $KEY" -H 'content-type: application/json' \
 
 ### Code
 
-- Derived formats with group `code` skip markitdown: a second worker function decodes the file (charset via
-  `charset_normalizer`) and wraps it in one fenced block tagged with the label (```` ```python ````).
+- Derived formats with group `code` skip markitdown: a second worker function (`fence_code`, same pool) decodes the
+  file and wraps it in one fenced block tagged with the label (```` ```python ````). Decoding tries strict UTF-8
+  (BOM aware) first and uses `charset_normalizer` only otherwise, since short single-byte texts are ambiguous
+  between code pages. Line endings are normalized to `\n`.
 - The fence length is `max(3, longest backtick run in the content + 1)` so embedded fences cannot break out.
 - Rationale: markitdown passes code through as raw text, where `#` comments become markdown headings and corrupt
   heading-based chunking.

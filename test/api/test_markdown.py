@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from fsspec import AbstractFileSystem
 
 from test.fixtures.documents import BINARY, CSV, HTML
+from test.fixtures.samples import PYTHON
 
 
 def _leftovers(work_dir: Path) -> list[Path]:
@@ -107,3 +108,14 @@ def test_openapi_documents_route(client: TestClient):
     assert set(operation['requestBody']['content']) == {'application/json', 'multipart/form-data'}
     assert set(operation['responses']['200']['content']) == {'application/json', 'text/markdown'}
     assert operation['security']
+
+
+def test_code_source_is_fenced_with_language(client: TestClient, auth_headers: dict[str, str]):
+    response = client.post('/v1/markdown', headers=auth_headers, files={'file': ('loader.py', PYTHON)})
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body['markdown'].startswith('```python\nimport os\n')
+    assert body['markdown'].endswith('```\n')
+    assert body['title'] is None
+    assert body['source_type'] == {'mime_type': 'text/x-python', 'extension': 'py', 'label': 'python', 'group': 'code'}

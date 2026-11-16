@@ -5,7 +5,7 @@ from server.api.output import Receipt, SourceType, respond
 from server.api.request import OpRequest, OutputMode, inline_refs, op_context, openapi_body
 from server.auth import require_api_key
 from server.errors import UnsupportedFormat
-from server.formats import Format, FormatLabel
+from server.formats import Format, FormatGroup, FormatLabel
 
 MEDIA_TYPE = 'text/markdown; charset=utf-8'
 
@@ -51,6 +51,11 @@ def accepts(value: Format) -> bool:
     return value.label in MARKDOWN_FORMATS or (value.derived and value.text)
 
 
+def is_code(value: Format) -> bool:
+    """Only derived code is fenced; explicit formats grouped as code (ipynb) have a dedicated markitdown converter"""
+    return value.derived and value.group == FormatGroup.CODE
+
+
 @router.post(
     '/markdown',
     summary='Extract markdown from a document',
@@ -83,7 +88,11 @@ async def markdown(request: Request) -> Response:
                 f'{document.format.mime_type} ({document.format.label}) is not supported for markdown extraction'
             )
         target = op.workspace.new_file(f'{document.path.stem}.md')
-        title = await services.markdown.convert(document.path, target)
+        if is_code(document.format):
+            title = None
+            await services.markdown.fence_code(document.path, target, document.format.label)
+        else:
+            title = await services.markdown.convert(document.path, target)
         source_type = SourceType.of(document.format)
         return await respond(
             request,
