@@ -1,11 +1,37 @@
 from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel
 
-from server.api.output import Receipt, respond
-from server.api.request import OpRequest, OutputMode, op_context, openapi_body
+from server.api.output import Receipt, SourceType, respond
+from server.api.request import OpRequest, OutputMode, inline_refs, op_context, openapi_body
 from server.auth import require_api_key
+from server.errors import UnsupportedFormat
+from server.formats import Format, FormatLabel
 
 MEDIA_TYPE = 'text/markdown; charset=utf-8'
+
+MARKDOWN_FORMATS = frozenset(
+    {
+        FormatLabel.PDF,
+        FormatLabel.DOCX,
+        FormatLabel.PPTX,
+        FormatLabel.XLSX,
+        FormatLabel.XLS,
+        FormatLabel.OUTLOOK,
+        FormatLabel.HTML,
+        FormatLabel.CSV,
+        FormatLabel.TSV,
+        FormatLabel.MARKDOWN,
+        FormatLabel.TXT,
+        FormatLabel.JSON,
+        FormatLabel.JSONL,
+        FormatLabel.XML,
+        FormatLabel.RSS,
+        FormatLabel.ATOM,
+        FormatLabel.IPYNB,
+        FormatLabel.EPUB,
+        FormatLabel.ZIP,
+    }
+)
 
 router = APIRouter(prefix='/v1', tags=['markdown'], dependencies=[Depends(require_api_key)])
 
@@ -17,6 +43,12 @@ class MarkdownRequest(OpRequest):
 class MarkdownResult(BaseModel):
     markdown: str
     title: str | None
+    source_type: SourceType
+
+
+def accepts(value: Format) -> bool:
+    """Explicit allowlist plus every format derived from magika that is text (code, configs, markup)"""
+    return value.label in MARKDOWN_FORMATS or (value.derived and value.text)
 
 
 @router.post(
@@ -29,7 +61,12 @@ class MarkdownResult(BaseModel):
             'description': 'Markdown as JSON, as a file, or a receipt when `destination` is set',
             'content': {
                 'application/json': {
-                    'schema': {'anyOf': [MarkdownResult.model_json_schema(), Receipt.model_json_schema()]}
+                    'schema': {
+                        'anyOf': [
+                            inline_refs(MarkdownResult.model_json_schema()),
+                            inline_refs(Receipt.model_json_schema()),
+                        ]
+                    }
                 },
                 'text/markdown': {'schema': {'type': 'string'}},
             },
@@ -37,14 +74,22 @@ class MarkdownResult(BaseModel):
     },
 )
 async def markdown(request: Request) -> Response:
+    services = request.app.state.services
     async with op_context(request, MarkdownRequest) as op:
         source = await request.app.state.transfer.materialize(op.model.source, op.workspace, op.parts)
-        target = op.workspace.new_file(f'{source.stem}.md')
-        title = await request.app.state.services.markdown.convert(source, target)
+        document = await services.detect.detect(source)
+        if not accepts(document.format):
+            raise UnsupportedFormat(
+                f'{document.format.mime_type} ({document.format.label}) is not supported for markdown extraction'
+            )
+        target = op.workspace.new_file(f'{document.path.stem}.md')
+        title = await services.markdown.convert(document.path, target)
+        source_type = SourceType.of(document.format)
         return await respond(
             request,
             op,
             target,
             MEDIA_TYPE,
-            lambda: MarkdownResult(markdown=target.read_text(encoding='utf-8'), title=title),
+            lambda: MarkdownResult(markdown=target.read_text(encoding='utf-8'), title=title, source_type=source_type),
+            source_type,
         )

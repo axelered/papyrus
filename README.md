@@ -12,14 +12,17 @@ Axelered Papyrus is your single point stop for Agentic document processing.
 | Excel      | `.xlsx`, `.xls`        | One table per sheet                     |
 | Outlook    | `.msg`                 | Headers and body                        |
 | HTML       | `.html`, `.htm`        |                                         |
-| CSV        | `.csv`                 | Rendered as a table                     |
+| CSV / TSV  | `.csv`, `.tsv`         | Rendered as a table                     |
 | Jupyter    | `.ipynb`               |                                         |
 | EPUB       | `.epub`                |                                         |
 | RSS / Atom | `.rss`, `.atom`, `.xml`|                                         |
 | ZIP        | `.zip`                 | Each entry converted recursively        |
-| Plain text | `.txt`, `.md`, `.json` | Passed through                          |
+| Data       | `.json`, `.jsonl`      | Passed through                          |
+| Text       | `.txt`, `.md`, `.rst`, `.tex`, ... | Passed through              |
+| Code       | `.py`, `.ts`, `.go`, `.sql`, `.yaml`, ... | Any text format magika knows |
 
-Formats are detected from the extension and the file content.
+The format is detected from the content (magika); the extension only refines generic matches such as `.csv` or
+`.rss`. Mislabeled files are processed by their real type and reported in `source_type`.
 
 ## 🔌 API
 
@@ -45,9 +48,12 @@ curl -H "Authorization: Bearer <key>" -H 'content-type: application/json' \
 
 | Case          | Response                                                                              |
 |---------------|---------------------------------------------------------------------------------------|
-| `json`        | `{"markdown": "# Report ...", "title": "Quarterly"}`                                  |
+| `json`        | `{"markdown": "# Report ...", "title": "Quarterly", "source_type": {...}}`             |
 | `file`        | `text/markdown`, filename `<source name>.md`                                          |
-| `destination` | `{"destination": "s3://...", "content_type": "text/markdown; charset=utf-8", "size": 1234}` |
+| `destination` | `{"destination": "s3://...", "content_type": "text/markdown; charset=utf-8", "size": 1234, "source_type": {...}}` |
+
+`source_type` is the detected input: `{"mime_type": "text/html", "extension": "html", "label": "html", "group": "markup"}`.
+For code, `label` is the language.
 
 ### Errors
 

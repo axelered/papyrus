@@ -146,7 +146,7 @@ def openapi_body(model: type[BaseModel]) -> dict[str, Any]:
         'requestBody': {
             'required': True,
             'content': {
-                'application/json': {'schema': _inline_refs(model.model_json_schema())},
+                'application/json': {'schema': inline_refs(model.model_json_schema())},
                 'multipart/form-data': {
                     'schema': {
                         'type': 'object',
@@ -164,7 +164,7 @@ def openapi_body(model: type[BaseModel]) -> dict[str, Any]:
     }
 
 
-def _inline_refs(schema: dict[str, Any]) -> dict[str, Any]:
+def inline_refs(schema: dict[str, Any]) -> dict[str, Any]:
     definitions = schema.pop('$defs', {})
 
     def resolve(node: Any) -> Any:

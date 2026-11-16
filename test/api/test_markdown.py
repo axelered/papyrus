@@ -24,8 +24,20 @@ def test_upload_returns_json_by_default(client: TestClient, auth_headers: dict[s
     response = client.post('/v1/markdown', headers=auth_headers, files={'file': ('report.html', HTML)})
 
     assert response.status_code == 200
-    assert response.json() == {'markdown': '# Report\n\nRevenue grew.', 'title': 'Quarterly'}
+    assert response.json() == {
+        'markdown': '# Report\n\nRevenue grew.',
+        'title': 'Quarterly',
+        'source_type': {'mime_type': 'text/html', 'extension': 'html', 'label': 'html', 'group': 'markup'},
+    }
     assert _leftovers(work_dir) == []
+
+
+def test_mislabeled_source_is_converted_by_content(client: TestClient, auth_headers: dict[str, str]):
+    response = client.post('/v1/markdown', headers=auth_headers, files={'file': ('report.pdf', HTML)})
+
+    assert response.status_code == 200
+    assert response.json()['source_type']['label'] == 'html'
+    assert response.json()['markdown'].startswith('# Report')
 
 
 def test_file_output_returns_markdown_document(client: TestClient, auth_headers: dict[str, str], work_dir: Path):
@@ -56,15 +68,37 @@ def test_connector_source_to_destination(
 
     assert response.status_code == 200
     assert response.json()['destination'] == 'memory://mem/out/report.md'
+    assert response.json()['source_type']['mime_type'] == 'text/html'
     assert memory_fs.cat('out/report.md').decode().strip() == '# Report\n\nRevenue grew.'
 
 
-def test_unsupported_document(client: TestClient, auth_headers: dict[str, str], work_dir: Path):
+def test_unsupported_document_is_rejected_before_worker(
+    client: TestClient, app: FastAPI, auth_headers: dict[str, str], work_dir: Path
+):
     response = client.post('/v1/markdown', headers=auth_headers, files={'file': ('blob.dat', BINARY)})
 
     assert response.status_code == 415
     assert response.json()['code'] == 'unsupported_format'
+    assert 'application/octet-stream' in response.json()['detail']
+    assert not app.state.services.markdown._pool.started
     assert _leftovers(work_dir) == []
+
+
+def test_known_binary_format_names_detected_type(client: TestClient, auth_headers: dict[str, str]):
+    response = client.post('/v1/markdown', headers=auth_headers, files={'file': ('photo.dat', _png())})
+
+    assert response.status_code == 415
+    assert 'image/png (png)' in response.json()['detail']
+
+
+def _png() -> bytes:
+    import io
+
+    from PIL import Image
+
+    buffer = io.BytesIO()
+    Image.new('RGB', (32, 32), (200, 30, 30)).save(buffer, format='PNG')
+    return buffer.getvalue()
 
 
 def test_openapi_documents_route(client: TestClient):
