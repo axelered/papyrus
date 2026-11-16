@@ -71,3 +71,10 @@ def test_normalize_keeps_matching_alias(tmp_path: Path):
     path.write_text('x')
 
     assert normalize_extension(path, Formats.HTML) == path
+
+
+async def test_tiny_text_trusts_its_extension(service: DetectService, make_document: DocumentFactory):
+    document = await service.detect(make_document('p.html', b'<h1>T</h1><p>x</p>'))
+
+    assert document.format is Formats.HTML
+    assert document.path.name == 'p.html'

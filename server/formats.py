@@ -192,6 +192,15 @@ def resolve(detected: str, extension: str) -> Format:
     by_extension = from_extension(extension) if extension else None
     if by_extension is not None and detected in _ancestors(by_extension):
         return by_extension
+    content = lookup(detected)
+    if (
+        by_extension is not None
+        and by_extension.text
+        and content.text
+        and by_extension.label not in _ancestors(content)
+    ):
+        # magika separates text from binary reliably but confuses small text formats (html vs erb, js vs ts)
+        return by_extension
     if detected == FormatLabel.UNKNOWN:
         return by_extension or Formats.UNKNOWN
-    return lookup(detected)
+    return content

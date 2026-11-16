@@ -6,7 +6,8 @@ input, and report what was detected. Extends `adr/architecture.md`.
 
 ## Goals
 
-- Content is the source of truth; client file names and `Content-Type` are hints only.
+- Content is the source of truth across text and binary; within text formats the file name decides (rule 2), since
+  magika confuses small text formats with overlapping syntax.
 - One canonical format table drives detection, per-op allowlists, future routes and docs.
 - Detected type travels with the result so downstream steps can use it; chunking (`adr/chunking.md`) uses it to
   pick code languages and slide metadata.
@@ -136,8 +137,12 @@ failure, never a silent `unknown`.
 
 1. magika returns a label that is a **base** of the extension's format (directly or transitively): the extension
    refines it (`data.csv` + `txt` -> `csv`, `feed.rss` + `xml` -> `rss`, `book.docx` + `zip` -> `docx`).
-2. magika returns `unknown`: use the extension's format, else `unknown`.
-3. Otherwise magika wins (`report.pdf` + `html` -> `html`).
+2. Content and extension are **both text** formats and the extension is not a generic ancestor of the content:
+   the extension wins (`p.html` + `erb` -> `html`, `app.py` + `javascript` -> `python`), while a generic name keeps
+   specific content (`notes.txt` + `python` -> `python`). magika separates text from binary reliably but confuses
+   small text formats with overlapping syntax.
+3. magika returns `unknown`: use the extension's format, else `unknown`.
+4. Otherwise magika wins (`report.pdf` + `html` -> `html`, `photo.html` + `png` -> `png`).
 
 ## Extension Normalization
 
