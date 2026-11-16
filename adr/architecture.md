@@ -20,7 +20,7 @@ and returns the result as a file or JSON, or writes it to a configured destinati
 | Process pools        | `pebble.ProcessPool` (per-task timeout kills the worker)       |
 | Remote sources       | httpx (SSRF-guarded)                                           |
 | Connectors           | fsspec (s3fs now; other protocols by adding the dependency)    |
-| Markdown extraction  | markitdown                                                     |
+| Markdown extraction  | markitdown with `pdf,docx,pptx,xlsx,xls,outlook` extras        |
 | Rendering            | pypdfium2 + Pillow (PyMuPDF rejected: AGPL)                    |
 | Virus scan           | ClamAV clamd inside the image (own ADR, out of scope here)     |
 | Errors               | RFC 9457 `application/problem+json`                            |
@@ -71,6 +71,10 @@ Rules:
 - **Pool helper** (`services/pool.py`): wraps `pool.schedule(fn, args, timeout)` with `asyncio.wrap_future`, maps
   `TimeoutError` to `504 processing_timeout`, worker crash to `500 processing_failed`, and cancels the future on
   `CancelledError`.
+- **Worker errors:** worker functions translate library exceptions into `PapyrusError` (raised `from None`) so the
+  parent never unpickles library exception types; anything else surfaces as `processing_failed`.
+- **Registry** (`services/registry.py`): a `Services` dataclass built from `workers` config, closed in a thread on
+  shutdown (pool join is blocking).
 - **Sizing:** YAML sets only `workers.processes` (default `os.cpu_count()`). Per-service sizes are derived by
   heuristics in code: markdown = render = `processes`, convert = `max(1, processes // 2)` (soffice RAM).
   todo: make per-service sizes, timeouts and `max_tasks` configurable in YAML.

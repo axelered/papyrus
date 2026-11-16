@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -11,6 +12,7 @@ from server.io.connectors import Connectors
 from server.io.http import HttpFetcher
 from server.io.transfer import Transfer
 from server.logs import RequestIdMiddleware, configure_logging
+from server.services.registry import Services
 
 
 def create_app(settings: Settings | None = None, config: Config | None = None) -> FastAPI:
@@ -28,10 +30,12 @@ def create_app(settings: Settings | None = None, config: Config | None = None) -
         max_file_size = int(resolved_config.limits.max_file_size)
         http = HttpFetcher(resolved_config.http, max_file_size)
         app.state.transfer = Transfer(Connectors(resolved_config.connectors), http, max_file_size)
+        app.state.services = services = Services.create(resolved_config.workers)
         try:
             yield
         finally:
             await http.aclose()
+            await asyncio.to_thread(services.close)
 
     configure_logging()
     app = FastAPI(title='Axelered Papyrus', lifespan=lifespan)
