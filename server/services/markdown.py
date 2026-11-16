@@ -1,8 +1,8 @@
-import re
 from pathlib import Path
 from typing import Any
 
 from server.errors import ProcessingFailed, UnsupportedFormat
+from server.services.fence import fence
 from server.services.pool import ProcessPool
 
 TIMEOUT = 120
@@ -46,14 +46,6 @@ def decode_text(raw: bytes) -> str:
 
     best = from_bytes(raw).best()
     return str(best) if best is not None else raw.decode('utf-8', errors='replace')
-
-
-def fence(text: str, language: str) -> str:
-    """One CommonMark fenced block; the fence is longer than any backtick run inside so content cannot break out"""
-    longest = max((len(run) for run in re.findall(r'`+', text)), default=0)
-    marker = '`' * max(3, longest + 1)
-    body = text if not text or text.endswith('\n') else f'{text}\n'
-    return f'{marker}{language}\n{body}{marker}\n'
 
 
 def fence_code(source: str, target: str, language: str) -> None:

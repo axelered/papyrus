@@ -86,8 +86,16 @@ markdown --MarkdownChef--+-- prose  --> RecursiveChunker (Papyrus rules)
   is not curated: `language` is `null`, the fence tag stays in the chunk text and the line fallback is used.
   `CodeChunker` is only called for a `CodeLanguage` whose grammar is in `downloaded_languages()`; calling it for a
   missing grammar triggers a download of the whole 524 MB pack.
-- **Headings** path: computed from the heading lines preceding each chunk's `start`.
+- **Sections:** prose is split at headings and slide markers before `RecursiveChunker` runs, so a chunk never spans
+  two sections even when both would fit; heading-only runs (an H1 directly followed by an H2) join the next section.
+- **Headings** path and **slide**: taken at the chunk's first body line (not a heading, marker or blank line), from
+  ATX headings outside code blocks, so `#` comments in code never become headings.
 - **Slides:** taken from markitdown's `<!-- Slide number: N -->` markers.
+- **Overlap** is applied between prose chunks only, so fences and table rows are never cut; `start`/`end` always
+  refer to the chunk's own span, the appended overlap is not included.
+- **Tokens:** tiktoken encodings are wrapped in a subclass of chonkie's tiktoken adapter that uses
+  `encode_ordinary`, so documents containing special token text (`<|endoftext|>`) are counted as plain text instead
+  of crashing. `tokens` is the count of the final chunk text (fences and overlap included).
 
 ## Build And Runtime
 

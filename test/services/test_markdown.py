@@ -4,7 +4,8 @@ from pathlib import Path
 import pytest
 
 from server.errors import UnsupportedFormat
-from server.services.markdown import MarkdownService, decode_text, fence
+from server.services.fence import fence
+from server.services.markdown import MarkdownService, decode_text
 from test.fixtures.documents import BINARY, CSV, HTML, DocumentFactory
 
 pytestmark = pytest.mark.anyio
