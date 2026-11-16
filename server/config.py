@@ -72,7 +72,7 @@ class Config(_Section):
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix='PAPYRUS_', frozen=True)
+    model_config = SettingsConfigDict(env_prefix='PAPYRUS_', env_file='.env', extra='ignore', frozen=True)
 
     config: Path = DEFAULT_CONFIG_PATH
     api_key: str = ''

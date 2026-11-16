@@ -173,6 +173,8 @@ todo: generic `POST /v1/pipeline` with a step DSL, built on the same services.
 ## Configuration
 
 - Path from `PAPYRUS_CONFIG`, default `/etc/papyrus/config.yml`. Missing file means all defaults.
+- `PAPYRUS_*` env vars may also come from a gitignored `.env` in the working directory (local development only; the
+  image ships none).
 - `${VAR}` placeholders are expanded from the environment in parsed string values (never in raw YAML text, so env
   values cannot inject YAML) before validation; an undefined variable fails startup.
 - Unknown keys are rejected. Durations are seconds, sizes accept units (`100MB`, `2MiB`).
@@ -264,6 +266,9 @@ Dockerfile
 ## Deployment
 
 - One container = one uvicorn process. Never use `--workers`: it multiplies pools and splits the admission semaphore.
+- Image: two-stage build (`uv sync --locked --no-dev` into `/app/.venv`, then a clean `python:3.14-slim`), runs as
+  non-root uid 10001, 30s graceful shutdown. Only runtime dependencies are installed, so anything the server needs
+  (uvicorn, python-multipart) must be a main dependency, not only part of `fastapi[standard]`.
 - Config mounted at `/etc/papyrus/config.yml`; secrets via env.
 - Container `HEALTHCHECK` on `/health`; orchestrator readiness on `/ready`.
 - Logs: stdlib `logging` under the `papyrus.*` logger namespace, JSON lines on stderr, `X-Request-ID` echoed (if it

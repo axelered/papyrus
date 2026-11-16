@@ -1,0 +1,12 @@
+.git
+.idea
+.claude
+.venv
+.ruff_cache
+.pytest_cache
+**/__pycache__
+adr
+test
+*.local*
+*.nogit*
+.env

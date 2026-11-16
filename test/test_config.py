@@ -102,7 +102,7 @@ def test_settings_reads_prefixed_env(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv('PAPYRUS_API_KEY', ' k1, ,k2 ')
     monkeypatch.setenv('PAPYRUS_CONFIG', '/tmp/x.yml')
 
-    settings = Settings()
+    settings = Settings(_env_file=None)
 
     assert settings.api_keys == ('k1', 'k2')
     assert settings.config == Path('/tmp/x.yml')
@@ -110,8 +110,15 @@ def test_settings_reads_prefixed_env(monkeypatch: pytest.MonkeyPatch):
 
 def test_settings_check_fails_closed():
     with pytest.raises(ConfigError, match='PAPYRUS_API_KEY'):
-        Settings(api_key=' , ').check()
+        Settings(api_key=' , ', _env_file=None).check()
 
 
 def test_settings_check_allows_disabled_auth():
     Settings(auth_disabled=True).check()
+
+
+def test_settings_reads_dotenv_file(tmp_path: Path):
+    env_file = tmp_path / '.env'
+    env_file.write_text('PAPYRUS_AUTH_DISABLED=true\nOTHER_TOOL=1\n')
+
+    assert Settings(_env_file=env_file).auth_disabled

@@ -4,7 +4,7 @@
 
 ### Architecture (spec: `adr/architecture.md`)
 
-- [ ] Scaffold core: config loader, auth, errors, request parsing, workspace, outputs, health, Dockerfile
+- [x] Scaffold core: config loader, auth, errors, request parsing, workspace, outputs, health, Dockerfile
 - [x] I/O layer: URI parsing, SSRF-safe http fetch, fsspec connectors, destination upload
 - [x] Markdown extraction service and `/v1/markdown` (markitdown, spec: `adr/markdown.md`)
 - [ ] Thumbnail render service and `/v1/thumbnail` for PDF and images (pypdfium2 + Pillow)

@@ -9,7 +9,7 @@ from server.logs import JsonFormatter, request_id
 
 
 def test_startup_fails_without_api_key(tmp_path):
-    app = create_app(settings=Settings(config=tmp_path / 'absent.yml'))
+    app = create_app(settings=Settings(config=tmp_path / 'absent.yml', _env_file=None))
 
     with pytest.raises(ConfigError, match='PAPYRUS_API_KEY'), TestClient(app):
         pass
