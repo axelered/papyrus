@@ -29,7 +29,8 @@ curl -H "Authorization: Bearer $KEY" -H 'content-type: application/json' \
 - Sizing heuristics: `processes = workers.processes`, timeout 120s, `max_tasks` 100.
 - Formats: markitdown built-ins plus the `pdf,docx,pptx,xlsx,xls,outlook` extras.
 - Allowlist (format labels from `adr/mime.md`): `pdf`, `docx`, `pptx`, `xlsx`, `xls`, `outlook`, `html`, `csv`,
-  `tsv`, `markdown`, `txt`, `json`, `xml`, `rss`, `atom`, `ipynb`, `epub`, `zip`, plus every derived text format.
+  `tsv`, `markdown`, `txt`, `json`, `jsonl`, `xml`, `rss`, `atom`, `ipynb`, `epub`, `zip`, plus every derived text
+  format (`MARKDOWN_FORMATS` and `accepts` in `api/markdown.py`).
   The source is detected and its extension normalized before the worker runs, so markitdown always receives a
   correct extension.
 - todo: route `doc`, `ppt`, `rtf`, `odt`, `ods`, `odp` through the convert service once it exists.
