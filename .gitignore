@@ -20,3 +20,6 @@ dist/
 .mypy_cache/
 .coverage
 htmlcov/
+
+# prefetched chunking assets (grammars, tokenizers)
+.assets/

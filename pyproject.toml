@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "charset-normalizer>=3.5.2",
+    "chonkie[code]>=1.7.0",
     "fastapi>=0.163.1",
     "httpx>=0.28.1",
     "magika>=1.0.3",
@@ -16,6 +17,7 @@ dependencies = [
     "python-multipart>=0.0.34",
     "pyyaml>=6.0.3",
     "s3fs>=2026.9.0",
+    "tiktoken>=0.14.0",
     "uvicorn>=0.54.0",
 ]
 

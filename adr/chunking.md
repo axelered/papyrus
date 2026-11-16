@@ -96,7 +96,11 @@ markdown --MarkdownChef--+-- prose  --> RecursiveChunker (Papyrus rules)
   `tree_sitter_language_pack.download`, deletes the bundle archive, and runs `tiktoken.get_encoding` for every
   tiktoken-backed `Tokenizer` with `TIKTOKEN_CACHE_DIR` set to an image path. The app configures the same paths at
   worker start.
-- Curated `CodeLanguage` members (about 25, about 80 MB): python, javascript, typescript, tsx, java, kotlin, go,
+- Assets live under `PAPYRUS_ASSETS_DIR` (`/app/assets` in the image, gitignored `.assets/` in the repo for local
+  development: run `uv run python -m server.services.chunking.prefetch` once); `assets.configure()` must run before
+  tree-sitter or tiktoken load anything, otherwise they fall back to user cache dirs. Prefetch is idempotent and
+  fails if a curated grammar is still missing afterwards.
+- Curated `CodeLanguage` members (25, about 62 MB with both encodings): python, javascript, typescript, tsx, java, kotlin, go,
   rust, c, cpp, csharp, php, ruby, swift, scala, bash, powershell, sql, yaml, toml, json, html, css, dockerfile, hcl.
   todo: make the grammar list configurable.
 - Workers build the tiktoken encoding themselves and pass the object to chonkie; chonkie's own resolution of

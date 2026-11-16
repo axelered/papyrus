@@ -8,17 +8,23 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --locked --no-dev --no-install-project
 
+# libraries must never download at runtime: grammars and tokenizers are baked in here
+COPY server ./server
+RUN PAPYRUS_ASSETS_DIR=/app/assets /app/.venv/bin/python -m server.services.chunking.prefetch
+
 
 FROM python:3.14-slim
 
 RUN useradd --system --uid 10001 --no-create-home papyrus
 WORKDIR /app
 COPY --from=build /app/.venv /app/.venv
+COPY --from=build /app/assets /app/assets
 COPY server ./server
 
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
-    PAPYRUS_CONFIG=/etc/papyrus/config.yml
+    PAPYRUS_CONFIG=/etc/papyrus/config.yml \
+    PAPYRUS_ASSETS_DIR=/app/assets
 
 USER papyrus
 EXPOSE 8000
