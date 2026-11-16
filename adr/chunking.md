@@ -113,7 +113,8 @@ markdown --MarkdownChef--+-- prose  --> RecursiveChunker (Papyrus rules)
   todo: make the grammar list configurable.
 - Workers build the tiktoken encoding themselves and pass the object to chonkie; chonkie's own resolution of
   `o200k_base` goes through `tokie`, which downloads from the Hugging Face Hub.
-- A test asserts that chunking runs with network access disabled for every allowed tokenizer and curated language.
+- A test asserts that chunking runs with network access disabled for every allowed tokenizer and curated language;
+  the image is smoke-tested with `docker run --network none`.
 
 ## Errors
 

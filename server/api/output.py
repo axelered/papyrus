@@ -60,4 +60,4 @@ async def respond(
         return JSONResponse(receipt.model_dump(mode='json', exclude_none=True))
     if op.model.output == OutputMode.FILE:
         return WorkspaceFileResponse(path, media_type, op.workspace)
-    return JSONResponse(as_json().model_dump(mode='json'))
+    return JSONResponse(as_json().model_dump(mode='json', exclude_unset=True))

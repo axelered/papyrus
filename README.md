@@ -55,6 +55,30 @@ curl -H "Authorization: Bearer <key>" -H 'content-type: application/json' \
 `source_type` is the detected input: `{"mime_type": "text/html", "extension": "html", "label": "html", "group": "markup"}`.
 For code, `label` is the language.
 
+#### Chunking
+
+Optional structure-aware chunks for RAG, requires `output: json`. Chunks follow headings, split tables by rows with the
+header repeated, and split code along functions and classes.
+
+```json
+{"source": "s3://prod/docs/report.docx", "options": {"chunking": {"max_tokens": 512, "overlap": 0, "tokenizer": "o200k_base"}}}
+```
+
+| Option       | Default      | Values                                          |
+|--------------|--------------|-------------------------------------------------|
+| `max_tokens` | `512`        | `64` to `8192`                                  |
+| `overlap`    | `0`          | tokens of the next prose chunk, below `max_tokens` |
+| `tokenizer`  | `o200k_base` | `o200k_base`, `cl100k_base`, `word`, `character` |
+
+The result gains `chunks`:
+
+```json
+{"index": 2, "kind": "code", "text": "```python\ndef load(path): ...\n```\n", "language": "python",
+ "headings": ["Report", "Implementation"], "slide": null, "start": 278, "end": 412, "tokens": 87}
+```
+
+`kind` is `text`, `table` or `code`; `start`/`end` are offsets into `markdown`; `slide` is set for presentations.
+
 ### Errors
 
 Errors are `application/problem+json` with a stable `code`:
@@ -84,6 +108,13 @@ The server refuses to start without an API key. For local development create a g
 ```shell
 PAPYRUS_AUTH_DISABLED=true
 PAPYRUS_CONFIG=config.local.yml
+```
+
+Download the chunking grammars and tokenizers once into the gitignored `.assets/` (the server never downloads at
+runtime, the Docker build does the same):
+
+```shell
+uv run python -m server.services.chunking.prefetch
 ```
 
 ```shell
