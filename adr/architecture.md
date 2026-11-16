@@ -157,7 +157,7 @@ Anything else: `422 unsupported_uri`. Unknown connector: `422 unknown_connector`
 | `GET /`               | no   | Service name                                                  |
 | `GET /health`         | no   | Liveness, always 200                                          |
 | `GET /ready`          | no   | 503 when admission is exhausted so the LB drains the replica  |
-| `POST /v1/markdown`   | yes  | Extract markdown (markitdown)                                 |
+| `POST /v1/markdown`   | yes  | Extract markdown (markitdown), see `adr/markdown.md`          |
 | `POST /v1/thumbnail`  | yes  | Render a thumbnail of the first page / image at requested size |
 | `POST /v1/scan`       | yes  | Virus scan, JSON result only                                  |
 

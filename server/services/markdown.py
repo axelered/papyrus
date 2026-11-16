@@ -29,7 +29,7 @@ def convert_to_markdown(source: str, target: str) -> str | None:
         raise UnsupportedFormat('file could not be converted, it may be corrupted or mislabeled') from None
     except Exception as e:
         raise ProcessingFailed(f'markdown extraction failed ({type(e).__name__})') from None
-    Path(target).write_text(result.markdown, encoding='utf-8')
+    Path(target).write_text(result.markdown, encoding='utf-8', newline='')
     return result.title
 
 

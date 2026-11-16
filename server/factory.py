@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from server.api import health
+from server.api import health, markdown
 from server.api.admission import Admission
 from server.config import Config, Settings, load_config
 from server.errors import install_error_handlers
@@ -42,4 +42,5 @@ def create_app(settings: Settings | None = None, config: Config | None = None) -
     app.add_middleware(RequestIdMiddleware)
     install_error_handlers(app)
     app.include_router(health.router)
+    app.include_router(markdown.router)
     return app

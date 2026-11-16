@@ -5,7 +5,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from server.config import Config, LimitsConfig, Settings
+from server.config import Config, LimitsConfig, Settings, WorkersConfig
 from server.factory import create_app
 from test.fixtures.storage import MEMORY_CONNECTORS
 
@@ -24,7 +24,11 @@ def work_dir(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def config(work_dir: Path) -> Config:
-    return Config(limits=LimitsConfig(tmp_dir=work_dir), connectors=MEMORY_CONNECTORS)
+    return Config(
+        workers=WorkersConfig(processes=1),
+        limits=LimitsConfig(tmp_dir=work_dir),
+        connectors=MEMORY_CONNECTORS,
+    )
 
 
 @pytest.fixture
