@@ -7,6 +7,7 @@
 - [x] Scaffold core: config loader, auth, errors, request parsing, workspace, outputs, health, Dockerfile
 - [x] I/O layer: URI parsing, SSRF-safe http fetch, fsspec connectors, destination upload
 - [x] Markdown extraction service and `/v1/markdown` (markitdown, spec: `adr/markdown.md`)
+- [ ] MIME detection with magika, canonical and derived format tables, per-op allowlists, fenced code markdown (spec: `adr/mime.md`)
 - [ ] Thumbnail render service and `/v1/thumbnail` for PDF and images (pypdfium2 + Pillow)
 - [ ] Virus scan service and `/v1/scan` (clamd inside the image, own ADR)
 - [!] Pipeline endpoint with a step DSL over existing services
@@ -16,6 +17,8 @@
 - [!] Per-service queue caps against head-of-line blocking
 - [!] Metrics
 - [!] External OCR API service
+- [!] Legacy format routes (doc, ppt, rtf, odt, ods, odp) through the convert service
+- [!] Context-aware markdown chunking based on the detected source type
 
 ## Future Issues
 

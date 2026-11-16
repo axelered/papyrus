@@ -46,7 +46,9 @@ and returns the result as a file or JSON, or writes it to a configured destinati
   file responses a `FileResponse` subclass deletes it after streaming, also when the client disconnects mid-stream
   (a `BackgroundTask` would be skipped in that case).
 - All data moves between components as **file paths** in the workspace, never as in-memory bytes. Original filenames
-  (and therefore extensions) are preserved for format detection.
+  are preserved as detection hints.
+- After `materialize`, coordinators call `detect` to get a typed `Document` (content-based type, normalized extension)
+  and route on it; see `adr/mime.md`.
 - Backends without filesystem access (remote sidecars, external APIs) receive streamed file content.
 - `limits.max_file_size` is enforced on upload copy, http fetch, and connector get (`413 source_too_large`).
 
@@ -61,6 +63,7 @@ backend and hides its kind from coordinators. Services compose in coordinators
 | Pool      | `pebble.ProcessPool`, top-level worker fn | `processes`, `timeout`, `max_tasks`  | markdown, render        |
 | Daemon    | N supervised long-lived processes       | async queue of instances             | convert (unoserver)     |
 | Remote    | TCP / HTTP client                       | `asyncio.Semaphore(concurrency)`     | scan (clamd), OCR API   |
+| Inline    | In-process, `asyncio.to_thread`         | admission only (ms-scale, GIL-free)  | detect (magika)         |
 
 Rules:
 
@@ -238,6 +241,7 @@ server/
   config.py            settings models, YAML + ${VAR} loader
   auth.py              bearer dependency
   errors.py            PapyrusError hierarchy, problem+json handlers
+  formats.py           canonical format table (magika label -> MIME, extension, base)
   api/
     admission.py       non-blocking in-flight counter (event loop only, no semaphore needed)
     request.py         JSON | multipart -> model, op context (admission, workspace, deadline)
@@ -254,6 +258,7 @@ server/
     transfer.py        materialize(uri) -> Path, deliver(Path, uri)
   services/
     pool.py            lazy pebble pool helper
+    detect.py          DetectService (magika, inline)
     markdown.py        MarkdownService + worker fn
     render.py          RenderService + worker fn
     scan.py            ScanService
