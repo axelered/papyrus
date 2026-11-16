@@ -102,6 +102,7 @@ MIME, gives `outlook` no extension, and groups `csv` as code). Formats magika ca
 | `rss`      | `application/rss+xml`                                                       | `rss`   | markup       | `xml`  |
 | `atom`     | `application/atom+xml`                                                      | `atom`  | markup       | `xml`  |
 | `json`     | `application/json`                                                          | `json`  | data         | `txt`  |
+| `jsonl`    | `application/jsonl`                                                         | `jsonl` | data         | `json` |
 | `ipynb`    | `application/x-ipynb+json`                                                  | `ipynb` | code         | `json` |
 | `unknown`  | `application/octet-stream`                                                  | `bin`   | unknown      |        |
 
@@ -120,11 +121,18 @@ MIME, gives `outlook` no extension, and groups `csv` as code). Formats magika ca
   no model load). It is private API, so tests pin that every explicit label exists in it.
 - Extension index: derived text formats by magika extensions, then explicit formats override.
 - A test pins magika's label for one fixture per format, so a magika upgrade that changes labels fails CI instead
-  of silently rerouting.
+  of silently rerouting. Fixtures are generated in `test/fixtures/samples.py` (pdf, docx, xlsx, pptx, zip, html,
+  csv, json, jsonl, markdown, python, typescript). todo: pin legacy binaries (doc, xls, ppt, msg) once real sample
+  files are checked in.
 
 ## Resolution Rules
 
-Applied in order; the file is never rejected for a mismatch (the virus scan is the safety net).
+Applied in order; the file is never rejected for a mismatch (the virus scan is the safety net). magika's no-signal
+labels (`empty`, `undefined`) count as `unknown`; a non-ok magika status (e.g. unreadable file) is a detection
+failure, never a silent `unknown`.
+
+- magika reports single-line JSON as `jsonl` (a valid JSONL document), so a minified `data.json` resolves to `jsonl`;
+  both are processed as text, only `source_type` differs.
 
 1. magika returns a label that is a **base** of the extension's format (directly or transitively): the extension
    refines it (`data.csv` + `txt` -> `csv`, `feed.rss` + `xml` -> `rss`, `book.docx` + `zip` -> `docx`).

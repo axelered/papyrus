@@ -46,6 +46,7 @@ class FormatLabel(StrEnum):
     RSS = 'rss'
     ATOM = 'atom'
     JSON = 'json'
+    JSONL = 'jsonl'
     IPYNB = 'ipynb'
     UNKNOWN = 'unknown'
 
@@ -115,9 +116,13 @@ class Formats:
     RSS = Format(_L.RSS, 'application/rss+xml', 'rss', _G.MARKUP, _L.XML, text=True)
     ATOM = Format(_L.ATOM, 'application/atom+xml', 'atom', _G.MARKUP, _L.XML, text=True)
     JSON = Format(_L.JSON, 'application/json', 'json', _G.DATA, _L.TXT, text=True)
+    JSONL = Format(_L.JSONL, 'application/jsonl', 'jsonl', _G.DATA, _L.JSON, text=True, aliases=('ndjson',))
     IPYNB = Format(_L.IPYNB, 'application/x-ipynb+json', 'ipynb', _G.CODE, _L.JSON, text=True)
     UNKNOWN = Format(_L.UNKNOWN, 'application/octet-stream', 'bin', _G.UNKNOWN)
 
+
+# magika labels that say nothing about the format, so the extension decides
+_NO_SIGNAL = frozenset({'empty', 'undefined'})
 
 EXPLICIT: dict[str, Format] = {value.label: value for value in vars(Formats).values() if isinstance(value, Format)}
 
@@ -182,6 +187,8 @@ def _ancestors(value: Format) -> set[str]:
 
 def resolve(detected: str, extension: str) -> Format:
     """Content wins; the extension refines generic content labels and fills in for unknown content"""
+    if detected in _NO_SIGNAL:
+        detected = FormatLabel.UNKNOWN
     by_extension = from_extension(extension) if extension else None
     if by_extension is not None and detected in _ancestors(by_extension):
         return by_extension
