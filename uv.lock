@@ -1539,6 +1539,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "fastapi" },
     { name = "httpx" },
+    { name = "magika" },
     { name = "markitdown", extra = ["docx", "outlook", "pdf", "pptx", "xls", "xlsx"] },
     { name = "pebble" },
     { name = "pydantic" },
@@ -1560,6 +1561,7 @@ dev = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.163.1" },
     { name = "httpx", specifier = ">=0.28.1" },
+    { name = "magika", specifier = ">=1.0.3" },
     { name = "markitdown", extras = ["docx", "outlook", "pdf", "pptx", "xls", "xlsx"], specifier = ">=0.1.9" },
     { name = "pebble", specifier = ">=5.2.3" },
     { name = "pydantic", specifier = ">=2.14.3" },

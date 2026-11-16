@@ -50,7 +50,9 @@ class Format:
     extension: str
     group: FormatGroup
     base: FormatLabel | None    # parent used by extension refinement
+    text: bool                  # decodable text; derived text formats are processable by text-family allowlists
     derived: bool               # True when built from magika metadata instead of the explicit table
+    aliases: tuple[str, ...]    # extra extensions mapping to this format (htm, docm)
 
 
 @dataclass(frozen=True)
@@ -110,8 +112,13 @@ MIME, gives `outlook` no extension, and groups `csv` as code). Formats magika ca
 - Every other magika label with `is_text` (134 text labels in total, 93 in group `code`, e.g. `python`,
   `typescript`, `rust`, `sql`, `dockerfile`, `yaml`, `toml`, `latex`, `rst`, `eml`, `srt`) is derived from magika
   metadata: its label, MIME (`text/x-python`), first extension (else `txt`), group, base `txt`, `derived=True`.
+- Derived group: magika `code` -> `code`, any other text group -> `text`.
 - A derived label whose magika group or MIME is wrong for our use gets an explicit entry instead.
-- Non-text labels outside the explicit table map to `unknown`, keeping magika's label for logs and `detail`.
+- Non-text labels outside the explicit table are derived too (magika label and MIME, e.g. `png` / `image/png`) with
+  group `unknown` and `text=False`, so responses stay informative while text-family allowlists reject them.
+- magika metadata comes from its bundled content types knowledge base (`Magika._load_content_types_kb`, JSON only,
+  no model load). It is private API, so tests pin that every explicit label exists in it.
+- Extension index: derived text formats by magika extensions, then explicit formats override.
 - A test pins magika's label for one fixture per format, so a magika upgrade that changes labels fails CI instead
   of silently rerouting.
 

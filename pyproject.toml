@@ -7,6 +7,7 @@ requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.163.1",
     "httpx>=0.28.1",
+    "magika>=1.0.3",
     "markitdown[docx,outlook,pdf,pptx,xls,xlsx]>=0.1.9",
     "pebble>=5.2.3",
     "pydantic>=2.14.3",
