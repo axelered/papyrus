@@ -16,7 +16,7 @@ and returns the result as a file or JSON, or writes it to a configured destinati
 | Concern              | Choice                                                         |
 |----------------------|----------------------------------------------------------------|
 | HTTP                 | FastAPI, single uvicorn process per container (no `--workers`) |
-| Models / config      | Pydantic v2, pydantic-settings with YAML source                |
+| Models / config      | Pydantic v2 models from YAML (pyyaml), pydantic-settings for env |
 | Process pools        | `pebble.ProcessPool` (per-task timeout kills the worker)       |
 | Remote sources       | httpx (SSRF-guarded)                                           |
 | Connectors           | fsspec (s3fs now; other protocols by adding the dependency)    |
@@ -150,7 +150,9 @@ todo: generic `POST /v1/pipeline` with a step DSL, built on the same services.
 ## Configuration
 
 - Path from `PAPYRUS_CONFIG`, default `/etc/papyrus/config.yml`. Missing file means all defaults.
-- `${VAR}` placeholders are expanded from the environment before validation; an undefined variable fails startup.
+- `${VAR}` placeholders are expanded from the environment in parsed string values (never in raw YAML text, so env
+  values cannot inject YAML) before validation; an undefined variable fails startup.
+- Unknown keys are rejected. Durations are seconds, sizes accept units (`100MB`, `2MiB`).
 - Validated once at boot (fail fast), immutable afterwards.
 
 ```yaml
@@ -160,14 +162,14 @@ workers:
 
 limits:
   max_file_size: 100MB
-  deadline: 300s
-  tmp_dir: /tmp/papyrus
+  deadline: 300            # seconds
+  tmp_dir: /tmp/papyrus    # default: system temp dir + /papyrus
 
 http:
   enabled: true
   allow_private: false
   allowed_hosts: []
-  timeout: 30s
+  timeout: 30              # seconds
   max_redirects: 5
 
 connectors:
@@ -224,7 +226,7 @@ server/
     markdown.py        MarkdownService + worker fn
     render.py          RenderService + worker fn
     scan.py            ScanService
-tests/                 mirrors server/
+test/                  mirrors server/, shared fixtures in test/fixtures/
 Dockerfile
 ```
 
