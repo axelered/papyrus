@@ -115,6 +115,14 @@ A request parser dependency (`api/request.py`) dispatches on `Content-Type` and 
 
 Anything else: `422 unsupported_uri`. Unknown connector: `422 unknown_connector`.
 
+- URIs are split literally as `<scheme>://<authority>/<path>` (no `urlsplit`, no percent-decoding) so object keys
+  containing `?`, `#` or `%` round-trip.
+- Each connector protocol is checked with `fsspec.get_filesystem_class` at startup; a missing implementation fails
+  boot. Filesystems are created lazily and cached per connector.
+- fsspec calls use the sync API in `asyncio.to_thread`. todo: switch to the native async API of s3fs if thread usage
+  becomes a bottleneck.
+- `destination` is validated before any processing so a bad target never wastes work.
+
 ### HTTP Fetch Policy
 
 - Resolve the host, reject loopback, private, link-local, ULA and metadata ranges unless `http.allow_private`.
