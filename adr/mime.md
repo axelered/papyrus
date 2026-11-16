@@ -26,14 +26,31 @@ Docker.
 ## Document
 
 ```python
+class FormatGroup(StrEnum):
+    DOCUMENT = 'document'
+    SPREADSHEET = 'spreadsheet'
+    PRESENTATION = 'presentation'
+    EMAIL = 'email'
+    ARCHIVE = 'archive'
+    MARKUP = 'markup'
+    DATA = 'data'
+    CODE = 'code'
+    TEXT = 'text'
+    UNKNOWN = 'unknown'
+
+
+class FormatLabel(StrEnum):  # explicit table only, e.g. PDF = 'pdf', DOCX = 'docx', IPYNB = 'ipynb'
+    ...
+
+
 @dataclass(frozen=True)
 class Format:
-    label: str        # magika label, doubles as language for code ('python', 'rust')
+    label: str                  # FormatLabel value, or magika ContentTypeLabel value for derived formats
     mime_type: str
     extension: str
-    group: str        # document, spreadsheet, presentation, email, archive, markup, data, code, text, unknown
-    base: str | None  # parent label used by extension refinement
-    derived: bool     # True when built from magika metadata instead of the explicit table
+    group: FormatGroup
+    base: FormatLabel | None    # parent used by extension refinement
+    derived: bool               # True when built from magika metadata instead of the explicit table
 
 
 @dataclass(frozen=True)
@@ -48,7 +65,9 @@ class Document:
 
 ## Canonical Format Table
 
-`server/formats.py`, two tiers.
+`server/formats.py`, two tiers. Explicit formats are reachable as constants (`Formats.PDF.mime_type`), so code never
+writes a MIME or label literal. Derived formats are looked up internally by magika's `ContentTypeLabel`; their label
+and MIME are open sets and stay `str`.
 
 ### Explicit Formats
 
@@ -114,7 +133,8 @@ Applied in order; the file is never rejected for a mismatch (the virus scan is t
 
 ## Routing
 
-- Each op declares an allowlist of format labels in its route module. Anything else gives
+- Each op declares an allowlist (`frozenset[FormatLabel]`, plus group rules such as "every derived text format")
+  in its route module. Anything else gives
   `415 unsupported_format` with the detected MIME in `detail`, before a worker is used.
 - todo: future routes are entries next to the allowlist, e.g. `doc`, `ppt`, `rtf`, `odt` -> convert service -> op.
 

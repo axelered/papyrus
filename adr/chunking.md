@@ -28,10 +28,21 @@ Optional structure-aware, token-bounded chunking of the markdown produced by `PO
   "chunking": {
     "max_tokens": 512,          // 64..8192, chunk size for every chunker
     "overlap": 0,               // < max_tokens, trailing context via OverlapRefinery, 0 = off
-    "tokenizer": "o200k_base"   // o200k_base | cl100k_base | word | character
+    "tokenizer": "o200k_base"   // Tokenizer: o200k_base | cl100k_base | word | character
   }
 }
 ```
+
+Value sets (`server/services/chunking/`, `StrEnum`, exposed as OpenAPI enums):
+
+| Enum           | Members                                                                         |
+|----------------|---------------------------------------------------------------------------------|
+| `Tokenizer`    | `O200K_BASE`, `CL100K_BASE`, `WORD`, `CHARACTER`                               |
+| `ChunkKind`    | `TEXT`, `TABLE`, `CODE`                                                         |
+| `CodeLanguage` | the curated grammars, values are tree-sitter names (`python`, `csharp`, `bash`) |
+
+- `CodeLanguage` is the single source of truth for the grammars baked into the image; an alias map
+  `dict[str, CodeLanguage]` resolves fence tags and magika labels (`py`, `cs`, `sh`, `shell`, `js`).
 
 - Absent `chunking` means today's behavior.
 - Chunking requires `output: json`; any other output is `422 validation_error`. With `destination`, the full JSON
@@ -45,9 +56,9 @@ The markdown JSON result gains `chunks`, ordered by offset; empty markdown gives
 ```jsonc
 { "markdown": "...", "title": "...", "source_type": { ... },
   "chunks": [
-    { "index": 0, "kind": "text",                         // text | table | code
+    { "index": 0, "kind": "text",                         // ChunkKind
       "text": "## Revenue\n\nRevenue grew 12% ...",
-      "language": null,                                    // code only, tree-sitter name
+      "language": null,                                    // CodeLanguage, code only, null if not curated
       "headings": ["Quarterly Report", "Revenue"],        // heading path at chunk start
       "slide": null,                                       // pptx only
       "start": 20, "end": 139, "tokens": 31 }             // offsets into "markdown"
@@ -71,22 +82,24 @@ markdown --MarkdownChef--+-- prose  --> RecursiveChunker (Papyrus rules)
 - **Code** blocks keep their fence in the chunk text (` ```python ... ``` `), so each chunk carries its language
   for embedding. Derived code sources (`adr/mime.md`) are one fenced block and go through the same path as code
   embedded in documents.
-- **Language resolution:** fence tag or magika label -> tree-sitter name through a small alias map (`cs` -> `csharp`,
-  `sh`/`shell` -> `bash`, `js` -> `javascript`, `py` -> `python`), else `detect_language_from_extension`. If the
-  grammar is not in `downloaded_languages()` the line fallback is used; `CodeChunker` is never called for a missing
-  grammar because that triggers a download of the whole 524 MB pack.
+- **Language resolution:** fence tag or magika label -> `CodeLanguage` by value, then the alias map. Anything else
+  is not curated: `language` is `null`, the fence tag stays in the chunk text and the line fallback is used.
+  `CodeChunker` is only called for a `CodeLanguage` whose grammar is in `downloaded_languages()`; calling it for a
+  missing grammar triggers a download of the whole 524 MB pack.
 - **Headings** path: computed from the heading lines preceding each chunk's `start`.
 - **Slides:** taken from markitdown's `<!-- Slide number: N -->` markers.
 
 ## Build And Runtime
 
-- Docker build prefetches the curated grammars into a fixed `cache_dir` via `tree_sitter_language_pack.download`,
-  deletes the downloaded bundle archive, and the app configures the same `cache_dir` at worker start.
-- Curated grammars (about 25, about 80 MB): python, javascript, typescript, tsx, java, kotlin, go, rust, c, cpp,
-  csharp, php, ruby, swift, scala, bash, powershell, sql, yaml, toml, json, html, css, dockerfile, hcl.
+- Docker build runs `python -m server.services.chunking.prefetch`, which reads the enums so build and code cannot
+  drift: it downloads `[language.value for language in CodeLanguage]` into a fixed `cache_dir` via
+  `tree_sitter_language_pack.download`, deletes the bundle archive, and runs `tiktoken.get_encoding` for every
+  tiktoken-backed `Tokenizer` with `TIKTOKEN_CACHE_DIR` set to an image path. The app configures the same paths at
+  worker start.
+- Curated `CodeLanguage` members (about 25, about 80 MB): python, javascript, typescript, tsx, java, kotlin, go,
+  rust, c, cpp, csharp, php, ruby, swift, scala, bash, powershell, sql, yaml, toml, json, html, css, dockerfile, hcl.
   todo: make the grammar list configurable.
-- Docker build runs `tiktoken.get_encoding` for each allowed encoding with `TIKTOKEN_CACHE_DIR` set to an image path.
-  Workers build the tiktoken encoding themselves and pass the object to chonkie; chonkie's own resolution of
+- Workers build the tiktoken encoding themselves and pass the object to chonkie; chonkie's own resolution of
   `o200k_base` goes through `tokie`, which downloads from the Hugging Face Hub.
 - A test asserts that chunking runs with network access disabled for every allowed tokenizer and curated language.
 

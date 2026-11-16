@@ -231,6 +231,18 @@ pickles across process pools; workers raise them directly.
 | 503    | `queue_full` (with `Retry-After`), `not_ready` (`/ready`), `service_unavailable`   |
 | 504    | `processing_timeout`, `deadline_exceeded`                                          |
 
+## Conventions
+
+- **Owned closed value sets are `StrEnum`** (format labels and groups, output modes, chunk kinds, tokenizers, code
+  languages). They validate in Pydantic, appear as OpenAPI enums and serialize as plain strings.
+- **Open sets owned by libraries are not mirrored:** internally use the library type (magika `ContentTypeLabel`), at
+  the API boundary a documented `str` (`source_type.label`, `source_type.mime_type`), so library upgrades never
+  change the API schema.
+- **No domain string literals** outside the module that defines the enum; attributes of a value (MIME of a format)
+  live on its registry entry, never as separate literals. Allowlists are `frozenset` of enum members.
+- API inputs accept closed enums only; error `code`s stay defined once per `PapyrusError` subclass.
+- todo: `OpRequest.output` moves from `Literal['file', 'json']` to `OutputMode` (wire format unchanged).
+
 ## Code Layout
 
 ```
@@ -259,6 +271,7 @@ server/
   services/
     pool.py            lazy pebble pool helper
     detect.py          DetectService (magika, inline)
+    chunking/          chunker worker, Tokenizer / ChunkKind / CodeLanguage enums, prefetch module
     markdown.py        MarkdownService + worker fn
     render.py          RenderService + worker fn
     scan.py            ScanService
