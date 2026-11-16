@@ -1,0 +1,10 @@
+tasks:
+  install:
+    cmd: [ 'uv', 'sync', '--group', 'dev' ]
+    type: job
+
+  server:
+    cmd: ['uv', 'run', 'fastapi', 'dev', '--entrypoint', 'server:app', '--reload']
+    deps: [install]
+    ready: { log: 'started at' }
+    autostart: true
