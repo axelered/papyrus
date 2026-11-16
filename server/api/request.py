@@ -3,8 +3,9 @@ import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 from fastapi import Request
 from fastapi.exceptions import RequestValidationError
@@ -30,6 +31,11 @@ _MAX_FILE_PARTS = 8
 _CHUNK = 1024 * 1024
 
 
+class OutputMode(StrEnum):
+    FILE = 'file'
+    JSON = 'json'
+
+
 class OpRequest(BaseModel):
     """Common request contract; operations subclass it, override `output` defaults and add typed `options`"""
 
@@ -37,7 +43,7 @@ class OpRequest(BaseModel):
 
     source: str = Field(description='file://<part>, http(s):// URL or <protocol>://<connector>/<path>')
     destination: str | None = Field(default=None, description='Connector URI to write the result to')
-    output: Literal['file', 'json'] = 'json'
+    output: OutputMode = OutputMode.JSON
 
 
 @dataclass

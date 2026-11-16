@@ -241,7 +241,7 @@ pickles across process pools; workers raise them directly.
 - **No domain string literals** outside the module that defines the enum; attributes of a value (MIME of a format)
   live on its registry entry, never as separate literals. Allowlists are `frozenset` of enum members.
 - API inputs accept closed enums only; error `code`s stay defined once per `PapyrusError` subclass.
-- todo: `OpRequest.output` moves from `Literal['file', 'json']` to `OutputMode` (wire format unchanged).
+- `OpRequest.output` is the `OutputMode` enum (`file`, `json`), defined in `api/request.py`.
 
 ## Code Layout
 

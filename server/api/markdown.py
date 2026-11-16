@@ -1,10 +1,8 @@
-from typing import Literal
-
 from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel
 
 from server.api.output import Receipt, respond
-from server.api.request import OpRequest, op_context, openapi_body
+from server.api.request import OpRequest, OutputMode, op_context, openapi_body
 from server.auth import require_api_key
 
 MEDIA_TYPE = 'text/markdown; charset=utf-8'
@@ -13,7 +11,7 @@ router = APIRouter(prefix='/v1', tags=['markdown'], dependencies=[Depends(requir
 
 
 class MarkdownRequest(OpRequest):
-    output: Literal['file', 'json'] = 'json'
+    output: OutputMode = OutputMode.JSON
 
 
 class MarkdownResult(BaseModel):

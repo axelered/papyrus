@@ -2,7 +2,6 @@ import asyncio
 import json
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Literal
 
 import pytest
 from fastapi import FastAPI, Request
@@ -11,7 +10,7 @@ from fsspec import AbstractFileSystem
 from pydantic import BaseModel
 
 from server.api.output import respond
-from server.api.request import OpRequest, op_context, openapi_body
+from server.api.request import OpRequest, OutputMode, op_context, openapi_body
 from server.config import Config, LimitsConfig
 
 
@@ -21,7 +20,7 @@ class EchoOptions(BaseModel):
 
 
 class EchoRequest(OpRequest):
-    output: Literal['file', 'json'] = 'file'
+    output: OutputMode = OutputMode.FILE
     options: EchoOptions = EchoOptions()
 
 

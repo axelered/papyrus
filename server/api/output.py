@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel
 from starlette.types import Receive, Scope, Send
 
-from server.api.request import Op
+from server.api.request import Op, OutputMode
 from server.io.workspace import Workspace
 
 
@@ -36,6 +36,6 @@ async def respond(request: Request, op: Op, path: Path, media_type: str, as_json
     if op.model.destination:
         size = await request.app.state.transfer.deliver(path, op.model.destination)
         return JSONResponse(Receipt(destination=op.model.destination, content_type=media_type, size=size).model_dump())
-    if op.model.output == 'file':
+    if op.model.output == OutputMode.FILE:
         return WorkspaceFileResponse(path, media_type, op.workspace)
     return JSONResponse(as_json().model_dump(mode='json'))
