@@ -7,10 +7,12 @@ Axelered LLC
 @date       2026-11-16
 
 """
+
 from fastapi import FastAPI
 from pydantic import BaseModel
 
 app = FastAPI()
+
 
 class RootResponse(BaseModel):
     status: str = 'ok'

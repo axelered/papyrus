@@ -1,0 +1,22 @@
+line-length = 120
+indent-width = 4
+
+target-version = "py312"
+
+[lint]
+select = [
+    "E",  # pycodestyle - style guide enforcement (PEP 8)
+    "F",  # Pyflakes - logical errors and undefined names
+    "I",  # isort - import sorting
+    "B",  # flake8-bugbear - likely bugs and design issues
+    "UP", # pyupgrade - modern Python patterns
+]
+
+ignore = [
+    "B904",
+    "D210",  # allow whitespaces in docstring """ spaced """
+]
+
+[format]
+quote-style = "single"
+indent-style = "space"

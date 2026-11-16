@@ -15,3 +15,10 @@ Or run development environment with Dekit
 dekit reload --yes
 dekit up
 ```
+
+Format and Lint
+
+```shell
+ruff format
+ruff check --fix
+```
