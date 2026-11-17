@@ -4,7 +4,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from server.errors import UnsupportedFormat
-from server.services import lok
 from server.types.convert import ConvertFormat
 from test.fixtures import samples
 from test.fixtures.documents import HTML
@@ -77,7 +76,7 @@ def test_conversion_error_is_returned_and_workspace_removed(
     assert _leftovers(work_dir) == []
 
 
-@pytest.mark.skipif(not lok.available(), reason='LibreOffice is not installed, run inside the image')
+@pytest.mark.full
 @pytest.mark.parametrize(
     ('key', 'text'),
     [('doc', 'Revenue grew.'), ('ppt', 'Roadmap'), ('odp', 'Roadmap'), ('ods', 'region'), ('xls', 'region')],

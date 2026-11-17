@@ -36,6 +36,7 @@ runtime  FROM base: prod venv, assets, server; HEALTHCHECK and CMD as today (las
 - `dev` has the same `ENV` as `runtime` (`PATH`, `PAPYRUS_ASSETS_DIR`, `PYTHONUNBUFFERED`) and runs as the same
   non-root user. The read-only mounts avoid uid conflicts on Linux hosts.
 - Source is not copied into `dev`, so editing code needs no rebuild. Changing dependencies (`uv.lock`) does.
+- `/app` is read-only for the runtime user, so `dev` points the pytest cache at `/tmp` via `PYTEST_ADDOPTS`.
 
 ## dekit Tasks
 

@@ -8,7 +8,6 @@ from pathlib import Path
 import pytest
 
 from server.errors import ProcessingTimeout, UnsupportedFormat
-from server.services import lok
 from server.services.convert import ConvertService
 from server.types.convert import ConvertFormat
 from test.fixtures import samples
@@ -16,7 +15,7 @@ from test.fixtures.documents import BINARY, DocumentFactory
 
 pytestmark = [
     pytest.mark.anyio,
-    pytest.mark.skipif(not lok.available(), reason='LibreOffice is not installed, run inside the image'),
+    pytest.mark.full,
 ]
 
 

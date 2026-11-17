@@ -31,3 +31,6 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["test"]
 pythonpath = ["."]
+# the image runs `pytest -m ""` to include full tests (adr/development.md)
+addopts = "-m 'not full'"
+markers = ["full: needs the dev image (LibreOffice), deselected on the host"]

@@ -15,7 +15,8 @@ COPY scripts ./scripts
 RUN PAPYRUS_ASSETS_DIR=/app/assets /app/.venv/bin/python -m scripts.prefetch && chmod -R a+rX /app/assets
 
 
-FROM python:3.14-slim
+# shared by dev and runtime so tests run against the same system libraries as prod
+FROM python:3.14-slim AS base
 
 # LibreOffice is driven in-process through LibreOfficeKit (adr/convert.md), only the headless components
 RUN apt-get update \
@@ -25,14 +26,35 @@ RUN apt-get update \
 
 RUN useradd --system --uid 10001 --no-create-home papyrus
 WORKDIR /app
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PAPYRUS_ASSETS_DIR=/app/assets
+
+
+# local and CI testing: server, test and scripts are bind-mounted at run time (adr/development.md)
+FROM base AS dev
+
+COPY --from=ghcr.io/astral-sh/uv:0.11.30 /uv /bin/uv
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=0 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTEST_ADDOPTS="-o cache_dir=/tmp/.pytest_cache"
+COPY pyproject.toml uv.lock ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --group dev --no-install-project
+COPY --from=build /app/assets /app/assets
+
+USER papyrus
+EXPOSE 8000
+CMD ["fastapi", "dev", "--host", "0.0.0.0", "--port", "8000", "--entrypoint", "server:app"]
+
+
+FROM base AS runtime
+
 COPY --from=build /app/.venv /app/.venv
 COPY --from=build /app/assets /app/assets
 COPY server ./server
 
-ENV PATH="/app/.venv/bin:$PATH" \
-    PYTHONUNBUFFERED=1 \
-    PAPYRUS_CONFIG=/etc/papyrus/config.yml \
-    PAPYRUS_ASSETS_DIR=/app/assets
+ENV PAPYRUS_CONFIG=/etc/papyrus/config.yml
 
 USER papyrus
 EXPOSE 8000
