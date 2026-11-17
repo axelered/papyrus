@@ -85,8 +85,12 @@ The result gains `chunks`:
 
 `POST /v1/thumbnail` fits one page or image into a box, `POST /v1/render` renders it at a readable size. Both accept
 PDF, images, Office and OpenDocument files and HTML, and return a file by default. For images, `page` selects the
-frame of a GIF, TIFF or animated WebP. Office and HTML pages are exported one at a time with LibreOffice, so their
-result has no `page_count`.
+frame of a GIF, TIFF or animated WebP. Office pages are exported one at a time with LibreOffice, so their result has
+no `page_count`.
+
+HTML thumbnails are screenshots of the page as it looks in a desktop browser (1280x800, above the fold), so a URL
+that serves HTML gives a site preview: `{"source": "https://axelered.com"}`. HTML has a single page there. In
+`/v1/render` HTML is still paginated by LibreOffice.
 
 ```shell
 curl -H "Authorization: Bearer <key>" -F file=@report.pdf -o report.webp http://localhost:8000/v1/thumbnail

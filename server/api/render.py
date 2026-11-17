@@ -1,17 +1,24 @@
 import base64
 from collections.abc import Callable
 from dataclasses import replace
+from pathlib import Path
+from urllib.parse import quote, urlsplit
 
 from fastapi import APIRouter, Depends, Request, Response
 
 from server.api.output import image_responses, respond, source_type_of
-from server.api.request import op_context, openapi_body
+from server.api.request import Op, op_context, openapi_body
 from server.auth import require_api_key
-from server.errors import UnsupportedFormat
-from server.services.render import RenderSpec
+from server.errors import PageOutOfRange, UnsupportedFormat
+from server.io.uri import HTTP_SCHEMES
+from server.services.browser import BrowserService
+from server.services.convert import ConvertService
+from server.services.detect import Document
+from server.services.render import Raster, RenderService, RenderSpec
 from server.types.common import FormatLabel
 from server.types.convert import ConvertFormat
 from server.types.render import Fit, RenderRequest, RenderResult, ThumbnailRequest
+from server.types.screenshot import ScreenshotOptions
 
 RENDER_FORMATS = frozenset(
     {
@@ -43,6 +50,11 @@ PDF_CONVERSIONS = frozenset(
     }
 )
 
+# HTML thumbnails show the page as on screen, above the fold of a desktop browser (adr/render.md)
+THUMBNAIL_VIEWPORT = ScreenshotOptions(width=1280, height=800)
+# reserved name that never resolves, so relative references of uploaded HTML fail at the proxy
+DOCUMENT_ORIGIN = 'http://document.invalid'
+
 router = APIRouter(prefix='/v1', tags=['render'], dependencies=[Depends(require_api_key)])
 
 
@@ -58,7 +70,7 @@ async def thumbnail(request: Request) -> Response:
         options = model.options
         return RenderSpec(options.page, options.width, options.height, None, options.fit, options.format)
 
-    return await _render(request, ThumbnailRequest, spec, lambda stem, _: stem)
+    return await _render(request, ThumbnailRequest, spec, lambda stem, _: stem, html_screenshot=True)
 
 
 @router.post(
@@ -81,8 +93,12 @@ async def _render[M: ThumbnailRequest | RenderRequest](
     model: type[M],
     spec_of: Callable[[M], RenderSpec],
     name_of: Callable[[str, int], str],
+    html_screenshot: bool = False,
 ) -> Response:
-    """Shared coordinator: materialize, detect, route, render one page, respond"""
+    """Shared coordinator: materialize, detect, route, render one page, respond
+
+    `html_screenshot` renders HTML as a browser screenshot instead of LibreOffice pages (adr/render.md).
+    """
     services = request.app.state.services
     async with op_context(request, model) as op:
         source = await request.app.state.transfer.materialize(op.model.source, op.workspace, op.parts)
@@ -92,14 +108,11 @@ async def _render[M: ThumbnailRequest | RenderRequest](
                 f'{document.format.mime_type} ({document.format.label}) is not supported for rendering'
             )
         spec = spec_of(op.model)
-        stem = document.path.stem
-        target = op.workspace.new_file(f'{name_of(stem, spec.page)}.{spec.format.extension}')
-        if document.format.label in PDF_CONVERSIONS:
-            # only the requested page is exported, so the page count is unknown afterwards
-            pdf = op.workspace.new_file(f'{stem}.pdf')
-            await services.convert.convert(document.path, pdf, ConvertFormat.PDF, page=spec.page)
-            raster = await services.render.page(pdf, target, replace(spec, page=1))
-            raster = replace(raster, page=spec.page, page_count=None)
+        target = op.workspace.new_file(f'{name_of(document.path.stem, spec.page)}.{spec.format.extension}')
+        if html_screenshot and document.format.label == FormatLabel.HTML:
+            raster = await _screenshot_html(services.browser, services.render, op, document, target, spec)
+        elif document.format.label in PDF_CONVERSIONS:
+            raster = await _convert_page(services.convert, services.render, op, document, target, spec)
         else:
             raster = await services.render.page(document.path, target, spec)
         source_type = source_type_of(document.format)
@@ -118,3 +131,27 @@ async def _render[M: ThumbnailRequest | RenderRequest](
             )
 
         return await respond(request, op, target, spec.format.mime_type, as_json, source_type)
+
+
+async def _convert_page(
+    convert: ConvertService, render: RenderService, op: Op, document: Document, target: Path, spec: RenderSpec
+) -> Raster:
+    """Office and HTML through a one-page PDF export; the page count is unknown afterwards"""
+    pdf = op.workspace.new_file(f'{document.path.stem}.pdf')
+    await convert.convert(document.path, pdf, ConvertFormat.PDF, page=spec.page)
+    raster = await render.page(pdf, target, replace(spec, page=1))
+    return replace(raster, page=spec.page, page_count=None)
+
+
+async def _screenshot_html(
+    browser: BrowserService, render: RenderService, op: Op, document: Document, target: Path, spec: RenderSpec
+) -> Raster:
+    """The page as it looks on screen; the PNG then takes the image path of the render worker"""
+    if spec.page > 1:
+        raise PageOutOfRange(f'page {spec.page} is out of range, the document has 1')
+    source = op.model.source
+    origin = source if urlsplit(source).scheme in HTTP_SCHEMES else f'{DOCUMENT_ORIGIN}/{quote(document.path.name)}'
+    shot = op.workspace.new_file(f'{document.path.stem}.png')
+    await browser.screenshot(origin, shot, THUMBNAIL_VIEWPORT, document=document.path)
+    raster = await render.page(shot, target, spec)
+    return replace(raster, page_count=1)

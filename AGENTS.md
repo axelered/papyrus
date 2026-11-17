@@ -51,7 +51,7 @@
 - [x] Spike gate: sandbox as non-root, egress coverage, rebinding, crash and recycle behaviour
 - [ ] Security: enable the Chromium sandbox by default, ship a seccomp profile allowing user namespaces
 - [x] `BrowserService` and `POST /v1/screenshot`
-- [ ] HTML thumbnails as browser screenshots: routed document origin, scheme guard, security spike tests
+- [x] HTML thumbnails as browser screenshots: routed document origin, scheme guard, security spike tests
 - [!] HTML in `/v1/render` through Chromium (HTML > PDF > image), uploaded HTML for `/v1/screenshot`
 - [!] Pin the validated IP in the httpx transport via `utils/net.py`
 
