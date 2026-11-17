@@ -9,7 +9,7 @@ from typing import Self
 
 from fastapi import FastAPI
 
-from server.api import health, markdown
+from server.api import health, markdown, screenshot
 from server.api.admission import Admission
 from server.config import Config, ConfigError, Settings
 from server.io.connectors import Connectors
@@ -95,4 +95,5 @@ def create_app(settings: Settings | None = None, config: Config | None = None) -
     install_problem_handlers(app, logging.getLogger(f'{LOGGER_NAMESPACE}.errors'))
     app.include_router(health.router)
     app.include_router(markdown.router)
+    app.include_router(screenshot.router)
     return app

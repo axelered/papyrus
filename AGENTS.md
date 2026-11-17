@@ -46,7 +46,7 @@
 - [x] `tini` entrypoint, Playwright headless shell and fonts in the image
 - [x] Spike gate: sandbox as non-root, egress coverage, rebinding, crash and recycle behaviour
 - [ ] Security: enable the Chromium sandbox by default, ship a seccomp profile allowing user namespaces
-- [ ] `BrowserService` and `POST /v1/screenshot`
+- [x] `BrowserService` and `POST /v1/screenshot`
 - [!] HTML in `/v1/render` and `/v1/thumbnail` through Chromium, uploaded `file://` HTML for screenshots
 - [!] Pin the validated IP in the httpx transport via `utils/net.py`
 

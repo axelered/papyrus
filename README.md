@@ -80,6 +80,37 @@ The result gains `chunks`:
 
 `kind` is `text`, `table` or `code`; `start`/`end` are offsets into `markdown`; `slide` is set for presentations.
 
+### Screenshot
+
+`POST /v1/screenshot` loads a web page in headless Chromium and captures it. `source` must be an `http(s)://` URL.
+`output` defaults to `file`.
+
+```shell
+curl -H "Authorization: Bearer <key>" -H 'content-type: application/json' \
+  -d '{"source": "https://example.com", "options": {"full_page": true, "format": "webp"}}' \
+  -o example.webp http://localhost:8000/v1/screenshot
+```
+
+| Option       | Default | Values                                                    |
+|--------------|---------|-----------------------------------------------------------|
+| `width`      | `1280`  | viewport width, `320` to `3840`                           |
+| `height`     | `800`   | viewport height, `200` to `2160`                          |
+| `full_page`  | `false` | capture the whole page, cut at 4096 px height             |
+| `scale`      | `1`     | device scale factor `1` to `3`, at most 4096 px per side  |
+| `wait_until` | `load`  | `load`, `domcontentloaded`, `networkidle`                 |
+| `delay`      | `0`     | milliseconds to wait after `wait_until`, up to `10000`    |
+| `format`     | `png`   | `png`, `jpeg`, `webp`                                     |
+
+| Case          | Response                                                                                    |
+|---------------|---------------------------------------------------------------------------------------------|
+| `file`        | the image, filename `<host>.<ext>`                                                          |
+| `json`        | `{"data": "<base64>", "content_type": "image/png", "width": 1280, "height": 800, "url": "https://example.com/", "status": 200}` |
+| `destination` | `{"destination": "s3://...", "content_type": "image/png", "size": 1234}`                    |
+
+The page and everything it loads follow the `http` settings: private addresses are blocked unless
+`http.allow_private` is set, and `http.allowed_hosts` restricts every request the page makes. Pages that answer with
+an error status are still captured, `status` reports it.
+
 ### Errors
 
 Errors are `application/problem+json` with a stable `code`:

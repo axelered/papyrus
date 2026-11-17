@@ -1,0 +1,53 @@
+info:
+  name: Screenshot
+  type: http
+  seq: 4
+
+http:
+  method: POST
+  url: "{{host}}/v1/screenshot"
+  body:
+    type: json
+    data: |-
+      {
+        "source": "https://axelered.com",
+        "options": {
+          "format": "webp",
+          "width": 1400,
+          "height": 1000,
+          "delay": 1000
+        }
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+examples:
+  - name: Full Page
+    description: Capture the whole page at double resolution as JSON
+    request:
+      url: "{{host}}/v1/screenshot"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "output": "json",
+            "source": "https://axelered.com",
+            "options": {
+              "full_page": true,
+              "scale": 2,
+              "wait_until": "networkidle"
+            }
+          }
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: text
+        data: ""
