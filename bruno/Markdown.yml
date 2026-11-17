@@ -1,0 +1,87 @@
+info:
+  name: Markdown
+  type: http
+  seq: 3
+
+http:
+  method: POST
+  url: "{{host}}/v1/markdown"
+  body:
+    type: json
+    data: |-
+      {
+        "output": "json",
+        "source": "s3://demo-s3/papyrus-test/sample.pdf",
+        "destination": "s3://demo-s3/papyrus-test/sample.md"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+examples:
+  - name: Simple File
+    description: Convert file via local multipart file upload
+    request:
+      url: "{{host}}/v1/markdown"
+      method: POST
+      body:
+        type: multipart-form
+        data:
+          - name: file
+            type: file
+            value:
+              - C:\Software\_data\pdf\sample.pdf
+            contentType: application/pdf
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: text
+        data: ""
+  - name: File Chunked
+    description: Convert file via local multipart file upload and perform semantic chunking
+    request:
+      url: "{{host}}/v1/markdown"
+      method: POST
+      body:
+        type: multipart-form
+        data:
+          - name: metadata
+            type: text
+            value: '{"options": {"chunking": {"max_tokens":512}}}'
+            contentType: application/json
+          - name: file
+            type: file
+            value:
+              - C:\Software\_data\pdf\sample.pdf
+            contentType: application/pdf
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: text
+        data: ""
+  - name: Remote S3
+    description: Perform conversion using a remote S3 bucket as source and destination. This requires the configuration of a "demo-s3" connector
+    request:
+      url: "{{host}}/v1/markdown"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "output": "json",
+            "source": "s3://demo-s3/papyrus-test/sample.pdf",
+            "destination": "s3://demo-s3/papyrus-test/sample.md"
+          }
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: text
+        data: ""
