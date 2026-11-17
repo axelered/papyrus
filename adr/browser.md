@@ -11,8 +11,9 @@ HTML rendering later. Extends the service kinds of `adr/architecture.md`; image 
 - One long-lived browser per container, isolated contexts per request, no process spawned per request.
 - A hostile page fails its own request (renderer crash, timeout) and never takes down the container.
 - No TCP debug port, no runtime downloads, lazy start: deployments that never screenshot pay nothing.
-- todo: functional integration of HTML into `/v1/render` and `/v1/thumbnail` (e.g. `pdf()` print to PDF, then
-  pdfium) and uploaded `file://` HTML for screenshots; refined in a later iteration.
+- HTML thumbnails (`adr/render.md`, HTML Thumbnails) screenshot materialized HTML through the Documents mechanism.
+- todo: HTML in `/v1/render` through Chromium (`pdf()` print to PDF, then pdfium); uploaded HTML for
+  `/v1/screenshot`.
 
 ## Decision
 
@@ -24,7 +25,7 @@ Async Playwright driven from the API process, one supervised browser, one `Brows
 | Pebble pool, sync Playwright per worker | Rejected: killing a worker on timeout can orphan the driver and Chromium, N browsers cost N x 150 MB+ |
 | Raw CDP to Debian `chromium`            | Rejected: reimplements Playwright                                           |
 | Sidecar (browserless, Gotenberg)        | Rejected: second container and deployment unit (same as `adr/convert.md`)   |
-| LibreOffice HTML import                 | Kept for HTML documents in render routes until the functional integration   |
+| LibreOffice HTML import                 | Kept for HTML in `/v1/render` until it moves to Chromium                    |
 
 The model mirrors Gotenberg (one supervised Chromium, context per conversion, restart after N conversions, internal
 DNS pinning proxy), which validates the egress design below.
@@ -143,13 +144,38 @@ Every TCP connection of the browser goes through a pinning proxy; UDP paths are 
   the main document HTTP status.
 - Destination receipts are unchanged.
 
+### Documents
+
+`screenshot(url, target, options, document=None)`: with `document`, the bytes of a workspace file answer the main
+navigation of `url`, so HTML from uploads, connectors or a fetch renders without ever being loaded from disk by
+Chromium.
+
+- Never `file://`: a `file://` page can display other local files (`<iframe src="file:///proc/self/environ">`,
+  `<img src="file:///...">`) even though `fetch` is blocked, which would leak secrets and other workspaces into the
+  image. An http(s) origin cannot load local resources at all.
+- Python reads the file and passes the bytes over the Playwright pipe; Chromium gets no path and no
+  `--allow-file-access*` flag.
+- `page.route(url)` on the exact URL fulfils only the main frame navigation, once (then unroutes); any other request
+  to that URL (iframe, fetch replay) is aborted.
+- Every request with a scheme other than `http`, `https`, `data` or `blob` is aborted in a context route (defense in
+  depth over Chromium's own web to `file:` block: `file:`, `chrome:`, `devtools:`, `view-source:`, `filesystem:`).
+- The origin is never client chosen: the fetched source URL, or `http://document.invalid/<name>` (reserved name, never
+  resolves) for uploads and connectors. Relative references then fail at the proxy (`502`), absolute ones follow the
+  `http.*` policy like any page.
+- With `document` the source pre-check is skipped: the fetcher already applied the policy, or the origin is the
+  synthetic one; the per-request proxy, timeout and error mapping are unchanged.
+- Risk accepted: uploads and connector files can now run JS in Chromium (before, only pages a caller could name);
+  the unsandboxed 0-day risk is unchanged and tracked by the sandbox todo.
+
 ### Contract
 
 `server/types/screenshot.py`: `ScreenshotRequest`, `ScreenshotOptions`, `ScreenshotResult`, `WaitUntil`.
 
 ```python
 class BrowserService:
-    async def screenshot(self, url: str, target: Path, options: ScreenshotOptions) -> Capture  # width, height, url, status
+    async def screenshot(
+        self, url: str, target: Path, options: ScreenshotOptions, document: Path | None = None
+    ) -> Capture  # width, height, url, status
     async def aclose(self) -> None
 ```
 
@@ -197,11 +223,14 @@ Run as `full` tests in the image (`test/services/test_browser.py`):
   rebinding stub).
 - Browser and route: `full` end to end tests against a local fixture HTTP server (allowed with `allow_private` in the
   test config), covering options, full page cap, status passthrough, error mapping.
+- Documents: uploaded HTML with `file://` iframes, images, fetch, meta refresh, `location` and `<base>`, replays of
+  the origin, relative and denied absolute references; asserts only allowed hosts are contacted, the page stays on
+  the origin and a workspace marker file never appears in any frame's text.
 
 ## Out of Scope
 
-- HTML to PDF as a public route, uploaded HTML, cookies, custom headers, authentication, element clips, JS
-  injection, ad or cookie banner blocking.
+- HTML to PDF as a public route, uploaded HTML for `/v1/screenshot`, cookies, custom headers, authentication,
+  element clips, JS injection, ad or cookie banner blocking.
 - Firefox and WebKit engines.
 - Playwright on a Windows host (needs the Proactor loop, `--reload` uses Selector): browser work runs in the dev
   container.

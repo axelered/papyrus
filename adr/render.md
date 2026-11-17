@@ -3,7 +3,7 @@
 Rasterize one page of a document or image: `POST /v1/thumbnail` for fixed-size tiles in grids and lists,
 `POST /v1/render` for readable pages in a viewer. Both share one coordinator and one pool service. Plugs into the
 Pool service kind of `adr/architecture.md`, routes on the format labels of `adr/mime.md` and reaches office and HTML
-input through `adr/convert.md`.
+input through `adr/convert.md`; HTML thumbnails are browser screenshots (`adr/browser.md`).
 
 ## Goals
 
@@ -102,7 +102,9 @@ Both in `server/api/render.py` (shared allowlist and coordinator). Default `outp
 |--------------------------------------------------------------------|----------------------------------------|
 | `pdf`                                                              | pdfium                                 |
 | `png`, `jpeg`, `webp`, `gif`, `bmp`, `tiff`, `avif`                | Pillow                                 |
-| `docx`, `pptx`, `xlsx`, `doc`, `ppt`, `xls`, `odt`, `odp`, `ods`, `rtf`, `html` | `convert.convert(source, pdf, ConvertFormat.PDF, page=<page>)`, then pdfium page 1 |
+| `docx`, `pptx`, `xlsx`, `doc`, `ppt`, `xls`, `odt`, `odp`, `ods`, `rtf` | `convert.convert(source, pdf, ConvertFormat.PDF, page=<page>)`, then pdfium page 1 |
+| `html` in `/v1/render`                                             | as office, through LibreOffice         |
+| `html` in `/v1/thumbnail`                                          | browser screenshot of the 1280x800 viewport to a workspace PNG, then the render worker as an image |
 
 - Allowlist is a `frozenset[FormatLabel]` plus a `PDF_CONVERSIONS` set in `api/render.py`; anything else is
   `415 unsupported_format` before a worker runs. Text, markdown, code and other derived formats are rejected.
@@ -111,10 +113,25 @@ Both in `server/api/render.py` (shared allowlist and coordinator). Default `outp
 - Multi-frame images (`tiff`, `gif`, animated `webp`): `page` selects the frame (`Image.seek`), so `page` means the
   same for every input.
 - Spreadsheets render as LibreOffice paginates them (wide sheets split across pages); accepted quality caveat.
-- HTML goes through LibreOffice: no JS, basic CSS, remote images never load (`LOK_HOST_ALLOWLIST`, by design).
-  todo: move HTML to the Chromium engine of `adr/browser.md` (functional integration, later); uploaded HTML must then
-  load without a `file://` origin (`set_content` or a routed origin), since a `file://` page can embed other local
-  files into the rendered image.
+- `/v1/render` HTML goes through LibreOffice: no JS, basic CSS, remote images never load (`LOK_HOST_ALLOWLIST`, by
+  design). todo: replace with an HTML > PDF > image pipeline on Chromium.
+
+### HTML Thumbnails
+
+Users expect a thumbnail of a web page to look like the page on screen, so `/v1/thumbnail` screenshots HTML instead of
+paginating it. The coordinator composes the services (the render pool cannot reach the API process browser):
+
+1. `page > 1` gives `422 page_out_of_range` before the browser runs: HTML has exactly one page.
+2. `await browser.screenshot(origin, png, THUMBNAIL_VIEWPORT, document=path)`: the materialized HTML answers the main
+   navigation of `origin` (see `adr/browser.md`, Documents). `THUMBNAIL_VIEWPORT` is fixed: 1280x800, scale 1, `load`,
+   PNG (lossless, encoded once more by the render worker).
+3. The PNG goes through the render worker like any image: box, `fit`, no upscaling, format. `page_count` is `1`.
+
+- `origin` is the source URL for http(s) sources, so a URL serving HTML yields a site preview with JS and relative
+  assets; uploads and connector files get `http://document.invalid/<name>`.
+- The same HTML thus looks like the screen in `/v1/thumbnail` and like LibreOffice print pages in `/v1/render`, until
+  the render route moves to Chromium.
+- `wait_until` stays `load`; no new thumbnail options. todo: a `viewport` option if mobile previews are needed.
 
 ### Execution
 
@@ -162,7 +179,8 @@ class Raster:                  # worker result; the coordinator adds data and so
 | Format not in the allowlist                                 | `415 unsupported_format`    |
 | Corrupt or encrypted PDF, unreadable image                  | `415 unsupported_format`    |
 | Image trips the decompression bomb guard                    | `413 image_too_large` (`ImageTooLarge(SourceTooLarge)`), pixel size in `detail` |
-| `page` beyond the last page or frame                        | `422 page_out_of_range`, page count in `detail` for PDF and images, none for office and HTML |
+| `page` beyond the last page or frame                        | `422 page_out_of_range`, page count in `detail` for PDF, images and HTML thumbnails, none for office and render HTML |
+| HTML thumbnail browser failures                             | as `/v1/screenshot` (`adr/browser.md`, Errors) |
 | `dpi` combined with `width` or `height`, size out of bounds | `422 validation_error`      |
 | Exceeds 60s                                                 | `504 processing_timeout`    |
 
@@ -192,4 +210,4 @@ Passed, covered by `full` tests in `test/services/test_convert.py` and `test/api
   reference surface), text and code rendering.
 - `avif` output: `ImageFormat` is shared with `/v1/screenshot`, whose CDP capture cannot encode it, and encoding is
   slow for large images.
-- Website screenshots and JS-capable HTML: `adr/browser.md`.
+- Website screenshots and JS-capable HTML: `adr/browser.md`; HTML thumbnails use it (see HTML Thumbnails).
