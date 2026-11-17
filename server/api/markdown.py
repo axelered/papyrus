@@ -5,12 +5,13 @@ from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from server.api.output import Receipt, SourceType, respond
-from server.api.request import OpRequest, OutputMode, inline_refs, op_context, openapi_body
+from server.api.request import OpRequest, OutputMode, op_context, openapi_body
 from server.auth import require_api_key
 from server.errors import UnsupportedFormat
 from server.formats import Format, FormatGroup, FormatLabel
 from server.services.chunking.chunker import ChunkOptions
 from server.services.chunking.types import ChunkKind, CodeLanguage, Tokenizer
+from server.utils.openapi import inline_refs
 
 MEDIA_TYPE = 'text/markdown; charset=utf-8'
 JSON_MEDIA_TYPE = 'application/json'

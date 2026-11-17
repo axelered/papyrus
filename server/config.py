@@ -4,13 +4,11 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-import yaml
 from pydantic import BaseModel, ByteSize, ConfigDict, Field, PositiveFloat, PositiveInt, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEFAULT_CONFIG_PATH = Path('/etc/papyrus/config.yml')
 
-_ENV_PLACEHOLDER = re.compile(r'\$\{([A-Za-z_][A-Za-z0-9_]*)\}')
 _CONNECTOR_NAME = r'^[a-z0-9][a-z0-9_-]*$'
 
 
@@ -85,32 +83,3 @@ class Settings(BaseSettings):
     def check(self) -> None:
         if not self.auth_disabled and not self.api_keys:
             raise ConfigError('PAPYRUS_API_KEY is not set (set PAPYRUS_AUTH_DISABLED=true for local development)')
-
-
-def expand_env(value: Any, env: dict[str, str]) -> Any:
-    """Expands ${VAR} in parsed string values (never in raw YAML, so env values cannot inject YAML syntax)"""
-    if isinstance(value, str):
-        return _ENV_PLACEHOLDER.sub(lambda match: _lookup(match.group(1), env), value)
-    if isinstance(value, dict):
-        return {key: expand_env(item, env) for key, item in value.items()}
-    if isinstance(value, list):
-        return [expand_env(item, env) for item in value]
-    return value
-
-
-def _lookup(name: str, env: dict[str, str]) -> str:
-    if name not in env:
-        raise ConfigError(f'environment variable {name} referenced in config is not set')
-    return env[name]
-
-
-def load_config(path: Path, env: dict[str, str] | None = None) -> Config:
-    if not path.exists():
-        return Config()
-    try:
-        data = yaml.safe_load(path.read_text(encoding='utf-8')) or {}
-    except yaml.YAMLError as e:
-        raise ConfigError(f'invalid YAML in {path}: {e}') from e
-    if not isinstance(data, dict):
-        raise ConfigError(f'config root in {path} must be a mapping')
-    return Config.model_validate(expand_env(data, dict(os.environ) if env is None else env))

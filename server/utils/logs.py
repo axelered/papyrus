@@ -30,8 +30,9 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(entry, ensure_ascii=False)
 
 
-def configure_logging(level: int = logging.INFO) -> None:
-    logger = logging.getLogger('papyrus')
+def configure_logging(namespace: str, level: int = logging.INFO) -> None:
+    """JSON lines on stderr for the `namespace` logger tree, idempotent"""
+    logger = logging.getLogger(namespace)
     if logger.handlers:
         return
     handler = logging.StreamHandler(sys.stderr)

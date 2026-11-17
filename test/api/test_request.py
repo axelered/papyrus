@@ -167,7 +167,15 @@ def test_rejects_oversized_upload(echo: TestClient, app: FastAPI, work_dir: Path
     response = echo.post('/echo', files={'file': b'12345'})
 
     assert response.status_code == 413
+    assert response.json()['code'] == 'payload_too_large'
     assert _leftovers(work_dir) == []
+
+
+def test_rejects_oversized_json_body(echo: TestClient):
+    response = echo.post('/echo', content=b' ' * (1024 * 1024 + 1), headers={'content-type': 'application/json'})
+
+    assert response.status_code == 413
+    assert response.json()['code'] == 'payload_too_large'
 
 
 def test_queue_full_rejects_without_processing(echo: TestClient, app: FastAPI, calls: list[str]):

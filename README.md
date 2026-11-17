@@ -92,7 +92,7 @@ Errors are `application/problem+json` with a stable `code`:
 | 401    | `unauthorized`                                 | Missing or invalid API key                    |
 | 403    | `source_forbidden`                             | URL targets a private address or is not allowed |
 | 404    | `source_not_found`                             | Source does not exist                         |
-| 413    | `source_too_large`                             | Source exceeds `limits.max_file_size`         |
+| 413    | `payload_too_large`, `source_too_large`        | Body or upload too large, remote source exceeds `limits.max_file_size` |
 | 415    | `unsupported_format`, `unsupported_media_type` | Unsupported document or request body          |
 | 422    | `validation_error`, `unsupported_uri`, `unknown_connector` | Invalid request, URI or connector |
 | 502    | `source_fetch_failed`, `destination_failed`    | Remote source or destination failed           |

@@ -1,19 +1,35 @@
 import asyncio
 import logging
-from collections.abc import AsyncIterator
+import os
+from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 
 from server.api import health, markdown
 from server.api.admission import Admission
-from server.config import Config, Settings, load_config
+from server.config import Config, ConfigError, Settings
 from server.io.connectors import Connectors
 from server.io.http import HttpFetcher
 from server.io.transfer import Transfer
-from server.logs import RequestIdMiddleware, configure_logging
 from server.services.registry import Services
+from server.utils.logs import RequestIdMiddleware, configure_logging
 from server.utils.problem import install_problem_handlers
+from server.utils.yaml import load_yaml
+
+LOGGER_NAMESPACE = 'papyrus'
+
+
+def load_config(path: Path, env: Mapping[str, str] | None = None) -> Config:
+    """Missing file means all defaults; ${VAR} placeholders come from `env` (process env by default)"""
+    if not path.exists():
+        return Config()
+    try:
+        data = load_yaml(path, os.environ if env is None else env)
+    except ValueError as e:
+        raise ConfigError(str(e)) from e
+    return Config.model_validate(data)
 
 
 def create_app(settings: Settings | None = None, config: Config | None = None) -> FastAPI:
@@ -38,10 +54,10 @@ def create_app(settings: Settings | None = None, config: Config | None = None) -
             await http.aclose()
             await asyncio.to_thread(services.close)
 
-    configure_logging()
+    configure_logging(LOGGER_NAMESPACE)
     app = FastAPI(title='Axelered Papyrus', lifespan=lifespan)
     app.add_middleware(RequestIdMiddleware)
-    install_problem_handlers(app, logging.getLogger('papyrus.errors'))
+    install_problem_handlers(app, logging.getLogger(f'{LOGGER_NAMESPACE}.errors'))
     app.include_router(health.router)
     app.include_router(markdown.router)
     return app

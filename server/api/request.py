@@ -1,5 +1,4 @@
 import asyncio
-import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -10,20 +9,18 @@ from typing import Any
 from fastapi import Request
 from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
-from starlette.datastructures import UploadFile
 
 from server.config import Config
-from server.errors import DeadlineExceeded, SourceTooLarge, UnsupportedUri
+from server.errors import DeadlineExceeded, UnsupportedUri
 from server.io.uri import PART_SCHEME
 from server.io.workspace import Workspace
-from server.utils.problem import UnsupportedMediaType, ValidationFailed
+from server.utils.body import JSON, MULTIPART, read_body
+from server.utils.openapi import inline_refs
 
 DEFAULT_PART = 'file'
 METADATA_FIELD = 'metadata'
 
-_MAX_JSON_BODY = 1024 * 1024
 _MAX_FILE_PARTS = 8
-_CHUNK = 1024 * 1024
 
 
 class OutputMode(StrEnum):
@@ -67,72 +64,23 @@ async def op_context[M: OpRequest](request: Request, model: type[M]) -> AsyncIte
 
 
 async def parse_op[M: OpRequest](request: Request, model: type[M], workspace: Workspace, max_size: int) -> Op[M]:
-    content_type = request.headers.get('content-type', '').split(';', 1)[0].strip().lower()
-    if content_type == 'application/json':
-        data, parts = await _read_json(request), {}
-    elif content_type == 'multipart/form-data':
-        data, parts = await _read_multipart(request, workspace, max_size)
-    else:
-        raise UnsupportedMediaType('expected application/json or multipart/form-data')
-
+    body = await read_body(
+        request,
+        new_file=workspace.new_file,
+        data_field=METADATA_FIELD,
+        max_file_size=max_size,
+        max_files=_MAX_FILE_PARTS,
+    )
+    data = body.data
+    if body.content_type == MULTIPART and 'source' not in data and DEFAULT_PART in body.files:
+        data['source'] = f'{PART_SCHEME}://{DEFAULT_PART}'
     try:
         parsed = model.model_validate(data)
     except ValidationError as e:
         raise RequestValidationError(e.errors()) from e
-    if content_type == 'application/json' and parsed.source.startswith(f'{PART_SCHEME}://'):
+    if body.content_type == JSON and parsed.source.startswith(f'{PART_SCHEME}://'):
         raise UnsupportedUri('file:// sources require multipart/form-data')
-    return Op(model=parsed, parts=parts, workspace=workspace)
-
-
-async def _read_json(request: Request) -> dict[str, Any]:
-    body = await request.body()
-    if len(body) > _MAX_JSON_BODY:
-        raise ValidationFailed(f'JSON body exceeds {_MAX_JSON_BODY} bytes')
-    return _decode_object(body, 'body')
-
-
-async def _read_multipart(
-    request: Request, workspace: Workspace, max_size: int
-) -> tuple[dict[str, Any], dict[str, Path]]:
-    parts: dict[str, Path] = {}
-    metadata: str | None = None
-    async with request.form(max_files=_MAX_FILE_PARTS) as form:
-        for name, value in form.multi_items():
-            if isinstance(value, UploadFile):
-                if name in parts:
-                    raise ValidationFailed(f'duplicate file part {name!r}')
-                parts[name] = await _save_upload(value, workspace, max_size)
-            elif name == METADATA_FIELD and metadata is None:
-                metadata = value
-            else:
-                raise ValidationFailed(f'unexpected form field {name!r}, options belong in {METADATA_FIELD!r}')
-
-    data = _decode_object(metadata, METADATA_FIELD) if metadata else {}
-    if 'source' not in data and DEFAULT_PART in parts:
-        data['source'] = f'{PART_SCHEME}://{DEFAULT_PART}'
-    return data, parts
-
-
-async def _save_upload(upload: UploadFile, workspace: Workspace, max_size: int) -> Path:
-    path = workspace.new_file(upload.filename or DEFAULT_PART)
-    written = 0
-    with path.open('wb') as file:
-        while chunk := await upload.read(_CHUNK):
-            written += len(chunk)
-            if written > max_size:
-                raise SourceTooLarge(f'upload exceeds {max_size} bytes')
-            file.write(chunk)
-    return path
-
-
-def _decode_object(raw: str | bytes, field: str) -> dict[str, Any]:
-    try:
-        data = json.loads(raw)
-    except ValueError as e:
-        raise ValidationFailed(f'{field} is not valid JSON') from e
-    if not isinstance(data, dict):
-        raise ValidationFailed(f'{field} must be a JSON object')
-    return data
+    return Op(model=parsed, parts=body.files, workspace=workspace)
 
 
 def openapi_body(model: type[BaseModel]) -> dict[str, Any]:
@@ -157,18 +105,3 @@ def openapi_body(model: type[BaseModel]) -> dict[str, Any]:
             },
         }
     }
-
-
-def inline_refs(schema: dict[str, Any]) -> dict[str, Any]:
-    definitions = schema.pop('$defs', {})
-
-    def resolve(node: Any) -> Any:
-        if isinstance(node, dict):
-            if ref := node.get('$ref'):
-                return resolve(definitions[ref.rsplit('/', 1)[-1]])
-            return {key: resolve(value) for key, value in node.items()}
-        if isinstance(node, list):
-            return [resolve(item) for item in node]
-        return node
-
-    return resolve(schema)

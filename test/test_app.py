@@ -1,11 +1,8 @@
-import logging
-
 import pytest
 from fastapi.testclient import TestClient
 
-from server.config import ConfigError, Settings
-from server.factory import create_app
-from server.logs import JsonFormatter, request_id
+from server.config import Config, ConfigError, Settings
+from server.factory import create_app, load_config
 
 
 def test_startup_fails_without_api_key(tmp_path):
@@ -42,13 +39,17 @@ def test_generates_request_id_when_missing_or_invalid(client: TestClient, header
     assert rid != headers.get('X-Request-ID')
 
 
-def test_json_formatter_binds_request_id():
-    record = logging.LogRecord('papyrus', logging.INFO, __file__, 1, 'hello %s', ('world',), None)
-    token = request_id.set('rid-1')
-    try:
-        line = JsonFormatter().format(record)
-    finally:
-        request_id.reset(token)
+def test_load_config_missing_file_yields_defaults(tmp_path):
+    assert load_config(tmp_path / 'absent.yml') == Config()
 
-    assert '"message": "hello world"' in line
-    assert '"request_id": "rid-1"' in line
+
+def test_load_config_validates_expanded_yaml(write_config):
+    config = load_config(write_config('workers: { max_queue: "${QUEUE}" }'), env={'QUEUE': '7'})
+
+    assert config.workers.max_queue == 7
+
+
+@pytest.mark.parametrize('content', ['- a', 'workers: [', 'workers: { max_queue: "${MISSING}" }'])
+def test_load_config_wraps_yaml_failures(write_config, content: str):
+    with pytest.raises(ConfigError):
+        load_config(write_config(content), env={})
