@@ -155,10 +155,14 @@ Chromium.
   image. An http(s) origin cannot load local resources at all.
 - Python reads the file and passes the bytes over the Playwright pipe; Chromium gets no path and no
   `--allow-file-access*` flag.
-- `page.route(url)` on the exact URL fulfils only the main frame navigation, once (then unroutes); any other request
-  to that URL (iframe, fetch replay) is aborted.
-- Every request with a scheme other than `http`, `https`, `data` or `blob` is aborted in a context route (defense in
+- One context route (a match-all predicate: string patterns are globs, so `?` in a URL would act as a wildcard)
+  serves the document as the first main-frame navigation, whatever URL Chromium normalized `url` to; later requests
+  to that URL (iframe, fetch replay) are aborted. The route exists only for documents, so plain screenshots keep
+  uninterrupted networking.
+- In the same route every request with a scheme other than `http`, `https`, `data` or `blob` is aborted (defense in
   depth over Chromium's own web to `file:` block: `file:`, `chrome:`, `devtools:`, `view-source:`, `filesystem:`).
+- Verified by `full` tests: `file://` iframes, images, embeds, fetch, `<base>`, `location`, meta refresh, popups and
+  `view-source:` leak nothing; a positive control proves the frame text check would see an embedded marker.
 - The origin is never client chosen: the fetched source URL, or `http://document.invalid/<name>` (reserved name, never
   resolves) for uploads and connectors. Relative references then fail at the proxy (`502`), absolute ones follow the
   `http.*` policy like any page.

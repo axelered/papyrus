@@ -55,6 +55,7 @@ class Site:
             '/loop': '<html><body><script>while (true) {}</script></body></html>',
             '/bomb': '<html><body><script>const a = []; while (true) { a.push(new Array(1e6).fill(1)) }</script>',
             '/escape': '<html><body><script>location.href = "file:///etc/passwd"</script></body></html>',
+            '/marker': '<html><body>PAPYRUS-SECRET-7f3a</body></html>',
         }
         if path == '/redirect':
             return 302, {'Location': self.url('/', host='evil.test')}, ''
@@ -309,3 +310,135 @@ async def test_sandbox_failure_is_loud(site: Site, tmp_path: Path):
         assert 'unavailable' in str(e)
     finally:
         await service.aclose()
+
+
+# - - - Documents (adr/browser.md): served HTML must never reach local files or bypass the policy
+
+SECRET = 'PAPYRUS-SECRET-7f3a'
+DOCUMENT = 'http://document.invalid/page.html'
+
+
+@pytest.fixture
+def secret(tmp_path: Path) -> Path:
+    path = tmp_path / 'secret.txt'
+    path.write_text(SECRET, encoding='utf-8')
+    return path
+
+
+@pytest.fixture
+def frame_texts(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Text of every frame and the title after each capture, read through Playwright"""
+    texts: list[str] = []
+    original = BrowserService._shoot
+
+    async def spy(self, context, page, navigation, target, options):
+        capture = await original(self, context, page, navigation, target, options)
+        for frame in page.frames:
+            script = 'document.documentElement ? document.documentElement.innerText : ""'
+            try:
+                # error pages of blocked frames never get an execution context, evaluate would wait forever
+                texts.append(await asyncio.wait_for(frame.evaluate(script), 2))
+            except Exception:  # noqa: BLE001 a frame without readable content holds no leaked text either
+                texts.append('')
+        texts.append(await page.title())
+        return capture
+
+    monkeypatch.setattr(BrowserService, '_shoot', spy)
+    return texts
+
+
+def _document(tmp_path: Path, html: str) -> Path:
+    path = tmp_path / 'page.html'
+    path.write_text(html, encoding='utf-8')
+    return path
+
+
+async def test_document_cannot_embed_local_files(
+    browser: BrowserService, site: Site, tmp_path: Path, secret: Path, frame_texts: list[str]
+):
+    html = (
+        '<html><body><p>DOCUMENT-MARKER</p>'
+        f'<iframe src="file://{secret}"></iframe><img src="file://{secret}"><embed src="file://{secret}">'
+        f'<iframe src="{DOCUMENT}"></iframe>'
+        '<img src="relative.png">'
+        f'<img src="{site.url("/x.png", host="evil.test")}"><img src="{site.url("/ok.png")}">'
+        f'<script>fetch("file://{secret}").then(r => r.text()).then(t => document.title = t).catch(() => {{}});'
+        f'fetch("{DOCUMENT}").then(r => r.text()).then(t => document.title = t).catch(() => {{}});</script>'
+        '</body></html>'
+    )
+    options = ScreenshotOptions(wait_until=WaitUntil.NETWORKIDLE, delay=500)
+
+    capture = await browser.screenshot(DOCUMENT, tmp_path / 'd.png', options, document=_document(tmp_path, html))
+
+    assert (capture.url, capture.status) == (DOCUMENT, 200)
+    assert not any(SECRET in text for text in frame_texts)
+    assert sum('DOCUMENT-MARKER' in text for text in frame_texts) == 1
+    assert site.requests == [(f'site.test:{site.port}', '/ok.png')]
+
+
+async def test_document_base_href_cannot_reach_local_files(
+    browser: BrowserService, tmp_path: Path, secret: Path, frame_texts: list[str]
+):
+    relative = str(secret).lstrip('/')
+    html = f'<html><head><base href="file:///"></head><body><iframe src="{relative}"></iframe><img src="{relative}">'
+
+    await browser.screenshot(
+        DOCUMENT, tmp_path / 'b.png', ScreenshotOptions(delay=300), document=_document(tmp_path, html)
+    )
+
+    assert not any(SECRET in text for text in frame_texts)
+
+
+@pytest.mark.parametrize(
+    'escape',
+    [
+        '<script>location.href = "file://{secret}"</script>',
+        '<meta http-equiv="refresh" content="0;url=file://{secret}">',
+        '<script>window.open("file://{secret}")</script>',
+        '<script>location.href = "view-source:file://{secret}"</script>',
+    ],
+)
+async def test_document_cannot_navigate_to_local_files(
+    browser: BrowserService, tmp_path: Path, secret: Path, frame_texts: list[str], escape: str
+):
+    html = '<html><head>' + escape.format(secret=secret) + '</head><body>DOCUMENT-MARKER</body></html>'
+
+    capture = await browser.screenshot(
+        DOCUMENT, tmp_path / 'n.png', ScreenshotOptions(delay=1000), document=_document(tmp_path, html)
+    )
+
+    assert capture.url == DOCUMENT
+    assert not any(SECRET in text for text in frame_texts)
+
+
+async def test_document_at_a_fetched_url_resolves_relative_assets(browser: BrowserService, site: Site, tmp_path: Path):
+    html = '<html><body><img src="/ok.png">DOCUMENT-MARKER</body></html>'
+    options = ScreenshotOptions(wait_until=WaitUntil.NETWORKIDLE)
+
+    capture = await browser.screenshot(
+        site.url('/doc'), tmp_path / 'u.png', options, document=_document(tmp_path, html)
+    )
+
+    assert capture.url == site.url('/doc')
+    assert site.paths() == {'/ok.png'}
+
+
+async def test_document_skips_the_source_check(browser: BrowserService, tmp_path: Path):
+    """The synthetic origin never resolves, yet the served document renders"""
+    path = _document(tmp_path, '<html><body>DOCUMENT-MARKER</body></html>')
+
+    capture = await browser.screenshot(DOCUMENT, tmp_path / 's.png', ScreenshotOptions(), document=path)
+
+    assert capture.status == 200
+
+
+async def test_frame_spy_sees_embedded_content(
+    browser: BrowserService, site: Site, tmp_path: Path, frame_texts: list[str]
+):
+    """Positive control: an allowed iframe with the marker is visible to the spy, so a leak would be caught"""
+    html = f'<html><body><iframe src="{site.url("/marker")}"></iframe></body></html>'
+    options = ScreenshotOptions(wait_until=WaitUntil.NETWORKIDLE)
+
+    await browser.screenshot(DOCUMENT, tmp_path / 'p.png', options, document=_document(tmp_path, html))
+
+    assert any(SECRET in text for text in frame_texts)

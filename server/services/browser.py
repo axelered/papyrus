@@ -25,6 +25,8 @@ HEAP_MB = 512
 QUALITY = 85
 _CLOSE_TIMEOUT = 5
 _SCHEMES = frozenset({'http', 'https'})
+# defense in depth over Chromium's own web to file: block for served documents
+_DOCUMENT_SCHEMES = frozenset({'http', 'https', 'data', 'blob'})
 
 ARGS = (
     # every connection goes through the pinning proxy: no QUIC, no WebRTC UDP outside the proxy
@@ -97,13 +99,23 @@ class BrowserService:
         self._current: _Instance | None = None
         self._retired: set[_Instance] = set()
 
-    async def screenshot(self, url: str, target: Path, options: ScreenshotOptions) -> Capture:
-        await self._check_source(url)
+    async def screenshot(
+        self, url: str, target: Path, options: ScreenshotOptions, document: Path | None = None
+    ) -> Capture:
+        """With `document`, its bytes answer the main navigation of `url` (adr/browser.md, Documents)
+
+        The source check is then skipped: the fetcher already applied the policy, or `url` is a synthetic origin.
+        """
+        if document is None:
+            await self._check_source(url)
+            body = None
+        else:
+            body = await asyncio.to_thread(document.read_bytes)
         async with self._semaphore:
             instance = await self._acquire()
             try:
                 async with asyncio.timeout(self._timeout):
-                    return await self._capture(instance.browser, url, target, options)
+                    return await self._capture(instance.browser, url, target, options, body)
             except TimeoutError:
                 raise ProcessingTimeout(f'screenshot exceeded {self._timeout:g}s') from None
             finally:
@@ -206,7 +218,9 @@ class BrowserService:
 
     # - - - Capture
 
-    async def _capture(self, browser: 'Browser', url: str, target: Path, options: ScreenshotOptions) -> Capture:
+    async def _capture(
+        self, browser: 'Browser', url: str, target: Path, options: ScreenshotOptions, body: bytes | None
+    ) -> Capture:
         from playwright.async_api import Error
 
         navigation = _Navigation(url)
@@ -223,6 +237,8 @@ class BrowserService:
                 raise ProcessingFailed(f'browser failed ({_first_line(e)})') from None
             try:
                 page = await context.new_page()
+                if body is not None:
+                    await context.route(_any_url, _DocumentRoute(page, body).handle)
                 return await self._shoot(context, page, navigation, target, options)
             except Error as e:
                 if navigation.crashed:
@@ -271,6 +287,32 @@ class BrowserService:
         shot = await session.send('Page.captureScreenshot', params)
         target.write_bytes(base64.b64decode(shot['data']))
         return Capture(width=width * options.scale, height=height * options.scale, url=page.url, status=status)
+
+
+def _any_url(_: str) -> bool:
+    # a predicate, not a glob: globs would neither match every scheme nor treat `?` in URLs literally
+    return True
+
+
+class _DocumentRoute:
+    """Serves the document as the first main-frame navigation; replays and non web schemes are aborted"""
+
+    def __init__(self, page: 'Page', body: bytes):
+        self._page = page
+        self._body = body
+        self._served: str | None = None
+
+    async def handle(self, route: Any) -> None:
+        request = route.request
+        if urlsplit(request.url).scheme not in _DOCUMENT_SCHEMES:
+            await route.abort()
+        elif self._served is None and request.is_navigation_request() and request.frame == self._page.main_frame:
+            self._served = request.url
+            await route.fulfill(status=200, content_type='text/html', body=self._body)
+        elif request.url == self._served:
+            await route.abort()
+        else:
+            await route.continue_()
 
 
 def _track(navigation: _Navigation, page: 'Page', request: Any) -> None:
