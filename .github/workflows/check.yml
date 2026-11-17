@@ -1,5 +1,5 @@
 # Builds the dev image and runs lint and the full test suite inside it (adr/development.md).
-# Tags v* also publish the runtime image to GHCR.
+# Release tags vX.Y.Z also publish the runtime image to GHCR and create a GitHub release.
 name: check
 
 on:
@@ -13,15 +13,48 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check:
+  build:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     env:
       IMAGE: ghcr.io/${{ github.repository }}
+    outputs:
+      publish: ${{ steps.publish.outputs.publish }}
+      version: ${{ steps.semver.outputs.version }}
+      tag: ${{ steps.semver.outputs.tag }}
+      changelog: ${{ steps.semver.outputs.changelog }}
     steps:
       - uses: actions/checkout@v5
+
+      # always preview: a vX.Y.Z tag at HEAD gives that version, anything else X.Y.Z-rcN, never pushes tags
+      - name: Version
+        id: semver
+        uses: svaraborut/semver@v2
+        with:
+          preview: true
+          files: server/version.py
+
+      - name: Watermark
+        id: watermark
+        uses: svaraborut/watermark@v2
+        with:
+          version: ${{ steps.semver.outputs.version }}
+          format: 'vVERSION #SHA7 DATE'
+
+      # tag runs only: a push to main at an already tagged commit must not publish twice
+      - name: Publish decision
+        id: publish
+        run: echo "publish=${{ startsWith(github.ref, 'refs/tags/v') && steps.semver.outputs.prerelease == 'false' }}" >> "$GITHUB_OUTPUT"
+
+      # commit subjects are untrusted, they reach the shell only through env
+      - name: Summary
+        env:
+          VERSION: ${{ steps.semver.outputs.version }}
+          WATERMARK: ${{ steps.watermark.outputs.watermark }}
+          CHANGELOG: ${{ steps.semver.outputs.changelog }}
+        run: printf '## %s\n\n`%s`\n\n%s\n' "$VERSION" "$WATERMARK" "$CHANGELOG" >> "$GITHUB_STEP_SUMMARY"
 
       - uses: docker/setup-buildx-action@v3
 
@@ -55,22 +88,43 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
 
       - name: Log in to GHCR
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: steps.publish.outputs.publish == 'true'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # always built so a broken prod image fails the check, pushed only for v* tags
+      # always built so a broken prod image fails the check, pushed only on release
       - name: Build runtime image
         uses: docker/build-push-action@v6
         with:
           context: .
-          push: ${{ startsWith(github.ref, 'refs/tags/v') }}
+          push: ${{ steps.publish.outputs.publish == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: WATERMARK=${{ steps.watermark.outputs.watermark }}
           cache-from: |
             type=gha,scope=dev
             type=gha,scope=runtime
           cache-to: type=gha,scope=runtime,mode=max
+
+  # only this job can write to the repository, and it runs once the image is pushed
+  release:
+    needs: build
+    if: needs.build.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.build.outputs.tag }}
+          name: ${{ needs.build.outputs.tag }}
+          body: |
+            Automated container release.
+            
+            ### Changelog
+            ${{ needs.build.outputs.changelog }}
+
+            Image: `ghcr.io/${{ github.repository }}:${{ needs.build.outputs.version }}`

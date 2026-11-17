@@ -24,7 +24,8 @@
 - [x] `dev` Docker stage, dekit tasks for dev/prod containers and tests, `full` test mark
 - [x] GitHub Actions check job building the image and running the full suite inside it
 - [x] Publish the image to GHCR on `v*` tags
-- [ ] Versioning: semver stamps `server/version.py`, watermark build arg, both returned by `GET /`
+- [x] Versioning: semver stamps `server/version.py`, watermark build arg, both returned by `GET /`
+- [x] GitHub release with the semver changelog after the image push
 
 ### Conversion (spec: `adr/convert.md`)
 
