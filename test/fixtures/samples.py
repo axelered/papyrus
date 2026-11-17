@@ -174,6 +174,33 @@ def image(format: str, size: tuple[int, int] = (64, 48), mode: str = 'RGB', fram
     return buffer.getvalue()
 
 
+def pdf_pages(*sizes: tuple[float, float], rotate: int = 0) -> bytes:
+    """Blank PDF with one page per (width, height) in points, optionally rotated by /Rotate"""
+    import pypdfium2 as pdfium
+
+    document = pdfium.PdfDocument.new()
+    for width, height in sizes:
+        page = document.new_page(width, height)
+        if rotate:
+            page.set_rotation(rotate)
+    buffer = io.BytesIO()
+    document.save(buffer)
+    document.close()
+    return buffer.getvalue()
+
+
+def png_header(width: int, height: int) -> bytes:
+    """PNG that declares a huge size with no pixel data: trips the bomb guard at open, without decoding"""
+    import struct
+    import zlib
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind + data))
+
+    header = struct.pack('>IIBBBBB', width, height, 8, 2, 0, 0, 0)
+    return b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', header) + chunk(b'IEND', b'')
+
+
 SAMPLES: dict[str, Callable[[], bytes]] = {
     'pdf': pdf,
     'docx': docx,

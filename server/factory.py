@@ -19,6 +19,7 @@ from server.services.browser import BrowserService
 from server.services.convert import ConvertService
 from server.services.detect import DetectService
 from server.services.markdown import MarkdownService
+from server.services.render import RenderService
 from server.utils.logs import RequestIdMiddleware, configure_logging
 from server.utils.problem import install_problem_handlers
 from server.utils.yaml import load_yaml
@@ -31,6 +32,7 @@ class Services:
     detect: DetectService
     markdown: MarkdownService
     convert: ConvertService
+    render: RenderService
     browser: BrowserService
 
     @classmethod
@@ -42,6 +44,7 @@ class Services:
             markdown=MarkdownService(processes=processes),
             # LibreOffice workers weigh about 330 MB each
             convert=ConvertService(processes=max(1, processes // 2), profiles=config.limits.tmp_dir / 'lo-profiles'),
+            render=RenderService(processes=processes),
             # each open page weighs 50 to 150 MB
             browser=BrowserService(config.http, config.browser, concurrency=max(1, processes // 2)),
         )
@@ -54,6 +57,7 @@ class Services:
     def _close_pools(self) -> None:
         self.markdown.close()
         self.convert.close()
+        self.render.close()
 
 
 def load_config(path: Path, env: Mapping[str, str] | None = None) -> Config:

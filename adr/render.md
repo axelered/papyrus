@@ -61,7 +61,9 @@ Both in `server/api/render.py` (shared allowlist and coordinator). Default `outp
   `max(w / pw, h / ph)` then center crop. Page rotation is applied by pdfium.
 - Raster images are never upscaled: a box larger than the image yields the natural size (cover still crops to the
   box aspect).
-- Every output is clamped to 4096 px per side (aspect kept), including images rendered at natural size.
+- Every rendered bitmap is clamped to 4096 px per side (aspect kept), including images at natural size and the
+  intermediate bitmap of `cover`; for pathological aspects (a 1:100 page) the crop then ends up smaller than the box
+  instead of allocating an unbounded bitmap.
 - Encoding quality is fixed in code (jpeg and webp about 85), no option. todo: `quality` option on demand.
 - PDF pages render on white with annotations and forms drawn. Images keep alpha for `png` and `webp`, are flattened
   on white for `jpeg`.
