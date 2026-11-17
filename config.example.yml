@@ -1,0 +1,50 @@
+# Papyrus configuration
+#
+# The server reads this file from the path in the PAPYRUS_CONFIG env variable (default /etc/papyrus/config.yml).
+# Every key is optional and the values below are the defaults. Unknown keys stop the server from starting.
+# Durations are in seconds. Sizes can use units such as 100MB or 2MiB.
+# You can reference env variables in values as ${VAR}. If a referenced variable is not set, the server won't start.
+#
+# These settings are env variables, not keys in this file:
+#   PAPYRUS_API_KEY        API keys accepted by the server, comma separated. Required unless auth is disabled.
+#   PAPYRUS_AUTH_DISABLED  Set to true to turn off auth. Use only for local development.
+#   PAPYRUS_CONFIG         Path of this file.
+
+workers:
+  # Number of worker processes. "auto" uses one per CPU.
+  # LibreOffice conversion uses half as many, at least one, and each needs about 330 MB of RAM.
+  processes: auto
+  # How many requests a container handles at once. Extra requests get a 503 and should retry later.
+  max_queue: 64
+
+limits:
+  # Largest file accepted, whether uploaded or downloaded from a source.
+  max_file_size: 100MB
+  # Maximum time for a whole request, in seconds.
+  deadline: 300
+  # Folder for temporary files while a request runs. Defaults to a "papyrus" folder in the system temp directory.
+  # tmp_dir: /tmp/papyrus
+
+# Downloading documents from http(s) URLs.
+http:
+  # Set false to disable all http(s) sources.
+  enabled: true
+  # Allow URLs that point to private or internal network addresses. Keep this off in production.
+  allow_private: false
+  # When the list is not empty, only these hostnames can be downloaded from, e.g. [docs.example.com].
+  allowed_hosts: []
+  # Timeout for each download, in seconds.
+  timeout: 30
+  # Maximum number of redirects to follow.
+  max_redirects: 5
+
+# Storage that requests can read from and write to, addressed as <protocol>://<name>/<path>.
+# None are configured by default. Example of an S3 bucket used as s3://prod/<path>:
+connectors: {}
+#  prod:
+#    protocol: s3
+#    # Passed as is to the fsspec filesystem, in this case s3fs.
+#    options:
+#      endpoint_url: https://s3.eu-central-1.amazonaws.com
+#      key: ${PROD_S3_KEY}
+#      secret: ${PROD_S3_SECRET}

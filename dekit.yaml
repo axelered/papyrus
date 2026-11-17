@@ -10,6 +10,7 @@ tasks:
   local/server:
     cmd: ['uv', 'run', 'fastapi', 'dev', '--entrypoint', 'server:app', '--reload']
     deps: [local/install]
+    env: { PAPYRUS_CONFIG: config.yml }
     ready: { log: 'started at' }
 
   docker/:
@@ -24,6 +25,7 @@ tasks:
       'docker', 'run', '--rm', '--init', '--name', 'papyrus-dev', '-p', '8001:8000',
       '-e', 'PAPYRUS_AUTH_DISABLED=true', '-e', 'WATCHFILES_FORCE_POLLING=true',
       '-v', './server:/app/server:ro', '-v', './test:/app/test:ro', '-v', './scripts:/app/scripts:ro',
+      '-v', './config.yml:/etc/papyrus/config.yml:ro',
       'papyrus:dev',
     ]
     deps: [docker/build-dev]
@@ -35,7 +37,11 @@ tasks:
     type: job
 
   docker/prod:
-    cmd: [ 'docker', 'run', '--rm', '--init', '--name', 'papyrus-prod', '-p', '8002:8000', '-e', 'PAPYRUS_API_KEY=dev', 'papyrus' ]
+    cmd: [
+      'docker', 'run', '--rm', '--init', '--name', 'papyrus-prod', '-p', '8002:8000', '-e', 'PAPYRUS_API_KEY=dev',
+      '-v', './config.yml:/etc/papyrus/config.yml:ro',
+      'papyrus',
+    ]
     deps: [docker/build-prod]
     ready: { http: 'http://localhost:8002/health' }
     stop: { cmd: [ 'docker', 'stop', 'papyrus-prod' ], timeout: 40s }

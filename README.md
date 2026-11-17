@@ -163,4 +163,5 @@ docker build -t papyrus .
 docker run -p 8000:8000 -e PAPYRUS_API_KEY=<key> -v ./config.yml:/etc/papyrus/config.yml:ro papyrus
 ```
 
-Configuration reference: `adr/architecture.md`.
+Copy `config.example.yml` to `config.yml` and change what you need; every key is optional and shows its default. Configuration
+reference: `adr/architecture.md`.

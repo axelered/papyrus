@@ -6,8 +6,9 @@
 *.local*
 *.nogit*
 
-# dotenv environment variable files
+# environment variable files
 .env
+config.yml
 
 # python
 __pycache__/
