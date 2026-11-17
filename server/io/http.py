@@ -1,9 +1,5 @@
-import asyncio
-import ipaddress
 import logging
 import mimetypes
-import socket
-from collections.abc import Awaitable, Callable
 from pathlib import Path, PurePosixPath
 from urllib.parse import unquote
 
@@ -13,26 +9,13 @@ from server.config import HttpConfig
 from server.errors import SourceFetchFailed, SourceForbidden, SourceNotFound, SourceTooLarge
 from server.io.uri import HTTP_SCHEMES
 from server.io.workspace import Workspace
+from server.utils.net import HostForbidden, HostPolicy, Resolver, resolve_host
 from server.utils.problem import ProblemError
 
 logger = logging.getLogger('papyrus.http')
 
-Resolver = Callable[[str, int], Awaitable[list[str]]]
-
 _CHUNK = 64 * 1024
 _NOT_FOUND = frozenset({404, 410})
-
-
-def is_public(address: str) -> bool:
-    ip = ipaddress.ip_address(address.split('%', 1)[0])
-    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
-        ip = ip.ipv4_mapped
-    return ip.is_global and not ip.is_multicast
-
-
-async def resolve_host(host: str, port: int) -> list[str]:
-    infos = await asyncio.get_running_loop().getaddrinfo(host, port, type=socket.SOCK_STREAM)
-    return [str(info[4][0]) for info in infos]
 
 
 class HttpFetcher:
@@ -49,7 +32,7 @@ class HttpFetcher:
         self._config = config
         self._max_file_size = max_file_size
         self._client = client or httpx.AsyncClient(timeout=config.timeout, headers={'User-Agent': 'papyrus'})
-        self._resolver = resolver
+        self._policy = HostPolicy(config.allowed_hosts, config.allow_private, resolver)
 
     async def aclose(self) -> None:
         await self._client.aclose()
@@ -76,17 +59,12 @@ class HttpFetcher:
     async def _check(self, url: httpx.URL) -> None:
         if url.scheme not in HTTP_SCHEMES or not url.host:
             raise SourceForbidden(f'{str(url)!r} is not an http(s) URL')
-        host = url.host.lower()
-        if self._config.allowed_hosts and host not in self._config.allowed_hosts:
-            raise SourceForbidden(f'host {host!r} is not allowed')
-        if self._config.allow_private:
-            return
         try:
-            addresses = [host] if _is_ip(host) else await self._resolver(host, url.port or 443)
+            await self._policy.check(url.host, url.port or 443)
+        except HostForbidden as e:
+            raise SourceForbidden(str(e)) from None
         except OSError as e:
-            raise SourceFetchFailed(f'cannot resolve host {host!r}') from e
-        if not addresses or not all(is_public(address) for address in addresses):
-            raise SourceForbidden(f'host {host!r} resolves to a non-public address')
+            raise SourceFetchFailed(f'cannot resolve host {url.host.lower()!r}') from e
 
     @staticmethod
     def _redirect_target(response: httpx.Response) -> httpx.URL:
@@ -113,14 +91,6 @@ class HttpFetcher:
                     raise SourceTooLarge(f'source exceeds {self._max_file_size} bytes')
                 file.write(chunk)
         return local
-
-
-def _is_ip(host: str) -> bool:
-    try:
-        ipaddress.ip_address(host.split('%', 1)[0])
-    except ValueError:
-        return False
-    return True
 
 
 def _filename(response: httpx.Response) -> str:

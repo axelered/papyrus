@@ -2,7 +2,6 @@ import httpx
 import pytest
 
 from server.errors import SourceFetchFailed, SourceForbidden, SourceNotFound, SourceTooLarge
-from server.io.http import is_public
 from server.io.workspace import Workspace
 from test.fixtures.http import FetcherFactory
 
@@ -11,30 +10,6 @@ pytestmark = pytest.mark.anyio
 
 def _ok(content: bytes = b'data', **headers: str) -> httpx.Response:
     return httpx.Response(200, content=content, headers=headers)
-
-
-@pytest.mark.parametrize(
-    ('address', 'public'),
-    [
-        ('93.184.215.14', True),
-        ('2606:4700::1111', True),
-        ('127.0.0.1', False),
-        ('10.1.2.3', False),
-        ('172.16.0.1', False),
-        ('192.168.1.1', False),
-        ('169.254.169.254', False),
-        ('100.64.0.1', False),
-        ('0.0.0.0', False),
-        ('224.0.0.1', False),
-        ('::1', False),
-        ('fc00::1', False),
-        ('fe80::1%eth0', False),
-        ('::ffff:10.0.0.1', False),
-        ('::ffff:93.184.215.14', True),
-    ],
-)
-def test_is_public(address: str, public: bool):
-    assert is_public(address) is public
 
 
 async def test_fetches_into_workspace(make_fetcher: FetcherFactory, workspace: Workspace):
