@@ -22,8 +22,8 @@
 ### Development and CI (spec: `adr/development.md`)
 
 - [x] `dev` Docker stage, dekit tasks for dev/prod containers and tests, `full` test mark
-- [ ] GitHub Actions check job building the image and running the full suite inside it
-- [!] Publish the image to GHCR
+- [x] GitHub Actions check job building the image and running the full suite inside it
+- [x] Publish the image to GHCR on `v*` tags
 
 ### Conversion (spec: `adr/convert.md`)
 

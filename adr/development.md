@@ -15,11 +15,11 @@ full-fidelity image loop.
 
 | Concern         | Choice                                                                                    |
 |-----------------|-------------------------------------------------------------------------------------------|
-| Default loop    | Host uv (`server` task, `uv run pytest`), `full` tests deselected                         |
+| Default loop    | Host uv (`local/server` task, `uv run pytest`), `full` tests deselected                   |
 | Full loop       | `dev` Docker stage with source bind-mounted, driven by dekit                              |
 | Orchestration   | dekit only, no compose: `cmd` is an argv array, so relative `-v ./x:/app/x` works in any shell |
 | Image layout    | One multi-stage Dockerfile, `runtime` stays last so `docker build .` builds prod           |
-| CI              | One GitHub Actions job: build `dev`, lint and test inside it, then build `runtime`        |
+| CI              | One GitHub Actions job: build `dev`, lint and test inside it, build `runtime`, push it to GHCR on `v*` tags |
 | Skip guard      | `full` marker deselected by `addopts` on the host, re-included with `-m "full or not full"` in the image |
 
 ## Dockerfile
@@ -37,27 +37,34 @@ runtime  FROM base: prod venv, assets, server; HEALTHCHECK and CMD as today (las
 - `dev` has the same `ENV` as `runtime` (`PATH`, `PAPYRUS_ASSETS_DIR`, `PYTHONUNBUFFERED`) and runs as the same
   non-root user. The read-only mounts avoid uid conflicts on Linux hosts.
 - Source is not copied into `dev`, so editing code needs no rebuild. Changing dependencies (`uv.lock`) does.
-- `/app` is read-only for the runtime user, so `dev` points the pytest cache at `/tmp` via `PYTEST_ADDOPTS`.
+- `/app` is read-only for the runtime user, so `dev` points the pytest and ruff caches at `/tmp`
+  (`PYTEST_ADDOPTS`, `RUFF_CACHE_DIR`).
 
 ## dekit Tasks
 
 | Task                 | Type    | Deps                 | Command                                                       | Port |
 |----------------------|---------|----------------------|---------------------------------------------------------------|------|
-| `install`            | job     |                      | `uv sync --group dev` (unchanged)                             |      |
-| `server`             | service | `install`            | host `fastapi dev --reload` (unchanged, autostart)            | 8000 |
+| `local/install`      | job     |                      | `uv sync --group dev`                                         |      |
+| `local/server`       | service | `local/install`      | host `fastapi dev --reload`, `PAPYRUS_CONFIG=config.yml`      | 8000 |
 | `docker/build-dev`   | job     |                      | `docker build --target dev -t papyrus:dev .`                  |      |
 | `docker/dev`         | service | `docker/build-dev`   | `docker run --name papyrus-dev -p 8001:8000`, mounts, image CMD | 8001 |
 | `docker/build-prod`  | job     |                      | `docker build -t papyrus .`                                   |      |
 | `docker/prod`        | service | `docker/build-prod`  | `docker run --name papyrus-prod -p 8002:8000 -e PAPYRUS_API_KEY=dev papyrus` | 8002 |
 | `docker/test`        | job     | `docker/build-dev`   | `docker run --name papyrus-test`, mounts, `pytest -m "full or not full"` |      |
 
-- Container tasks live in a `docker/` folder: dekit allows no tasks under a task, and `server` is one.
+- Host tasks live in `local/`, container tasks in `docker/`.
+- `local/server`, `docker/dev` and `docker/prod` all read the gitignored `config.yml` at the repo root (copy
+  `config.example.yml`). The containers mount it at `/etc/papyrus/config.yml`. `docker/test` does not: tests build
+  their own config.
+- todo: `config.yml` must exist before a container starts. Docker Desktop creates a missing bind source as a
+  directory, which breaks config loading on the host and in the containers.
 - Every `docker run` uses `--rm --init`. Mounts for `docker/dev` and `docker/test`: `./server:/app/server:ro`,
   `./test:/app/test:ro`, `./scripts:/app/scripts:ro`.
 - `docker/dev` env: `PAPYRUS_AUTH_DISABLED=true`, `WATCHFILES_FORCE_POLLING=true`. Inotify does not cross Docker
   Desktop bind mounts on Windows or macOS, so reload has to poll. It watches only `server`: polling all of `/app`
   (venv included) misses changes.
-- `docker/prod` runs the shipped image with no mounts and real auth (key `dev`), as a local smoke test of prod.
+- `docker/prod` runs the shipped image with only the config mounted and real auth (key `dev`), as a local smoke
+  test of prod.
 - The ports differ so all three servers can run side by side.
 - Containers are named and stopped with `stop: {cmd: docker stop <name>}`. On Windows dekit's SIGTERM ends the
   `docker run` client but not the container. After a hard kill the next start fails with "name in use":
@@ -80,22 +87,30 @@ runtime  FROM base: prod venv, assets, server; HEALTHCHECK and CMD as today (las
 
 ## CI
 
-`.github/workflows/check.yml`, triggered on `pull_request` and on `push` to `main`, one `ubuntu-latest` job:
+`.github/workflows/check.yml`, triggered on `pull_request`, `push` to `main` and `v*` tags, one `ubuntu-latest`
+job:
 
 1. `actions/checkout`, `docker/setup-buildx-action`.
-2. `docker/build-push-action`: `target: dev`, `load: true`, `tags: papyrus:dev`,
-   `cache-from: type=gha`, `cache-to: type=gha,mode=max`.
-3. Run inside `papyrus:dev` with the same mounts as dekit `docker/test`: `ruff format --check`, `ruff check`,
-   `pytest -m "full or not full"`.
-4. `docker/build-push-action`: default target (`runtime`), `push: false`, `cache-from: type=gha`, which proves
-   the prod image builds.
+2. `docker/build-push-action`: `target: dev`, `load: true`, `tags: papyrus:dev`, GHA cache in scope `dev`.
+3. Run inside `papyrus:dev` with the same mounts as dekit `docker/test` plus `ruff.toml`: `ruff format --check`,
+   `ruff check`, `pytest -m "full or not full"`.
+4. `docker/build-push-action`: default target (`runtime`), reads the `dev` and `runtime` cache scopes, writes
+   `runtime`. This always proves the prod image builds.
+
+## Release
+
+- A `v*` tag runs the same checks, logs in to GHCR with `GITHUB_TOKEN` (`packages: write`) and pushes the
+  runtime image to `ghcr.io/<owner>/<repo>`.
+- Tags come from `docker/metadata-action`: `v1.2.3` publishes `1.2.3`, `1.2` and `latest`. A `v*` tag that is not
+  semver publishes nothing and fails the push.
+- Only tag builds publish. `main` and PRs build the runtime image without pushing it.
+- todo: amd64 only, add `linux/arm64` with QEMU once arm hosts need it.
 
 - Timing: about 5-8 min with a cold cache (LibreOffice apt layer), about 1-2 min warm.
 - `concurrency` cancels superseded runs on the same ref.
 
 ## Out of Scope
 
-- todo: publish the image to GHCR on tags or `main` (release ADR).
 - todo: a parallel host job (uv, fast tests) if CI feedback on a cold cache becomes a bottleneck.
 - todo: Python version matrix, only once more than one version is supported.
 - Devcontainers and compose: dekit already covers the same workflows.
