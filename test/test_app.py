@@ -1,3 +1,6 @@
+import subprocess
+import sys
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -22,9 +25,18 @@ def test_startup_loads_config_from_settings_path(write_config):
 
 
 def test_import_has_no_side_effects():
-    import server
+    from server import main
 
-    assert not hasattr(server.app.state, 'settings')
+    assert not hasattr(main.app.state, 'settings')
+
+
+@pytest.mark.parametrize('module', ['server.services.render', 'server.services.markdown', 'server.services.convert'])
+def test_pool_worker_modules_stay_light(module: str):
+    # a fresh interpreter, as a pool worker: the app and fastapi would cost every worker its first task
+    code = f'import sys, {module}; print(sorted(m for m in ("fastapi", "server.factory") if m in sys.modules))'
+    result = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True, check=True)
+
+    assert result.stdout.strip() == '[]'
 
 
 def test_echoes_valid_request_id(client: TestClient):

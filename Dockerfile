@@ -60,7 +60,7 @@ COPY --from=build /app/assets /app/assets
 USER papyrus
 EXPOSE 8000
 # watch only the mounted source: polling the whole /app (venv included) misses changes for seconds
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "server"]
+CMD ["uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "server"]
 
 
 FROM base AS runtime
@@ -77,7 +77,7 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=15s \
     CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
 
 # single process on purpose: --workers would multiply pools and split the admission limit
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000", "--timeout-graceful-shutdown", "30"]
+CMD ["uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8000", "--timeout-graceful-shutdown", "30"]
 
 # last so a new watermark never invalidates cached layers (adr/development.md)
 ARG WATERMARK=

@@ -1,12 +1,11 @@
 import logging
 from http import HTTPStatus
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
-from fastapi import FastAPI, Request
-from fastapi.encoders import jsonable_encoder
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
-from starlette.exceptions import HTTPException
+# fastapi is imported where used: pool workers import the error classes and would pay ~0.7s per process
+if TYPE_CHECKING:
+    from fastapi import FastAPI, Request
+    from fastapi.responses import JSONResponse
 
 PROBLEM_JSON = 'application/problem+json'
 
@@ -48,6 +47,9 @@ def validation_errors(errors: Any) -> list[dict[str, Any]]:
 def problem(
     status: int, code: str, detail: str | None = None, headers: dict[str, str] | None = None, **extra: Any
 ) -> JSONResponse:
+    from fastapi.encoders import jsonable_encoder
+    from fastapi.responses import JSONResponse
+
     body = {'type': 'about:blank', 'title': HTTPStatus(status).phrase, 'status': status, 'code': code}
     if detail:
         body['detail'] = detail
@@ -57,6 +59,8 @@ def problem(
 
 def install_problem_handlers(app: FastAPI, logger: logging.Logger) -> None:
     """Renders every error as problem+json; unhandled errors are logged and never leak details"""
+    from fastapi.exceptions import RequestValidationError
+    from starlette.exceptions import HTTPException
 
     async def problem_error(_: Request, exc: ProblemError) -> JSONResponse:
         if exc.status >= 500:

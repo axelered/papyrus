@@ -268,8 +268,9 @@ RFC 9457 problem+json with a stable `code` extension. Codes are part of the publ
 scripts/
   prefetch.py          build-time download of grammars and tokenizers (Docker build, local setup)
 server/
-  __init__.py          app = create_app()
-  factory.py           create_app, lifespan, Services registry, config loading (not app.py: would shadow server:app)
+  __init__.py          empty: pool workers import the package, building the app there costs every worker
+  main.py              app = create_app(), the ASGI entrypoint server.main:app
+  factory.py           create_app, lifespan, Services registry, config loading
   config.py            config and settings schema only
   auth.py              bearer dependency
   errors.py            application error catalog (ProblemError subclasses)

@@ -8,7 +8,7 @@ tasks:
     type: job
 
   local/server:
-    cmd: ['uv', 'run', 'fastapi', 'dev', '--entrypoint', 'server:app', '--reload']
+    cmd: ['uv', 'run', 'fastapi', 'dev', '--entrypoint', 'server.main:app', '--reload']
     deps: [local/install]
     env:
       PAPYRUS_CONFIG: config.yml

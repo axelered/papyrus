@@ -192,7 +192,7 @@ uv run python -m scripts.prefetch
 ```
 
 ```shell
-uv run fastapi dev --entrypoint server:app --reload
+uv run fastapi dev --entrypoint server.main:app --reload
 ```
 
 Or run development environment with Dekit

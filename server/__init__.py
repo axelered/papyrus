@@ -7,7 +7,3 @@ Axelered LLC
 @date       2026-11-16
 
 """
-
-from server.factory import create_app
-
-app = create_app()
