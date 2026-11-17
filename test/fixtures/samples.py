@@ -174,6 +174,45 @@ def image(format: str, size: tuple[int, int] = (64, 48), mode: str = 'RGB', fram
     return buffer.getvalue()
 
 
+def docx_pages(count: int) -> bytes:
+    """Word document with `Page <n>` on each of `count` pages, separated by hard page breaks"""
+    breaks = '<w:r><w:br w:type="page"/></w:r>'
+    body = ''.join(
+        f'<w:p><w:r><w:t>Page {number}</w:t></w:r>{breaks if number < count else ""}</w:p>'
+        for number in range(1, count + 1)
+    )
+    return _zip(
+        {
+            '[Content_Types].xml': _CONTENT_TYPES,
+            '_rels/.rels': _RELS,
+            'word/document.xml': (
+                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+                f'<w:body>{body}</w:body></w:document>'
+            ),
+        }
+    )
+
+
+def pptx_slides(count: int) -> bytes:
+    from pptx import Presentation
+
+    presentation = Presentation()
+    for number in range(1, count + 1):
+        presentation.slides.add_slide(presentation.slide_layouts[1]).shapes.title.text = f'Slide {number}'
+    buffer = io.BytesIO()
+    presentation.save(buffer)
+    return buffer.getvalue()
+
+
+# long enough for several A4 pages once LibreOffice paginates it
+LONG_HTML = (
+    '<html><head><title>Long</title></head><body>'
+    + ''.join(f'<h2>Section {number}</h2><p>{"lorem ipsum dolor sit amet " * 40}</p>' for number in range(1, 30))
+    + '</body></html>'
+).encode()
+
+
 def pdf_pages(*sizes: tuple[float, float], rotate: int = 0) -> bytes:
     """Blank PDF with one page per (width, height) in points, optionally rotated by /Rotate"""
     import pypdfium2 as pdfium

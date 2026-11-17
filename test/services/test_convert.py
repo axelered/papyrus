@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from server.errors import ProcessingTimeout, UnsupportedFormat
+from server.errors import PageOutOfRange, ProcessingTimeout, UnsupportedFormat
 from server.services.convert import ConvertService
 from server.types.convert import ConvertFormat
 from test.fixtures import samples
@@ -198,3 +198,66 @@ async def test_timeout_kills_worker_and_next_worker_converts(make_document: Docu
         assert list(source.parent.glob('.~lock*')) == []
     finally:
         service.close()
+
+
+# - - - Single page PDF export (adr/render.md)
+
+
+def _pdf_texts(path: Path) -> list[str]:
+    import pypdfium2 as pdfium
+
+    document = pdfium.PdfDocument(path)
+    try:
+        return [document[index].get_textpage().get_text_range().strip() for index in range(len(document))]
+    finally:
+        document.close()
+
+
+@pytest.mark.parametrize(
+    ('name', 'content', 'page', 'text'),
+    [
+        ('doc.docx', samples.docx_pages(3), 2, 'Page 2'),
+        ('deck.pptx', samples.pptx_slides(3), 3, 'Slide 3'),
+        ('sheet.xlsx', samples.xlsx(), 1, 'region'),
+        ('long.html', samples.LONG_HTML, 2, 'lorem ipsum'),
+    ],
+)
+async def test_exports_only_the_requested_page(
+    service: ConvertService,
+    make_document: DocumentFactory,
+    tmp_path: Path,
+    name: str,
+    content: bytes,
+    page: int,
+    text: str,
+):
+    target = tmp_path / 'page.pdf'
+
+    await service.convert(make_document(name, content), target, ConvertFormat.PDF, page=page)
+
+    texts = _pdf_texts(target)
+    assert len(texts) == 1
+    assert text in texts[0]
+
+
+async def test_html_paginates_into_pages(service: ConvertService, make_document: DocumentFactory, tmp_path: Path):
+    target = tmp_path / 'long.pdf'
+
+    await service.convert(make_document('long.html', samples.LONG_HTML), target, ConvertFormat.PDF)
+
+    assert len(_pdf_texts(target)) > 1
+
+
+@pytest.mark.parametrize(
+    ('name', 'content'), [('doc.docx', samples.docx_pages(2)), ('deck.pptx', samples.pptx_slides(2))]
+)
+async def test_page_past_the_end_is_out_of_range(
+    service: ConvertService, make_document: DocumentFactory, tmp_path: Path, name: str, content: bytes
+):
+    with pytest.raises(PageOutOfRange, match='page 9'):
+        await service.convert(make_document(name, content), tmp_path / 'o.pdf', ConvertFormat.PDF, page=9)
+
+
+async def test_page_requires_pdf_target(service: ConvertService, tmp_path: Path):
+    with pytest.raises(ValueError, match='pdf'):
+        await service.convert(tmp_path / 'a.doc', tmp_path / 'a.docx', ConvertFormat.DOCX, page=1)

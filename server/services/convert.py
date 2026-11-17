@@ -1,8 +1,9 @@
+import json
 import os
 import shutil
 from pathlib import Path
 
-from server.errors import ProcessingFailed, UnsupportedFormat
+from server.errors import PageOutOfRange, ProcessingFailed, UnsupportedFormat
 from server.services import lok
 from server.services.pool import ProcessPool
 from server.types.convert import ConvertFormat
@@ -28,19 +29,34 @@ REGISTRY = (
 _office: lok.Office | None = None
 
 
-def convert_document(source: str, target: str, format: str, profiles: str, save_options: str = '') -> None:
-    """Pool worker: LibreOffice is started on the first task and stays loaded until pebble recycles the worker"""
+def convert_document(
+    source: str, target: str, format: str, profiles: str, save_options: str = '', page: int | None = None
+) -> None:
+    """Pool worker: LibreOffice is started on the first task and stays loaded until pebble recycles the worker
+
+    `page` exports that single page of a PDF target.
+    """
+    if page is not None:
+        save_options = page_range(page)
     office = _ensure_office(Path(profiles))
     try:
         office.convert(Path(source), Path(target), format, LOAD_OPTIONS, save_options)
     except lok.LoadError:
         raise UnsupportedFormat('file could not be opened, it may be corrupted, encrypted or mislabeled') from None
     except lok.SaveError:
+        # a page range past the end fails the save without telling the page count; every document exports page 1
+        if page is not None and page > 1:
+            raise PageOutOfRange(f'page {page} is out of range') from None
         raise UnsupportedFormat(f'document cannot be converted to {format}') from None
     except lok.LokError as e:
         raise ProcessingFailed(f'conversion failed ({e})') from None
     if not Path(target).is_file():
         raise ProcessingFailed('conversion produced no output')
+
+
+def page_range(page: int) -> str:
+    """PDF export filter option, in the JSON form LibreOffice accepts as save options"""
+    return json.dumps({'PageRange': {'type': 'string', 'value': str(page)}})
 
 
 def _ensure_office(profiles: Path) -> lok.Office:
@@ -83,8 +99,11 @@ class ConvertService:
         self._profiles = profiles
         self._pool = ProcessPool('convert', processes, timeout=timeout, max_tasks=max_tasks)
 
-    async def convert(self, source: Path, target: Path, format: ConvertFormat) -> None:
-        await self._pool.run(convert_document, str(source), str(target), format.value, str(self._profiles))
+    async def convert(self, source: Path, target: Path, format: ConvertFormat, page: int | None = None) -> None:
+        """`page` exports only that page and is valid for PDF targets only"""
+        if page is not None and format != ConvertFormat.PDF:
+            raise ValueError('page requires a pdf target')
+        await self._pool.run(convert_document, str(source), str(target), format.value, str(self._profiles), '', page)
 
     def close(self) -> None:
         self._pool.close()

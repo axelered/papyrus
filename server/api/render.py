@@ -1,5 +1,6 @@
 import base64
 from collections.abc import Callable
+from dataclasses import replace
 
 from fastapi import APIRouter, Depends, Request, Response
 
@@ -9,6 +10,7 @@ from server.auth import require_api_key
 from server.errors import UnsupportedFormat
 from server.services.render import RenderSpec
 from server.types.common import FormatLabel
+from server.types.convert import ConvertFormat
 from server.types.render import Fit, RenderRequest, RenderResult, ThumbnailRequest
 
 RENDER_FORMATS = frozenset(
@@ -21,6 +23,23 @@ RENDER_FORMATS = frozenset(
         FormatLabel.BMP,
         FormatLabel.TIFF,
         FormatLabel.AVIF,
+    }
+)
+
+# rendered through a one-page PDF export by LibreOffice (adr/convert.md)
+PDF_CONVERSIONS = frozenset(
+    {
+        FormatLabel.DOCX,
+        FormatLabel.PPTX,
+        FormatLabel.XLSX,
+        FormatLabel.DOC,
+        FormatLabel.PPT,
+        FormatLabel.XLS,
+        FormatLabel.ODT,
+        FormatLabel.ODP,
+        FormatLabel.ODS,
+        FormatLabel.RTF,
+        FormatLabel.HTML,
     }
 )
 
@@ -68,13 +87,21 @@ async def _render[M: ThumbnailRequest | RenderRequest](
     async with op_context(request, model) as op:
         source = await request.app.state.transfer.materialize(op.model.source, op.workspace, op.parts)
         document = await services.detect.detect(source)
-        if document.format.label not in RENDER_FORMATS:
+        if document.format.label not in RENDER_FORMATS | PDF_CONVERSIONS:
             raise UnsupportedFormat(
                 f'{document.format.mime_type} ({document.format.label}) is not supported for rendering'
             )
         spec = spec_of(op.model)
-        target = op.workspace.new_file(f'{name_of(document.path.stem, spec.page)}.{spec.format.extension}')
-        raster = await services.render.page(document.path, target, spec)
+        stem = document.path.stem
+        target = op.workspace.new_file(f'{name_of(stem, spec.page)}.{spec.format.extension}')
+        if document.format.label in PDF_CONVERSIONS:
+            # only the requested page is exported, so the page count is unknown afterwards
+            pdf = op.workspace.new_file(f'{stem}.pdf')
+            await services.convert.convert(document.path, pdf, ConvertFormat.PDF, page=spec.page)
+            raster = await services.render.page(pdf, target, replace(spec, page=1))
+            raster = replace(raster, page=spec.page, page_count=None)
+        else:
+            raster = await services.render.page(document.path, target, spec)
         source_type = source_type_of(document.format)
 
         def as_json() -> RenderResult:

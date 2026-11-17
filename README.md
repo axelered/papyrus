@@ -84,7 +84,9 @@ The result gains `chunks`:
 ### Thumbnail and Render
 
 `POST /v1/thumbnail` fits one page or image into a box, `POST /v1/render` renders it at a readable size. Both accept
-PDF and images, and return a file by default. For images, `page` selects the frame of a GIF, TIFF or animated WebP.
+PDF, images, Office and OpenDocument files and HTML, and return a file by default. For images, `page` selects the
+frame of a GIF, TIFF or animated WebP. Office and HTML pages are exported one at a time with LibreOffice, so their
+result has no `page_count`.
 
 ```shell
 curl -H "Authorization: Bearer <key>" -F file=@report.pdf -o report.webp http://localhost:8000/v1/thumbnail

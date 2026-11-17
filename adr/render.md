@@ -162,18 +162,19 @@ class Raster:                  # worker result; the coordinator adds data and so
 | Format not in the allowlist                                 | `415 unsupported_format`    |
 | Corrupt or encrypted PDF, unreadable image                  | `415 unsupported_format`    |
 | Image trips the decompression bomb guard                    | `413 image_too_large` (`ImageTooLarge(SourceTooLarge)`), pixel size in `detail` |
-| `page` beyond the last page or frame                        | `422 page_out_of_range`, page count in `detail` when known |
+| `page` beyond the last page or frame                        | `422 page_out_of_range`, page count in `detail` for PDF and images, none for office and HTML |
 | `dpi` combined with `width` or `height`, size out of bounds | `422 validation_error`      |
 | Exceeds 60s                                                 | `504 processing_timeout`    |
 
 ## Spike
 
-Part of the implementation, `full` tests in the image:
+Passed, covered by `full` tests in `test/services/test_convert.py` and `test/api/test_render_convert.py`:
 
-1. LibreOffice `pdf` export with `PageRange=<n>` exports only that page for writer, calc and impress documents.
-2. Behaviour of `PageRange` past the last page (empty PDF or error), mapped to `422 page_out_of_range`.
-3. HTML loads through Writer and paginates to page-sized PDF pages; if it exports one long page, force the Writer
-   import filter (`FilterName=HTML (StarWriter)`).
+1. `PageRange=<n>` exports exactly that page for writer (docx), impress (pptx), calc (xlsx) and HTML documents.
+2. A `PageRange` past the last page fails the save without reporting the page count. A save failure with `page > 1`
+   maps to `422 page_out_of_range` (no count in `detail`); at `page == 1` it stays `415 unsupported_format`, since
+   every LibreOffice document exports its first page.
+3. HTML loaded through Writer paginates into A4 pages; no import filter override is needed.
 
 ## Tests
 
