@@ -10,7 +10,10 @@ tasks:
   local/server:
     cmd: ['uv', 'run', 'fastapi', 'dev', '--entrypoint', 'server:app', '--reload']
     deps: [local/install]
-    env: { PAPYRUS_CONFIG: config.yml }
+    env:
+      PAPYRUS_CONFIG: config.yml
+      PAPYRUS_AUTH_DISABLED: 'true'
+      WATERMARK: 'dev #0000000 2026-01-01'
     ready: { log: 'started at' }
 
   docker/:
