@@ -7,6 +7,7 @@ from server.api.output import image_responses, respond
 from server.api.request import op_context, openapi_body
 from server.auth import require_api_key
 from server.types.screenshot import ScreenshotRequest, ScreenshotResult
+from server.utils.timing import stage
 
 router = APIRouter(prefix='/v1', tags=['screenshot'], dependencies=[Depends(require_api_key)])
 
@@ -23,7 +24,8 @@ async def screenshot(request: Request) -> Response:
         url = op.model.source
         options = op.model.options
         target = op.workspace.new_file(f'{urlsplit(url).hostname or "screenshot"}.{options.format.extension}')
-        capture = await request.app.state.services.browser.screenshot(url, target, options)
+        with stage('screenshot'):
+            capture = await request.app.state.services.browser.screenshot(url, target, options)
 
         def as_json() -> ScreenshotResult:
             return ScreenshotResult(

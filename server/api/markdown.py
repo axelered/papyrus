@@ -10,6 +10,7 @@ from server.types.common import FormatGroup, FormatLabel, Receipt
 from server.types.convert import ConvertFormat
 from server.types.markdown import MarkdownRequest, MarkdownResult
 from server.utils.openapi import inline_refs
+from server.utils.timing import stage
 
 MEDIA_TYPE = 'text/markdown; charset=utf-8'
 JSON_MEDIA_TYPE = 'application/json'
@@ -86,8 +87,10 @@ def is_code(value: Format) -> bool:
 async def markdown(request: Request) -> Response:
     services = request.app.state.services
     async with op_context(request, MarkdownRequest) as op:
-        source = await request.app.state.transfer.materialize(op.model.source, op.workspace, op.parts)
-        document = await services.detect.detect(source)
+        with stage('materialize'):
+            source = await request.app.state.transfer.materialize(op.model.source, op.workspace, op.parts)
+        with stage('detect'):
+            document = await services.detect.detect(source)
         if not accepts(document.format):
             raise UnsupportedFormat(
                 f'{document.format.mime_type} ({document.format.label}) is not supported for markdown extraction'
@@ -96,15 +99,19 @@ async def markdown(request: Request) -> Response:
         source_path = document.path
         if conversion := CONVERSIONS.get(document.format.label):
             source_path = op.workspace.new_file(f'{stem}.{conversion}')
-            await services.convert.convert(document.path, source_path, conversion)
+            with stage('convert'):
+                await services.convert.convert(document.path, source_path, conversion)
         target = op.workspace.new_file(f'{stem}.md')
         chunking = op.model.options.chunking
         chunks_target = op.workspace.new_file(f'{stem}.chunks.json') if chunking else None
-        if is_code(document.format):
-            title = None
-            await services.markdown.fence_code(document.path, target, document.format.label, chunking, chunks_target)
-        else:
-            title = await services.markdown.convert(source_path, target, chunking, chunks_target)
+        with stage('markdown'):
+            if is_code(document.format):
+                title = None
+                await services.markdown.fence_code(
+                    document.path, target, document.format.label, chunking, chunks_target
+                )
+            else:
+                title = await services.markdown.convert(source_path, target, chunking, chunks_target)
 
         source_type = source_type_of(document.format)
         result = MarkdownResult(markdown=target.read_text(encoding='utf-8'), title=title, source_type=source_type)

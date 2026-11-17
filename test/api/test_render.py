@@ -6,6 +6,8 @@ from fastapi.testclient import TestClient
 from fsspec import AbstractFileSystem
 from PIL import Image
 
+from server.config import Config, Settings
+from server.factory import create_app
 from test.fixtures.samples import image, pdf_pages, png_header
 
 A4 = (595, 842)
@@ -120,3 +122,18 @@ def test_openapi_documents_route(client: TestClient, route: str):
         'image/webp',
     }
     assert operation['security']
+
+
+def test_thumbnail_server_timing_lists_stages(settings: Settings, config: Config, auth_headers: dict[str, str]):
+    app = create_app(settings=settings.model_copy(update={'timing': True}), config=config)
+    with TestClient(app) as client:
+        response = _upload(client, 'thumbnail', auth_headers, 'report.pdf', pdf_pages(A4))
+
+    stages = [entry.split(';')[0] for entry in response.headers['server-timing'].split(', ')]
+    assert stages == ['parse', 'materialize', 'detect', 'render', 'total']
+
+
+def test_server_timing_is_off_by_default(client: TestClient, auth_headers: dict[str, str]):
+    response = _upload(client, 'thumbnail', auth_headers, 'report.pdf', pdf_pages(A4))
+
+    assert 'server-timing' not in response.headers

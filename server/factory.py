@@ -22,6 +22,7 @@ from server.services.markdown import MarkdownService
 from server.services.render import RenderService
 from server.utils.logs import RequestIdMiddleware, configure_logging
 from server.utils.problem import install_problem_handlers
+from server.utils.timing import TimingMiddleware
 from server.utils.yaml import load_yaml
 
 LOGGER_NAMESPACE = 'papyrus'
@@ -95,6 +96,8 @@ def create_app(settings: Settings | None = None, config: Config | None = None) -
 
     configure_logging(LOGGER_NAMESPACE)
     app = FastAPI(title='Axelered Papyrus', lifespan=lifespan)
+    # added first so it runs inside RequestIdMiddleware and the timing log line carries the request id
+    app.add_middleware(TimingMiddleware, enabled=lambda: app.state.settings.timing)
     app.add_middleware(RequestIdMiddleware)
     install_problem_handlers(app, logging.getLogger(f'{LOGGER_NAMESPACE}.errors'))
     app.include_router(health.router)

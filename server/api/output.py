@@ -12,6 +12,7 @@ from server.io.workspace import Workspace
 from server.services.detect import Format
 from server.types.common import ImageFormat, OutputMode, Receipt, SourceType
 from server.utils.openapi import inline_refs
+from server.utils.timing import stage
 
 
 def source_type_of(value: Format) -> SourceType:
@@ -60,7 +61,8 @@ async def respond(
 ) -> Response:
     """Builds the response for the result at `path` according to the request's destination and output"""
     if op.model.destination:
-        size = await request.app.state.transfer.deliver(path, op.model.destination)
+        with stage('deliver'):
+            size = await request.app.state.transfer.deliver(path, op.model.destination)
         receipt = Receipt(destination=op.model.destination, content_type=media_type, size=size, source_type=source_type)
         return JSONResponse(receipt.model_dump(mode='json', exclude_none=True))
     if op.model.output == OutputMode.FILE:

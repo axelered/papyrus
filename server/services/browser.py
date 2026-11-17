@@ -13,6 +13,7 @@ from server.types.common import MAX_IMAGE_SIDE, ImageFormat
 from server.types.screenshot import ScreenshotOptions
 from server.utils.net import HostPolicy, Resolver, resolve_host
 from server.utils.proxy import PinningProxy
+from server.utils.timing import stage
 
 if TYPE_CHECKING:
     from playwright.async_api import Browser, BrowserContext, CDPSession, Page, Playwright
@@ -112,7 +113,8 @@ class BrowserService:
         else:
             body = await asyncio.to_thread(document.read_bytes)
         async with self._semaphore:
-            instance = await self._acquire()
+            with stage('browser.acquire'):
+                instance = await self._acquire()
             try:
                 async with asyncio.timeout(self._timeout):
                     return await self._capture(instance.browser, url, target, options, body)
@@ -226,13 +228,14 @@ class BrowserService:
         navigation = _Navigation(url)
         async with PinningProxy(self._policy.resolve, on_reject=navigation.reject, logger=logger) as proxy:
             try:
-                context = await browser.new_context(
-                    viewport={'width': options.width, 'height': options.height},
-                    device_scale_factor=options.scale,
-                    service_workers='block',
-                    accept_downloads=False,
-                    proxy={'server': f'http://127.0.0.1:{proxy.port}'},
-                )
+                with stage('browser.context'):
+                    context = await browser.new_context(
+                        viewport={'width': options.width, 'height': options.height},
+                        device_scale_factor=options.scale,
+                        service_workers='block',
+                        accept_downloads=False,
+                        proxy={'server': f'http://127.0.0.1:{proxy.port}'},
+                    )
             except Error as e:
                 raise ProcessingFailed(f'browser failed ({_first_line(e)})') from None
             try:
@@ -245,7 +248,7 @@ class BrowserService:
                     raise ProcessingFailed('page crashed') from None
                 raise ProcessingFailed(f'browser failed ({_first_line(e)})') from None
             finally:
-                with contextlib.suppress(Exception):
+                with stage('browser.close'), contextlib.suppress(Exception):
                     async with asyncio.timeout(_CLOSE_TIMEOUT):
                         await context.close()
 
@@ -259,7 +262,8 @@ class BrowserService:
         page.on('crash', lambda _: setattr(navigation, 'crashed', True))
         page.on('request', lambda request: _track(navigation, page, request))
         try:
-            response = await page.goto(navigation.url, wait_until=options.wait_until.value)
+            with stage('browser.goto'):
+                response = await page.goto(navigation.url, wait_until=options.wait_until.value)
         except Error as e:
             _raise_rejected(navigation)
             if navigation.crashed or page.is_closed():
@@ -284,7 +288,8 @@ class BrowserService:
         }
         if options.format != ImageFormat.PNG:
             params['quality'] = QUALITY
-        shot = await session.send('Page.captureScreenshot', params)
+        with stage('browser.capture'):
+            shot = await session.send('Page.captureScreenshot', params)
         target.write_bytes(base64.b64decode(shot['data']))
         return Capture(width=width * options.scale, height=height * options.scale, url=page.url, status=status)
 

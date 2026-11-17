@@ -9,6 +9,8 @@
 #   PAPYRUS_API_KEY        API keys accepted by the server, comma separated. Required unless auth is disabled.
 #   PAPYRUS_AUTH_DISABLED  Set to true to turn off auth. Use only for local development.
 #   PAPYRUS_CONFIG         Path of this file.
+#   PAPYRUS_TIMING         Set to true to add a Server-Timing header and a log line with stage durations to every
+#                          response. Use only for profiling, the header reveals internal timings.
 
 workers:
   # Number of worker processes. "auto" uses one per CPU.

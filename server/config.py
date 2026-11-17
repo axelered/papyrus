@@ -81,6 +81,8 @@ class Settings(BaseSettings):
     config: Path = DEFAULT_CONFIG_PATH
     api_key: str = ''
     auth_disabled: bool = False
+    # Server-Timing header and a log line per request with stage durations, for profiling only
+    timing: bool = False
 
     @property
     def api_keys(self) -> tuple[str, ...]:

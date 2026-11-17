@@ -16,6 +16,7 @@ from server.io.workspace import Workspace
 from server.types.common import OpRequest
 from server.utils.body import JSON, MULTIPART, read_body
 from server.utils.openapi import inline_refs
+from server.utils.timing import stage
 
 DEFAULT_PART = 'file'
 METADATA_FIELD = 'metadata'
@@ -38,7 +39,8 @@ async def op_context[M: OpRequest](request: Request, model: type[M]) -> AsyncIte
         deadline = asyncio.timeout(config.limits.deadline)
         try:
             async with deadline:
-                op = await parse_op(request, model, workspace, int(config.limits.max_file_size))
+                with stage('parse'):
+                    op = await parse_op(request, model, workspace, int(config.limits.max_file_size))
                 if op.model.destination:
                     request.app.state.transfer.check_destination(op.model.destination)
                 yield op

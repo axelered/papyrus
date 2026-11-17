@@ -19,6 +19,7 @@ from server.types.common import FormatLabel
 from server.types.convert import ConvertFormat
 from server.types.render import Fit, RenderRequest, RenderResult, ThumbnailRequest
 from server.types.screenshot import ScreenshotOptions
+from server.utils.timing import stage
 
 RENDER_FORMATS = frozenset(
     {
@@ -102,8 +103,10 @@ async def _render[M: ThumbnailRequest | RenderRequest](
     """
     services = request.app.state.services
     async with op_context(request, model) as op:
-        source = await request.app.state.transfer.materialize(op.model.source, op.workspace, op.parts)
-        document = await services.detect.detect(source)
+        with stage('materialize'):
+            source = await request.app.state.transfer.materialize(op.model.source, op.workspace, op.parts)
+        with stage('detect'):
+            document = await services.detect.detect(source)
         if document.format.label not in RENDER_FORMATS | PDF_CONVERSIONS:
             raise UnsupportedFormat(
                 f'{document.format.mime_type} ({document.format.label}) is not supported for rendering'
@@ -115,7 +118,8 @@ async def _render[M: ThumbnailRequest | RenderRequest](
         elif document.format.label in PDF_CONVERSIONS:
             raster = await _convert_page(services.convert, services.render, op, document, target, spec)
         else:
-            raster = await services.render.page(document.path, target, spec)
+            with stage('render'):
+                raster = await services.render.page(document.path, target, spec)
         source_type = source_type_of(document.format)
 
         def as_json() -> RenderResult:
@@ -146,8 +150,10 @@ async def _convert_page(
 ) -> Raster:
     """Office and HTML through a one-page PDF export; the page count is unknown afterwards"""
     pdf = op.workspace.new_file(f'{document.path.stem}.pdf')
-    await convert.convert(document.path, pdf, ConvertFormat.PDF, page=spec.page)
-    raster = await render.page(pdf, target, replace(spec, page=1))
+    with stage('convert'):
+        await convert.convert(document.path, pdf, ConvertFormat.PDF, page=spec.page)
+    with stage('render'):
+        raster = await render.page(pdf, target, replace(spec, page=1))
     return replace(raster, page=spec.page, page_count=None)
 
 
@@ -160,6 +166,8 @@ async def _screenshot_html(
     source = op.model.source
     origin = source if urlsplit(source).scheme in HTTP_SCHEMES else f'{DOCUMENT_ORIGIN}/{quote(document.path.name)}'
     shot = op.workspace.new_file(f'{document.path.stem}.png')
-    await browser.screenshot(origin, shot, thumbnail_viewport(spec), document=document.path)
-    raster = await render.page(shot, target, spec)
+    with stage('screenshot'):
+        await browser.screenshot(origin, shot, thumbnail_viewport(spec), document=document.path)
+    with stage('render'):
+        raster = await render.page(shot, target, spec)
     return replace(raster, page_count=1)
