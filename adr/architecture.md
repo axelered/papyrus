@@ -353,8 +353,11 @@ Imports only point down; a violation is a design bug, not a style nit.
 - No runtime downloads: anything a library would fetch lazily (tree-sitter grammars, tiktoken encodings) is
   prefetched at Docker build into fixed image paths (`adr/chunking.md`).
 - Container `HEALTHCHECK` on `/health`; orchestrator readiness on `/ready`.
-- Logs: stdlib `logging` under the `papyrus.*` logger namespace, JSON lines on stderr, `X-Request-ID` echoed (if it
-  matches `[A-Za-z0-9._:-]{1,128}`) or generated and bound to every line. Uvicorn keeps its own access log format.
+- Logs: stdlib `logging` under the `papyrus.*` logger namespace, one root handler on stderr set up by
+  `server/main.py` (`create_app` leaves logging alone). `PAPYRUS_LOG_FORMAT` is `text` by default, `json` for
+  pipelines that parse lines. Levels stay separate: `PAPYRUS_LOG_LEVEL` for `papyrus.*`, uvicorn keeps
+  `--log-level` with its loggers routed to the root handler, libraries at warning. `X-Request-ID` echoed (if it
+  matches `[A-Za-z0-9._:-]{1,128}`) or generated and bound to every line, access lines included.
 - Memory sizing must account for pool processes plus daemons (about 330 MB per convert worker, about 1 GB for
   clamd signatures, about 150 MB plus 150 MB per context for the browser).
 

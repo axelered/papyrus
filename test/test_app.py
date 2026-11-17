@@ -1,4 +1,5 @@
 import logging
+import os
 import subprocess
 import sys
 
@@ -25,22 +26,33 @@ def test_startup_loads_config_from_settings_path(write_config):
         assert app.state.admission.limit == 3
 
 
-def test_import_has_no_side_effects():
-    from server import main
+def test_create_app_leaves_logging_alone(tmp_path):
+    root = logging.getLogger()
+    handlers = list(root.handlers)
 
-    assert not hasattr(main.app.state, 'settings')
+    create_app(settings=Settings(config=tmp_path / 'absent.yml'))
+
+    assert root.handlers == handlers
+
+
+def test_entrypoint_configures_logging_and_defers_settings():
+    # a fresh interpreter: the entrypoint changes the root logger process wide
+    code = (
+        'import logging; from server import main; '
+        'print(type(logging.getLogger().handlers[-1].formatter).__name__, hasattr(main.app.state, "settings"))'
+    )
+    env = {**os.environ, 'PAPYRUS_LOG_FORMAT': 'JSON'}
+    result = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True, check=True, env=env)
+
+    assert result.stdout.strip() == 'JsonFormatter False'
 
 
 def test_startup_logs_topology_without_secrets(write_config, caplog: pytest.LogCaptureFixture):
     path = write_config('workers: { processes: 4, max_queue: 3 }\nconnectors: { prod: { protocol: memory } }')
     app = create_app(settings=Settings(api_key='secret-key', config=path))
-    logger = logging.getLogger('papyrus')
-    logger.addHandler(caplog.handler)
-    try:
-        with TestClient(app):
-            pass
-    finally:
-        logger.removeHandler(caplog.handler)
+    caplog.set_level(logging.INFO, logger='papyrus.startup')
+    with TestClient(app):
+        pass
 
     assert 'max_queue=3' in caplog.text
     assert 'markdown=4 convert=2 render=4 processes, browser=2 pages' in caplog.text

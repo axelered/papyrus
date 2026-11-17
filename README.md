@@ -180,6 +180,10 @@ PAPYRUS_AUTH_DISABLED=true
 PAPYRUS_CONFIG=config.local.yml
 ```
 
+Logs are plain text on stderr. `PAPYRUS_LOG_LEVEL` (`debug`, `info`, `warning`, `error`) sets the papyrus
+loggers, uvicorn keeps its own `--log-level`, and `PAPYRUS_LOG_FORMAT=json` switches every line to JSON for log
+pipelines.
+
 To profile requests set `PAPYRUS_TIMING=true`: every response then carries a `Server-Timing` header with the
 duration of each stage (`parse`, `materialize`, `detect`, `convert`, `render`, `browser.goto`, ...) and the same
 values are logged once per request. Keep it off in production, the header reveals internal timings.

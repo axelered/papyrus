@@ -11,6 +11,9 @@
 #   PAPYRUS_CONFIG         Path of this file.
 #   PAPYRUS_TIMING         Set to true to add a Server-Timing header and a log line with stage durations to every
 #                          response. Use only for profiling, the header reveals internal timings.
+#   PAPYRUS_LOG_LEVEL      debug, info (default), warning or error. Applies to papyrus loggers only:
+#                          uvicorn keeps its --log-level (UVICORN_LOG_LEVEL), libraries log warnings.
+#   PAPYRUS_LOG_FORMAT     text (default) or json, one object per line for log pipelines that parse them.
 
 workers:
   # Number of worker processes. "auto" uses one per CPU.

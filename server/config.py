@@ -2,10 +2,12 @@ import os
 import re
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ByteSize, ConfigDict, Field, PositiveFloat, PositiveInt, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from server.utils.logs import LogFormat
 
 DEFAULT_CONFIG_PATH = Path('/etc/papyrus/config.yml')
 
@@ -83,6 +85,15 @@ class Settings(BaseSettings):
     auth_disabled: bool = False
     # Server-Timing header and a log line per request with stage durations, for profiling only
     timing: bool = False
+    # papyrus loggers only: uvicorn keeps --log-level, libraries stay at warning
+    log_level: Literal['debug', 'info', 'warning', 'error'] = 'info'
+    # json for log pipelines that parse lines (OTEL collectors, Loki, Cloud Logging)
+    log_format: LogFormat = 'text'
+
+    @field_validator('log_level', 'log_format', mode='before')
+    @classmethod
+    def _lower(cls, value: Any) -> Any:
+        return value.lower() if isinstance(value, str) else value
 
     @property
     def api_keys(self) -> tuple[str, ...]:

@@ -27,6 +27,7 @@ tasks:
     cmd: [
       'docker', 'run', '--rm', '--init', '--name', 'papyrus-dev', '-p', '8001:8000',
       '-e', 'PAPYRUS_AUTH_DISABLED=true', '-e', 'WATCHFILES_FORCE_POLLING=true', '-e', 'PAPYRUS_TIMING=true',
+      '-e', 'PAPYRUS_LOG_LEVEL=info', '-e', 'PAPYRUS_LOG_FORMAT=text',
       '-v', './server:/app/server:ro', '-v', './test:/app/test:ro', '-v', './scripts:/app/scripts:ro',
       '-v', './config.yml:/etc/papyrus/config.yml:ro',
       'papyrus:dev',
