@@ -183,6 +183,8 @@ PAPYRUS_CONFIG=config.local.yml
 To profile requests set `PAPYRUS_TIMING=true`: every response then carries a `Server-Timing` header with the
 duration of each stage (`parse`, `materialize`, `detect`, `convert`, `render`, `browser.goto`, ...) and the same
 values are logged once per request. Keep it off in production, the header reveals internal timings.
+`docker exec papyrus-dev python -m scripts.bench` prints cold and hot latency per service operation
+(`adr/performance.md`).
 
 Download the chunking grammars and tokenizers once into the gitignored `.assets/` (the server never downloads at
 runtime, the Docker build does the same):

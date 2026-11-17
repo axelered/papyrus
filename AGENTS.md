@@ -55,6 +55,13 @@
 - [!] HTML in `/v1/render` through Chromium (HTML > PDF > image), uploaded HTML for `/v1/screenshot`
 - [!] Pin the validated IP in the httpx transport via `utils/net.py`
 
+### Performance (spec: `adr/performance.md`)
+
+- [x] `Server-Timing` stages behind `PAPYRUS_TIMING` and the `scripts/bench.py` cold/hot pool benchmark
+- [x] Pool workers import their module without building the app or importing FastAPI
+- [ ] Warm process pools at startup with a pebble `initializer` importing the worker module and heavy libraries
+- [ ] Website thumbnails: drop the httpx pre-fetch and route only the document navigation through Python
+
 ## Future Issues
 
 - Starlette parses multipart bodies before size checks; the request body limit must also be enforced at the reverse proxy
