@@ -1,15 +1,13 @@
-import json
-
 from fastapi import APIRouter, Depends, Request, Response
 
 from server.api.output import respond, source_type_of
 from server.api.request import op_context, openapi_body
 from server.auth import require_api_key
 from server.errors import UnsupportedFormat
-from server.services.chunking.chunker import ChunkOptions
 from server.services.detect import Format
+from server.services.markdown import CHUNKS
 from server.types.common import FormatGroup, FormatLabel, Receipt
-from server.types.markdown import Chunk, MarkdownRequest, MarkdownResult
+from server.types.markdown import MarkdownRequest, MarkdownResult
 from server.utils.openapi import inline_refs
 
 MEDIA_TYPE = 'text/markdown; charset=utf-8'
@@ -85,7 +83,7 @@ async def markdown(request: Request) -> Response:
             )
         stem = document.path.stem
         target = op.workspace.new_file(f'{stem}.md')
-        chunking = ChunkOptions(**op.model.options.chunking.model_dump()) if op.model.options.chunking else None
+        chunking = op.model.options.chunking
         chunks_target = op.workspace.new_file(f'{stem}.chunks.json') if chunking else None
         if is_code(document.format):
             title = None
@@ -98,7 +96,7 @@ async def markdown(request: Request) -> Response:
         if chunks_target is None:
             return await respond(request, op, target, MEDIA_TYPE, lambda: result, source_type)
 
-        result.chunks = [Chunk.model_validate(chunk) for chunk in json.loads(chunks_target.read_text('utf-8'))]
+        result.chunks = CHUNKS.validate_json(chunks_target.read_bytes())
         body = op.workspace.new_file(f'{stem}.json')
         body.write_text(result.model_dump_json(), encoding='utf-8')
         return await respond(request, op, body, JSON_MEDIA_TYPE, lambda: result, source_type)

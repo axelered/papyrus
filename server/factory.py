@@ -3,22 +3,39 @@ import logging
 import os
 from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Self
 
 from fastapi import FastAPI
 
 from server.api import health, markdown
 from server.api.admission import Admission
-from server.config import Config, ConfigError, Settings
+from server.config import Config, ConfigError, Settings, WorkersConfig
 from server.io.connectors import Connectors
 from server.io.http import HttpFetcher
 from server.io.transfer import Transfer
-from server.services.registry import Services
+from server.services.detect import DetectService
+from server.services.markdown import MarkdownService
 from server.utils.logs import RequestIdMiddleware, configure_logging
 from server.utils.problem import install_problem_handlers
 from server.utils.yaml import load_yaml
 
 LOGGER_NAMESPACE = 'papyrus'
+
+
+@dataclass
+class Services:
+    detect: DetectService
+    markdown: MarkdownService
+
+    @classmethod
+    def create(cls, workers: WorkersConfig) -> Self:
+        # todo: per-service processes, timeouts and max_tasks are code heuristics, make them configurable in YAML
+        return cls(detect=DetectService(), markdown=MarkdownService(processes=workers.processes))
+
+    def close(self) -> None:
+        self.markdown.close()
 
 
 def load_config(path: Path, env: Mapping[str, str] | None = None) -> Config:

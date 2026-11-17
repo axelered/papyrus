@@ -1,22 +1,24 @@
-import json
-from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
+from pydantic import TypeAdapter
+
 from server.errors import ProcessingFailed, UnsupportedFormat
-from server.services.chunking.chunker import ChunkOptions
-from server.services.fence import fence
 from server.services.pool import ProcessPool
+from server.types.markdown import Chunk, ChunkingOptions
 from server.utils.problem import ProblemError
+from server.utils.text import decode_text, fence
 
 TIMEOUT = 120
 MAX_TASKS = 100
+
+CHUNKS = TypeAdapter(list[Chunk])
 
 _converter: Any = None
 
 
 def convert_to_markdown(
-    source: str, target: str, chunking: ChunkOptions | None = None, chunks_target: str | None = None
+    source: str, target: str, chunking: ChunkingOptions | None = None, chunks_target: str | None = None
 ) -> str | None:
     """Pool worker: writes markdown to `target` (and chunks to `chunks_target`), returns the document title
 
@@ -40,22 +42,8 @@ def convert_to_markdown(
     return result.title
 
 
-def decode_text(raw: bytes) -> str:
-    if not raw:
-        return ''
-    try:
-        return raw.decode('utf-8-sig')
-    except UnicodeDecodeError:
-        pass
-    # detection only for non utf-8 input, short single byte texts are ambiguous between code pages
-    from charset_normalizer import from_bytes
-
-    best = from_bytes(raw).best()
-    return str(best) if best is not None else raw.decode('utf-8', errors='replace')
-
-
 def fence_code(
-    source: str, target: str, language: str, chunking: ChunkOptions | None = None, chunks_target: str | None = None
+    source: str, target: str, language: str, chunking: ChunkingOptions | None = None, chunks_target: str | None = None
 ) -> None:
     """Pool worker for code sources: markitdown would pass them through, turning `#` comments into headings"""
     try:
@@ -65,11 +53,11 @@ def fence_code(
     _write(fence(text.replace('\r\n', '\n'), language), target, chunking, chunks_target)
 
 
-def _write(markdown: str, target: str, chunking: ChunkOptions | None, chunks_target: str | None) -> None:
+def _write(markdown: str, target: str, chunking: ChunkingOptions | None, chunks_target: str | None) -> None:
     Path(target).write_text(markdown, encoding='utf-8', newline='')
     if chunking is None or chunks_target is None:
         return
-    from server.services.chunking.chunker import chunk_markdown
+    from server.services.chunking import chunk_markdown
 
     try:
         chunks = chunk_markdown(markdown, chunking)
@@ -77,7 +65,7 @@ def _write(markdown: str, target: str, chunking: ChunkOptions | None, chunks_tar
         raise
     except Exception as e:
         raise ProcessingFailed(f'chunking failed ({type(e).__name__})') from None
-    Path(chunks_target).write_text(json.dumps([asdict(chunk) for chunk in chunks]), encoding='utf-8')
+    Path(chunks_target).write_bytes(CHUNKS.dump_json(chunks))
 
 
 class MarkdownService:
@@ -85,7 +73,7 @@ class MarkdownService:
         self._pool = ProcessPool('markdown', processes, timeout=TIMEOUT, max_tasks=MAX_TASKS)
 
     async def convert(
-        self, source: Path, target: Path, chunking: ChunkOptions | None = None, chunks_target: Path | None = None
+        self, source: Path, target: Path, chunking: ChunkingOptions | None = None, chunks_target: Path | None = None
     ) -> str | None:
         return await self._pool.run(convert_to_markdown, str(source), str(target), chunking, _optional(chunks_target))
 
@@ -94,7 +82,7 @@ class MarkdownService:
         source: Path,
         target: Path,
         language: str,
-        chunking: ChunkOptions | None = None,
+        chunking: ChunkingOptions | None = None,
         chunks_target: Path | None = None,
     ) -> None:
         await self._pool.run(fence_code, str(source), str(target), language, chunking, _optional(chunks_target))

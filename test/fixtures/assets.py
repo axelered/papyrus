@@ -1,6 +1,6 @@
 import pytest
 
-from server.services.chunking.assets import prefetch
+from scripts.prefetch import prefetch
 
 
 @pytest.fixture(scope='session')

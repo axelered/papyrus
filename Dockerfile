@@ -10,7 +10,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # libraries must never download at runtime: grammars and tokenizers are baked in here
 COPY server ./server
-RUN PAPYRUS_ASSETS_DIR=/app/assets /app/.venv/bin/python -m server.services.chunking.prefetch
+COPY scripts ./scripts
+RUN PAPYRUS_ASSETS_DIR=/app/assets /app/.venv/bin/python -m scripts.prefetch
 
 
 FROM python:3.14-slim

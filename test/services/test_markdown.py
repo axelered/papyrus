@@ -4,8 +4,7 @@ from pathlib import Path
 import pytest
 
 from server.errors import UnsupportedFormat
-from server.services.fence import fence
-from server.services.markdown import MarkdownService, decode_text
+from server.services.markdown import MarkdownService
 from test.fixtures.documents import BINARY, CSV, HTML, DocumentFactory
 
 pytestmark = pytest.mark.anyio
@@ -41,33 +40,6 @@ async def test_rejects_unsupported_binary(service: MarkdownService, make_documen
         await service.convert(make_document('blob.dat', BINARY), target)
 
     assert not target.exists()
-
-
-@pytest.mark.parametrize(
-    ('text', 'expected'),
-    [
-        ('x = 1\n', '```python\nx = 1\n```\n'),
-        ('x = 1', '```python\nx = 1\n```\n'),
-        ('', '```python\n```\n'),
-        ('s = """\n```\n"""\n', '````python\ns = """\n```\n"""\n````\n'),
-        ('a = "`````"\n', '``````python\na = "`````"\n``````\n'),
-    ],
-)
-def test_fence_cannot_be_broken_out_of(text: str, expected: str):
-    assert fence(text, 'python') == expected
-
-
-@pytest.mark.parametrize(
-    ('raw', 'text'),
-    [
-        (b'', ''),
-        ('x = "café"\n'.encode(), 'x = "café"\n'),
-        ('﻿x = 1\n'.encode(), 'x = 1\n'),
-        ('x = "日本語のテキスト"\n'.encode('utf-16'), 'x = "日本語のテキスト"\n'),
-    ],
-)
-def test_decode_text_detects_charset(raw: bytes, text: str):
-    assert decode_text(raw) == text
 
 
 async def test_fences_code_source(service: MarkdownService, make_document: DocumentFactory, tmp_path: Path):

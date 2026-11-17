@@ -1,13 +1,18 @@
+import os
 import socket
+from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
+import tree_sitter_language_pack as language_pack
 
-from server.services.chunking import chunker
-from server.services.chunking.assets import available_languages
-from server.services.chunking.chunker import ChunkOptions, chunk_markdown
-from server.types.markdown import ChunkKind, CodeLanguage, Tokenizer
+from server.services import chunking
+from server.services.chunking import available_languages, chunk_markdown, resolve_language
+from server.services.detect import lookup
+from server.types.markdown import ChunkingOptions, ChunkKind, CodeLanguage, Tokenizer
 
 pytestmark = pytest.mark.usefixtures('chunking_assets')
+
 
 REPORT = """# Quarterly Report
 
@@ -51,17 +56,22 @@ Final remarks here.
 """
 
 
+def _options(**fields: object) -> ChunkingOptions:
+    """Bypasses API bounds (max_tokens >= 64) so small budgets exercise splitting"""
+    return ChunkingOptions.model_construct(**fields)
+
+
 def _of(chunks: list, kind: ChunkKind) -> list:
     return [chunk for chunk in chunks if chunk.kind == kind]
 
 
 @pytest.mark.parametrize('markdown', ['', '  \n\n '])
 def test_empty_markdown_has_no_chunks(markdown: str):
-    assert chunk_markdown(markdown, ChunkOptions()) == []
+    assert chunk_markdown(markdown, _options()) == []
 
 
 def test_chunks_are_ordered_and_indexed():
-    chunks = chunk_markdown(REPORT, ChunkOptions(max_tokens=64))
+    chunks = chunk_markdown(REPORT, _options(max_tokens=64))
 
     assert [chunk.index for chunk in chunks] == list(range(len(chunks)))
     assert [chunk.start for chunk in chunks] == sorted(chunk.start for chunk in chunks)
@@ -69,7 +79,7 @@ def test_chunks_are_ordered_and_indexed():
 
 
 def test_prose_offsets_point_into_markdown_and_carry_heading_path():
-    chunks = _of(chunk_markdown(REPORT, ChunkOptions(max_tokens=64)), ChunkKind.TEXT)
+    chunks = _of(chunk_markdown(REPORT, _options(max_tokens=64)), ChunkKind.TEXT)
 
     assert all(REPORT[chunk.start : chunk.end] == chunk.text for chunk in chunks)
     revenue = next(chunk for chunk in chunks if 'Revenue grew' in chunk.text)
@@ -79,7 +89,7 @@ def test_prose_offsets_point_into_markdown_and_carry_heading_path():
 
 
 def test_tables_split_by_rows_with_repeated_header():
-    tables = _of(chunk_markdown(REPORT, ChunkOptions(max_tokens=64)), ChunkKind.TABLE)
+    tables = _of(chunk_markdown(REPORT, _options(max_tokens=64)), ChunkKind.TABLE)
 
     assert len(tables) > 1
     assert all(table.text.startswith('| Region | Q1 | Q2 | Q3 |\n| --- |') for table in tables)
@@ -88,7 +98,7 @@ def test_tables_split_by_rows_with_repeated_header():
 
 
 def test_code_is_split_along_syntax_and_refenced():
-    code = _of(chunk_markdown(REPORT, ChunkOptions(max_tokens=64)), ChunkKind.CODE)
+    code = _of(chunk_markdown(REPORT, _options(max_tokens=64)), ChunkKind.CODE)
 
     assert len(code) > 1
     assert all(chunk.text.startswith('```python\n') and chunk.text.endswith('```\n') for chunk in code)
@@ -98,7 +108,7 @@ def test_code_is_split_along_syntax_and_refenced():
 
 
 def test_code_comments_are_not_headings():
-    chunks = chunk_markdown(REPORT, ChunkOptions(max_tokens=64))
+    chunks = chunk_markdown(REPORT, _options(max_tokens=64))
 
     assert all('read the file' not in chunk.headings for chunk in chunks)
     assert _of(chunks, ChunkKind.CODE)[0].headings == ['Quarterly Report', 'Implementation']
@@ -107,7 +117,7 @@ def test_code_comments_are_not_headings():
 def test_uncurated_language_falls_back_to_lines():
     markdown = '```elixir\n' + ''.join(f'defmodule M{i} do\n  def f, do: {i}\nend\n\n' for i in range(30)) + '```\n'
 
-    code = chunk_markdown(markdown, ChunkOptions(max_tokens=64))
+    code = chunk_markdown(markdown, _options(max_tokens=64))
 
     assert len(code) > 1
     assert all(chunk.language is None and chunk.text.startswith('```elixir\n') for chunk in code)
@@ -116,20 +126,20 @@ def test_uncurated_language_falls_back_to_lines():
 def test_slide_numbers_from_markitdown_markers():
     markdown = '<!-- Slide number: 1 -->\n# Intro\n\nHello.\n\n<!-- Slide number: 2 -->\n# Roadmap\n\nShip it.\n'
 
-    chunks = chunk_markdown(markdown, ChunkOptions(max_tokens=64, tokenizer=Tokenizer.WORD))
+    chunks = chunk_markdown(markdown, _options(max_tokens=64, tokenizer=Tokenizer.WORD))
 
     assert {chunk.text.strip().splitlines()[-1]: chunk.slide for chunk in chunks} == {'Hello.': 1, 'Ship it.': 2}
 
 
 def test_special_token_text_is_plain_text():
-    chunks = chunk_markdown('# Prompt\n\nUse <|endoftext|> as separator.\n', ChunkOptions())
+    chunks = chunk_markdown('# Prompt\n\nUse <|endoftext|> as separator.\n', _options())
 
     assert '<|endoftext|>' in chunks[0].text
 
 
 def test_overlap_appends_next_prose():
-    plain = _of(chunk_markdown(REPORT, ChunkOptions(max_tokens=32)), ChunkKind.TEXT)
-    overlapped = _of(chunk_markdown(REPORT, ChunkOptions(max_tokens=32, overlap=4)), ChunkKind.TEXT)
+    plain = _of(chunk_markdown(REPORT, _options(max_tokens=32)), ChunkKind.TEXT)
+    overlapped = _of(chunk_markdown(REPORT, _options(max_tokens=32, overlap=4)), ChunkKind.TEXT)
 
     assert [chunk.start for chunk in overlapped] == [chunk.start for chunk in plain]
     assert overlapped[0].text.startswith(plain[0].text)
@@ -138,7 +148,7 @@ def test_overlap_appends_next_prose():
 
 @pytest.mark.parametrize('tokenizer', list(Tokenizer))
 def test_every_tokenizer_respects_budget(tokenizer: Tokenizer):
-    chunks = chunk_markdown(REPORT, ChunkOptions(max_tokens=80, tokenizer=tokenizer))
+    chunks = chunk_markdown(REPORT, _options(max_tokens=80, tokenizer=tokenizer))
 
     assert chunks
     assert all(chunk.tokens <= 80 for chunk in chunks if chunk.kind != ChunkKind.CODE)
@@ -154,18 +164,18 @@ def test_runs_without_network(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(socket.socket, 'connect', blocked)
     monkeypatch.setattr(socket, 'getaddrinfo', blocked)
     monkeypatch.setattr(tiktoken.registry, 'ENCODINGS', {})
-    chunker._tokenizer.cache_clear()
+    chunking._tokenizer.cache_clear()
 
     assert available_languages() == frozenset(CodeLanguage)
     for language in CodeLanguage:
         language_pack.get_parser(language.value)
     for tokenizer in Tokenizer:
-        assert chunk_markdown(REPORT, ChunkOptions(max_tokens=64, tokenizer=tokenizer))
-    chunker._tokenizer.cache_clear()
+        assert chunk_markdown(REPORT, _options(max_tokens=64, tokenizer=tokenizer))
+    chunking._tokenizer.cache_clear()
 
 
 def test_sections_are_never_merged_even_with_room():
-    texts = _of(chunk_markdown(REPORT, ChunkOptions(max_tokens=4096)), ChunkKind.TEXT)
+    texts = _of(chunk_markdown(REPORT, _options(max_tokens=4096)), ChunkKind.TEXT)
 
     assert [chunk.headings for chunk in texts] == [
         ['Quarterly Report', 'Revenue'],
@@ -173,3 +183,46 @@ def test_sections_are_never_merged_even_with_room():
         ['Quarterly Report', 'Implementation', 'Notes'],
     ]
     assert texts[0].text.startswith('# Quarterly Report\n\n## Revenue\n\nRevenue grew')
+
+
+def test_aliases_never_shadow_language_values():
+    assert set(chunking.LANGUAGE_ALIASES).isdisjoint(language.value for language in CodeLanguage)
+
+
+@pytest.mark.parametrize(
+    ('tag', 'language'),
+    [
+        ('python', CodeLanguage.PYTHON),
+        (' Py ', CodeLanguage.PYTHON),
+        ('cs', CodeLanguage.CSHARP),
+        ('shell', CodeLanguage.BASH),
+        ('tf', CodeLanguage.HCL),
+        ('elixir', None),
+        ('', None),
+        (None, None),
+    ],
+)
+def test_resolve_language(tag: str | None, language: CodeLanguage | None):
+    assert resolve_language(tag) is language
+
+
+@pytest.mark.parametrize('label', ['python', 'javascript', 'typescript', 'cs', 'shell', 'go', 'rust', 'sql', 'yaml'])
+def test_magika_code_labels_resolve(label: str):
+    assert lookup(label).derived
+    assert resolve_language(label) is not None
+
+
+@pytest.fixture
+def isolated_assets(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
+    monkeypatch.setenv(chunking.ASSETS_ENV, str(tmp_path))
+    monkeypatch.setenv('TIKTOKEN_CACHE_DIR', '')
+    yield tmp_path
+    monkeypatch.undo()
+    chunking.configure()
+
+
+def test_configure_points_libraries_at_assets(isolated_assets: Path):
+    chunking.configure()
+
+    assert os.environ['TIKTOKEN_CACHE_DIR'] == str(isolated_assets / 'tiktoken')
+    assert language_pack.downloaded_languages() == []

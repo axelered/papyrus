@@ -1,38 +1,92 @@
 import bisect
+import os
 import re
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import cache
+from pathlib import Path
 from typing import Any
 
-from server.services.chunking import assets
-from server.services.chunking.types import resolve_language
-from server.services.fence import fence
-from server.types.markdown import ChunkKind, CodeLanguage, Tokenizer
+from server.types.markdown import Chunk, ChunkingOptions, ChunkKind, CodeLanguage, Tokenizer
+from server.utils.text import fence
+
+ASSETS_ENV = 'PAPYRUS_ASSETS_DIR'
+_DEFAULT_ASSETS_DIR = Path(__file__).resolve().parents[2] / '.assets'
+
+
+def assets_dir() -> Path:
+    return Path(os.environ.get(ASSETS_ENV) or _DEFAULT_ASSETS_DIR)
+
+
+def configure() -> None:
+    """Points tree-sitter and tiktoken at the prefetched assets; must run before either library loads anything"""
+    import tree_sitter_language_pack as language_pack
+    from tree_sitter_language_pack.options import PackConfig
+
+    root = assets_dir()
+    os.environ['TIKTOKEN_CACHE_DIR'] = str(root / 'tiktoken')
+    language_pack.configure(PackConfig(cache_dir=str(root / 'tree-sitter')))
+
+
+def available_languages() -> frozenset[CodeLanguage]:
+    import tree_sitter_language_pack as language_pack
+
+    downloaded = set(language_pack.downloaded_languages())
+    return frozenset(language for language in CodeLanguage if language.value in downloaded)
+
+
+# fence tags and magika labels that name a curated language differently
+LANGUAGE_ALIASES: dict[str, CodeLanguage] = {
+    'py': CodeLanguage.PYTHON,
+    'python3': CodeLanguage.PYTHON,
+    'js': CodeLanguage.JAVASCRIPT,
+    'jsx': CodeLanguage.JAVASCRIPT,
+    'mjs': CodeLanguage.JAVASCRIPT,
+    'cjs': CodeLanguage.JAVASCRIPT,
+    'node': CodeLanguage.JAVASCRIPT,
+    'ts': CodeLanguage.TYPESCRIPT,
+    'kt': CodeLanguage.KOTLIN,
+    'kts': CodeLanguage.KOTLIN,
+    'golang': CodeLanguage.GO,
+    'rs': CodeLanguage.RUST,
+    'h': CodeLanguage.C,
+    'c++': CodeLanguage.CPP,
+    'cc': CodeLanguage.CPP,
+    'cxx': CodeLanguage.CPP,
+    'hpp': CodeLanguage.CPP,
+    'cs': CodeLanguage.CSHARP,
+    'c#': CodeLanguage.CSHARP,
+    'rb': CodeLanguage.RUBY,
+    'sh': CodeLanguage.BASH,
+    'shell': CodeLanguage.BASH,
+    'zsh': CodeLanguage.BASH,
+    'console': CodeLanguage.BASH,
+    'ps1': CodeLanguage.POWERSHELL,
+    'pwsh': CodeLanguage.POWERSHELL,
+    'postgresql': CodeLanguage.SQL,
+    'mysql': CodeLanguage.SQL,
+    'yml': CodeLanguage.YAML,
+    'jsonc': CodeLanguage.JSON,
+    'htm': CodeLanguage.HTML,
+    'docker': CodeLanguage.DOCKERFILE,
+    'terraform': CodeLanguage.HCL,
+    'tf': CodeLanguage.HCL,
+}
+
+
+def resolve_language(tag: str | None) -> CodeLanguage | None:
+    """Fence tag or magika label to a curated language; anything else is not AST-chunked"""
+    if not tag:
+        return None
+    key = tag.strip().lower()
+    if key in CodeLanguage:
+        return CodeLanguage(key)
+    return LANGUAGE_ALIASES.get(key)
+
 
 _HEADING = re.compile(r'^(#{1,6})[ \t]+(.+?)[ \t#]*$', re.MULTILINE)
 _SLIDE = re.compile(r'<!--\s*Slide number:\s*(\d+)\s*-->')
 _MIN_CODE_BUDGET = 16
-
-
-@dataclass(frozen=True)
-class ChunkOptions:
-    max_tokens: int = 512
-    overlap: int = 0
-    tokenizer: Tokenizer = Tokenizer.O200K_BASE
-
-
-@dataclass(frozen=True)
-class MarkdownChunk:
-    index: int
-    kind: ChunkKind
-    text: str
-    language: CodeLanguage | None
-    headings: list[str] = field(default_factory=list)
-    slide: int | None = None
-    start: int = 0
-    end: int = 0
-    tokens: int = 0
 
 
 @dataclass
@@ -93,11 +147,11 @@ def _rules() -> tuple[Any, Any]:
     return prose, lines
 
 
-def chunk_markdown(markdown: str, options: ChunkOptions) -> list[MarkdownChunk]:
+def chunk_markdown(markdown: str, options: ChunkingOptions) -> list[Chunk]:
     """Structure-aware chunks of `markdown`, ordered by offset"""
     if not markdown.strip():
         return []
-    assets.configure()
+    configure()
     from chonkie import MarkdownChef
 
     tokenizer = _tokenizer(options.tokenizer)
@@ -113,7 +167,7 @@ def chunk_markdown(markdown: str, options: ChunkOptions) -> list[MarkdownChunk]:
     return _finalize(markdown, pieces, document.code, tokenizer)
 
 
-def _prose(markdown: str, segments: list[Any], tokenizer: Any, options: ChunkOptions) -> list[_Piece]:
+def _prose(markdown: str, segments: list[Any], tokenizer: Any, options: ChunkingOptions) -> list[_Piece]:
     from chonkie import RecursiveChunker
 
     chunker = RecursiveChunker(tokenizer=tokenizer, chunk_size=options.max_tokens, rules=_rules()[0])
@@ -164,7 +218,7 @@ def _body_offset(text: str) -> int:
     return 0
 
 
-def _tables(markdown: str, tables: list[Any], tokenizer: Any, options: ChunkOptions) -> list[_Piece]:
+def _tables(markdown: str, tables: list[Any], tokenizer: Any, options: ChunkingOptions) -> list[_Piece]:
     from chonkie import TableChunker
 
     chunker = TableChunker(tokenizer=tokenizer, chunk_size=options.max_tokens)
@@ -176,10 +230,10 @@ def _tables(markdown: str, tables: list[Any], tokenizer: Any, options: ChunkOpti
     return pieces
 
 
-def _code(markdown: str, blocks: list[Any], tokenizer: Any, options: ChunkOptions) -> list[_Piece]:
+def _code(markdown: str, blocks: list[Any], tokenizer: Any, options: ChunkingOptions) -> list[_Piece]:
     from chonkie import CodeChunker, RecursiveChunker
 
-    available = assets.available_languages()
+    available = available_languages()
     pieces = []
     for block in blocks:
         tag = block.language or ''
@@ -215,7 +269,7 @@ def _add_overlap(pieces: list[_Piece], tokenizer: Any, overlap: int) -> None:
         piece.text = chunk.text
 
 
-def _finalize(markdown: str, pieces: list[_Piece], blocks: list[Any], tokenizer: Any) -> list[MarkdownChunk]:
+def _finalize(markdown: str, pieces: list[_Piece], blocks: list[Any], tokenizer: Any) -> list[Chunk]:
     headings = _headings(markdown, [(block.start_index, block.end_index) for block in blocks])
     heading_offsets = [offset for offset, _, _ in headings]
     slides = [(match.start(), int(match.group(1))) for match in _SLIDE.finditer(markdown)]
@@ -224,7 +278,7 @@ def _finalize(markdown: str, pieces: list[_Piece], blocks: list[Any], tokenizer:
     for index, piece in enumerate(pieces):
         anchor = piece.start + _body_offset(piece.text) if piece.kind == ChunkKind.TEXT else piece.start
         chunks.append(
-            MarkdownChunk(
+            Chunk(
                 index=index,
                 kind=piece.kind,
                 text=piece.text,

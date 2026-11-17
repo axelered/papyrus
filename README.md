@@ -114,7 +114,7 @@ Download the chunking grammars and tokenizers once into the gitignored `.assets/
 runtime, the Docker build does the same):
 
 ```shell
-uv run python -m server.services.chunking.prefetch
+uv run python -m scripts.prefetch
 ```
 
 ```shell

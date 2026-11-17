@@ -1,4 +1,3 @@
-import os
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -6,24 +5,18 @@ import pytest
 import tiktoken
 import tree_sitter_language_pack as language_pack
 
-from server.services.chunking import assets
+from scripts.prefetch import prefetch
+from server.services import chunking
 from server.types.markdown import CodeLanguage, Tokenizer
 
 
 @pytest.fixture
 def isolated_assets(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
-    monkeypatch.setenv(assets.ASSETS_ENV, str(tmp_path))
+    monkeypatch.setenv(chunking.ASSETS_ENV, str(tmp_path))
     monkeypatch.setenv('TIKTOKEN_CACHE_DIR', '')
     yield tmp_path
     monkeypatch.undo()
-    assets.configure()
-
-
-def test_configure_points_libraries_at_assets(isolated_assets: Path):
-    assets.configure()
-
-    assert os.environ['TIKTOKEN_CACHE_DIR'] == str(isolated_assets / 'tiktoken')
-    assert language_pack.downloaded_languages() == []
+    chunking.configure()
 
 
 def test_prefetch_requests_enum_driven_assets(isolated_assets: Path, monkeypatch: pytest.MonkeyPatch):
@@ -41,7 +34,7 @@ def test_prefetch_requests_enum_driven_assets(isolated_assets: Path, monkeypatch
     monkeypatch.setattr(language_pack, 'downloaded_languages', lambda: list(downloaded))
     monkeypatch.setattr(tiktoken, 'get_encoding', encodings.append)
 
-    assets.prefetch()
+    prefetch()
 
     assert downloaded == [language.value for language in CodeLanguage]
     assert encodings == [tokenizer.value for tokenizer in Tokenizer if tokenizer.is_tiktoken]
@@ -54,4 +47,4 @@ def test_prefetch_fails_when_grammars_stay_missing(isolated_assets: Path, monkey
     monkeypatch.setattr(tiktoken, 'get_encoding', lambda name: None)
 
     with pytest.raises(RuntimeError, match='missing'):
-        assets.prefetch()
+        prefetch()
