@@ -7,6 +7,7 @@ from server.errors import UnsupportedFormat
 from server.services.detect import Format
 from server.services.markdown import CHUNKS
 from server.types.common import FormatGroup, FormatLabel, Receipt
+from server.types.convert import ConvertFormat
 from server.types.markdown import MarkdownRequest, MarkdownResult
 from server.utils.openapi import inline_refs
 
@@ -37,12 +38,22 @@ MARKDOWN_FORMATS = frozenset(
     }
 )
 
+# formats markitdown cannot read go through LibreOffice first; OOXML keeps headings and tables for chunking
+CONVERSIONS: dict[FormatLabel, ConvertFormat] = {
+    FormatLabel.DOC: ConvertFormat.DOCX,
+    FormatLabel.RTF: ConvertFormat.DOCX,
+    FormatLabel.ODT: ConvertFormat.DOCX,
+    FormatLabel.PPT: ConvertFormat.PPTX,
+    FormatLabel.ODP: ConvertFormat.PPTX,
+    FormatLabel.ODS: ConvertFormat.XLSX,
+}
+
 router = APIRouter(prefix='/v1', tags=['markdown'], dependencies=[Depends(require_api_key)])
 
 
 def accepts(value: Format) -> bool:
     """Explicit allowlist plus every format derived from magika that is text (code, configs, markup)"""
-    return value.label in MARKDOWN_FORMATS or (value.derived and value.text)
+    return value.label in MARKDOWN_FORMATS or value.label in CONVERSIONS or (value.derived and value.text)
 
 
 def is_code(value: Format) -> bool:
@@ -82,6 +93,10 @@ async def markdown(request: Request) -> Response:
                 f'{document.format.mime_type} ({document.format.label}) is not supported for markdown extraction'
             )
         stem = document.path.stem
+        source_path = document.path
+        if conversion := CONVERSIONS.get(document.format.label):
+            source_path = op.workspace.new_file(f'{stem}.{conversion}')
+            await services.convert.convert(document.path, source_path, conversion)
         target = op.workspace.new_file(f'{stem}.md')
         chunking = op.model.options.chunking
         chunks_target = op.workspace.new_file(f'{stem}.chunks.json') if chunking else None
@@ -89,7 +104,7 @@ async def markdown(request: Request) -> Response:
             title = None
             await services.markdown.fence_code(document.path, target, document.format.label, chunking, chunks_target)
         else:
-            title = await services.markdown.convert(document.path, target, chunking, chunks_target)
+            title = await services.markdown.convert(source_path, target, chunking, chunks_target)
 
         source_type = source_type_of(document.format)
         result = MarkdownResult(markdown=target.read_text(encoding='utf-8'), title=title, source_type=source_type)

@@ -124,8 +124,9 @@ MIME, gives `outlook` no extension, and groups `csv` as code). Formats magika ca
 - Extension index: derived text formats by magika extensions, then explicit formats override.
 - A test pins magika's label for one fixture per format, so a magika upgrade that changes labels fails CI instead
   of silently rerouting. Fixtures are generated in `test/fixtures/samples.py` (pdf, docx, xlsx, pptx, zip, html,
-  csv, json, jsonl, markdown, python, typescript). todo: pin legacy binaries (doc, xls, ppt, msg) once real sample
-  files are checked in.
+  csv, json, jsonl, markdown, python, typescript). Legacy binaries (doc, ppt, xls, odp, ods) are produced by
+  LibreOffice in `test/fixtures/legacy.py` and their labels are pinned inside the image
+  (`test/api/test_markdown_convert.py`). todo: pin `msg` once a real sample file is checked in.
 
 ## Resolution Rules
 
@@ -157,8 +158,8 @@ failure, never a silent `unknown`.
 - Each op declares an allowlist (`frozenset[FormatLabel]`, plus group rules such as "every derived text format")
   in its route module. Anything else gives
   `415 unsupported_format` with the detected MIME in `detail`, before a worker is used.
-- todo: future routes are entries next to the allowlist, e.g. `doc`, `ppt`, `rtf`, `odt` -> convert service -> op
-  (`adr/convert.md`).
+- Routes through another service are entries next to the allowlist, e.g. `CONVERSIONS` in `api/markdown.py`
+  (`doc` -> convert service -> markdown, `adr/convert.md`).
 
 ## Exposure
 

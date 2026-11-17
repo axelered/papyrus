@@ -31,9 +31,10 @@ curl -H "Authorization: Bearer $KEY" -H 'content-type: application/json' \
 - Allowlist (format labels from `adr/mime.md`): `pdf`, `docx`, `pptx`, `xlsx`, `xls`, `outlook`, `html`, `csv`,
   `tsv`, `markdown`, `txt`, `json`, `jsonl`, `xml`, `rss`, `atom`, `ipynb`, `epub`, `zip`, plus every derived text
   format (`MARKDOWN_FORMATS` and `accepts` in `api/markdown.py`).
+- `doc`, `rtf`, `odt` (to `docx`), `ppt`, `odp` (to `pptx`) and `ods` (to `xlsx`) are converted with LibreOffice
+  first (`CONVERSIONS`, `adr/convert.md`).
   The source is detected and its extension normalized before the worker runs, so markitdown always receives a
   correct extension.
-- todo: route `doc`, `ppt`, `rtf`, `odt`, `ods`, `odp` through the convert service (`adr/convert.md`).
 - todo: parse `eml` with the stdlib `email` package (headers, text body, attachment names); raw text until then.
 
 ### Code

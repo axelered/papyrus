@@ -22,7 +22,7 @@
 ### Conversion (spec: `adr/convert.md`)
 
 - [x] LibreOfficeKit conversion engine in a pebble pool, spike gate passed
-- [ ] Wire `ConvertService` into the service registry and route legacy formats (doc, ppt, rtf, odt, ods, odp) to markdown
+- [x] Wire `ConvertService` into the service registry and route legacy formats (doc, ppt, rtf, odt, ods, odp) to markdown
 - [ ] CI job running the convert tests inside the image
 - [!] Public `POST /v1/convert` endpoint (any supported format to pdf or OOXML)
 - [!] Office to pdf conversion for thumbnails

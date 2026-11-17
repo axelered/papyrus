@@ -9,8 +9,7 @@ import pytest
 
 from server.errors import ProcessingTimeout, UnsupportedFormat
 from server.services import lok
-from server.services.convert import ConvertService, convert_document
-from server.services.pool import ProcessPool
+from server.services.convert import ConvertService
 from server.types.convert import ConvertFormat
 from test.fixtures import samples
 from test.fixtures.documents import BINARY, DocumentFactory
@@ -20,38 +19,12 @@ pytestmark = [
     pytest.mark.skipif(not lok.available(), reason='LibreOffice is not installed, run inside the image'),
 ]
 
-PASSWORD_OPTIONS = ',Password=secretPASSWORDEND'
-
 
 @pytest.fixture(scope='module')
 def service(tmp_path_factory: pytest.TempPathFactory) -> Iterator[ConvertService]:
     service = ConvertService(processes=1, profiles=tmp_path_factory.mktemp('work') / 'profiles')
     yield service
     service.close()
-
-
-@pytest.fixture(scope='module')
-async def legacy(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Path]:
-    """Legacy binaries are produced by the engine itself, from OOXML and ODT samples"""
-    root = tmp_path_factory.mktemp('legacy')
-    pool = ProcessPool('fixtures', processes=1, timeout=120)
-    jobs = {
-        'doc': ('report.docx', samples.docx(), 'doc', ''),
-        'ppt': ('deck.pptx', samples.pptx(), 'ppt', ''),
-        'xls': ('sheet.xlsx', samples.xlsx(), 'xls', ''),
-        'encrypted': ('locked.odt', samples.odt(), 'odt', PASSWORD_OPTIONS),
-    }
-    paths = {}
-    try:
-        for key, (name, content, format, options) in jobs.items():
-            source = root / name
-            source.write_bytes(content)
-            target = root / f'{key}.{format}'
-            await pool.run(convert_document, str(source), str(target), format, str(root / 'profiles'), options)
-            paths[key] = target
-    finally:
-        pool.close()
-    return paths
 
 
 @pytest.fixture

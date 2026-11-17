@@ -66,7 +66,7 @@ binding inside a pebble pool worker.
 - `XDG_CACHE_HOME` points into the profile: dconf and fontconfig need a writable cache and the runtime user has no
   home.
 
-### Routing (next stage)
+### Routing
 
 | Detected label        | Converted to | Then        |
 |-----------------------|--------------|-------------|
@@ -75,8 +75,12 @@ binding inside a pebble pool worker.
 | `ods`                 | `xlsx`       | markdown    |
 | `xls`                 | none         | markitdown reads it natively |
 
-- Coordinators route by format label before the markdown worker; the converted file replaces the source in the
-  workspace and `source_type` still reports the original format.
+- The markdown route converts by format label before the markdown worker (`CONVERSIONS` in `api/markdown.py`);
+  the converted file is a new workspace file and `source_type` still reports the original format.
+- `ConvertService` is registered in `Services` (`factory.py`) with profiles in `<limits.tmp_dir>/lo-profiles`; the
+  pool starts on the first legacy request, so deployments that never convert pay no RAM.
+- Without LibreOffice (host development) legacy requests fail with `500 processing_failed`; API tests replace the
+  service with a fake writing OOXML samples, end to end tests skip outside the image.
 - todo: office -> `pdf` for the thumbnail service.
 
 ## Security

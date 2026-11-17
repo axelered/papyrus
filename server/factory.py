@@ -11,10 +11,11 @@ from fastapi import FastAPI
 
 from server.api import health, markdown
 from server.api.admission import Admission
-from server.config import Config, ConfigError, Settings, WorkersConfig
+from server.config import Config, ConfigError, Settings
 from server.io.connectors import Connectors
 from server.io.http import HttpFetcher
 from server.io.transfer import Transfer
+from server.services.convert import ConvertService
 from server.services.detect import DetectService
 from server.services.markdown import MarkdownService
 from server.utils.logs import RequestIdMiddleware, configure_logging
@@ -28,14 +29,22 @@ LOGGER_NAMESPACE = 'papyrus'
 class Services:
     detect: DetectService
     markdown: MarkdownService
+    convert: ConvertService
 
     @classmethod
-    def create(cls, workers: WorkersConfig) -> Self:
+    def create(cls, config: Config) -> Self:
         # todo: per-service processes, timeouts and max_tasks are code heuristics, make them configurable in YAML
-        return cls(detect=DetectService(), markdown=MarkdownService(processes=workers.processes))
+        processes = config.workers.processes
+        return cls(
+            detect=DetectService(),
+            markdown=MarkdownService(processes=processes),
+            # LibreOffice workers weigh about 330 MB each
+            convert=ConvertService(processes=max(1, processes // 2), profiles=config.limits.tmp_dir / 'lo-profiles'),
+        )
 
     def close(self) -> None:
         self.markdown.close()
+        self.convert.close()
 
 
 def load_config(path: Path, env: Mapping[str, str] | None = None) -> Config:
@@ -64,7 +73,7 @@ def create_app(settings: Settings | None = None, config: Config | None = None) -
         max_file_size = int(resolved_config.limits.max_file_size)
         http = HttpFetcher(resolved_config.http, max_file_size)
         app.state.transfer = Transfer(Connectors(resolved_config.connectors), http, max_file_size)
-        app.state.services = services = Services.create(resolved_config.workers)
+        app.state.services = services = Services.create(resolved_config)
         try:
             yield
         finally:

@@ -7,9 +7,10 @@ Axelered Papyrus is your single point stop for Agentic document processing.
 | Format     | Extensions             | Notes                                   |
 |------------|------------------------|-----------------------------------------|
 | PDF        | `.pdf`                 | Text layer only, scanned PDFs need OCR  |
-| Word       | `.docx`                | Legacy `.doc` is not supported          |
-| PowerPoint | `.pptx`                | Slide text, tables and notes            |
+| Word       | `.docx`, `.doc`, `.rtf` | Legacy formats converted with LibreOffice |
+| PowerPoint | `.pptx`, `.ppt`        | Slide text, tables and notes            |
 | Excel      | `.xlsx`, `.xls`        | One table per sheet                     |
+| OpenDocument | `.odt`, `.odp`, `.ods` | Converted with LibreOffice            |
 | Outlook    | `.msg`                 | Headers and body                        |
 | HTML       | `.html`, `.htm`        |                                         |
 | CSV / TSV  | `.csv`, `.tsv`         | Rendered as a table                     |
