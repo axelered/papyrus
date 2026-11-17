@@ -3,6 +3,9 @@ indent-width = 4
 
 target-version = "py312"
 
+# adr snippets are illustrative and keep their aligned comments
+extend-exclude = ["*.md"]
+
 [lint]
 select = [
     "E",  # pycodestyle - style guide enforcement (PEP 8)
