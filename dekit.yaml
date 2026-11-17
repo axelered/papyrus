@@ -1,17 +1,19 @@
 tasks:
-  install:
+
+  local/:
+    collapsed: false
+
+  local/install:
     cmd: [ 'uv', 'sync', '--group', 'dev' ]
     type: job
 
-  server:
+  local/server:
     cmd: ['uv', 'run', 'fastapi', 'dev', '--entrypoint', 'server:app', '--reload']
-    deps: [install]
+    deps: [local/install]
     ready: { log: 'started at' }
-    autostart: true
 
-  # image loop with LibreOffice (adr/development.md); containers are named so stop reaches them on Windows too
   docker/:
-    collapsed: true
+    collapsed: false
 
   docker/build-dev:
     cmd: [ 'docker', 'build', '--target', 'dev', '-t', 'papyrus:dev', '.' ]
