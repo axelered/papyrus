@@ -1,3 +1,4 @@
+import logging
 import subprocess
 import sys
 
@@ -28,6 +29,24 @@ def test_import_has_no_side_effects():
     from server import main
 
     assert not hasattr(main.app.state, 'settings')
+
+
+def test_startup_logs_topology_without_secrets(write_config, caplog: pytest.LogCaptureFixture):
+    path = write_config('workers: { processes: 4, max_queue: 3 }\nconnectors: { prod: { protocol: memory } }')
+    app = create_app(settings=Settings(api_key='secret-key', config=path))
+    logger = logging.getLogger('papyrus')
+    logger.addHandler(caplog.handler)
+    try:
+        with TestClient(app):
+            pass
+    finally:
+        logger.removeHandler(caplog.handler)
+
+    assert 'max_queue=3' in caplog.text
+    assert 'markdown=4 convert=2 render=4 processes, browser=2 pages' in caplog.text
+    assert 'connectors=prod:memory' in caplog.text
+    assert 'auth=on (1 keys)' in caplog.text
+    assert 'secret-key' not in caplog.text
 
 
 @pytest.mark.parametrize('module', ['server.services.render', 'server.services.markdown', 'server.services.convert'])
