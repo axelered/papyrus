@@ -61,8 +61,8 @@ backend and hides its kind from coordinators. Services compose in coordinators
 
 | Kind      | Backend                                 | Capacity control                     | Examples                |
 |-----------|-----------------------------------------|--------------------------------------|-------------------------|
-| Pool      | `pebble.ProcessPool`, top-level worker fn | `processes`, `timeout`, `max_tasks`  | markdown, render        |
-| Daemon    | N supervised long-lived processes       | async queue of instances             | convert (unoserver)     |
+| Pool      | `pebble.ProcessPool`, top-level worker fn | `processes`, `timeout`, `max_tasks`  | markdown, render, convert |
+| Daemon    | N supervised long-lived processes       | async queue of instances             | none yet                |
 | Remote    | TCP / HTTP client                       | `asyncio.Semaphore(concurrency)`     | scan (clamd), OCR API   |
 | Inline    | In-process, `asyncio.to_thread`         | admission only (ms-scale, GIL-free)  | detect (magika)         |
 
@@ -82,7 +82,7 @@ Rules:
 - **Registry** (`factory.py`): a `Services` dataclass built from `workers` config, closed in a thread on shutdown
   (pool join is blocking).
 - **Sizing:** YAML sets only `workers.processes` (default `os.cpu_count()`). Per-service sizes are derived by
-  heuristics in code: markdown = render = `processes`, convert = `max(1, processes // 2)` (soffice RAM).
+  heuristics in code: markdown = render = `processes`, convert = `max(1, processes // 2)` (LibreOffice RAM).
   todo: make per-service sizes, timeouts and `max_tasks` configurable in YAML.
 - **Daemon services** own their instance supervision: health checks, restart on crash, restart of the leased instance
   after a timeout before it is returned to the queue.
@@ -334,11 +334,11 @@ Imports only point down; a violation is a design bug, not a style nit.
 - Container `HEALTHCHECK` on `/health`; orchestrator readiness on `/ready`.
 - Logs: stdlib `logging` under the `papyrus.*` logger namespace, JSON lines on stderr, `X-Request-ID` echoed (if it
   matches `[A-Za-z0-9._:-]{1,128}`) or generated and bound to every line. Uvicorn keeps its own access log format.
-- Memory sizing must account for pool processes plus daemons (about 150-300 MB per soffice, about 1 GB for clamd
-  signatures).
+- Memory sizing must account for pool processes plus daemons (about 330 MB per convert worker, about 1 GB for
+  clamd signatures).
 
 ## Out of Scope
 
 - Virus scan engine integration details (clamd lifecycle, signature updates, multi-process entrypoint): own ADR.
-- Conversion service (unoserver daemon pool), printing, OCR: future ADRs, plugging into the service kinds above.
+- Printing, OCR: future ADRs, plugging into the service kinds above. Conversion: `adr/convert.md`.
 - Metrics, async/webhook delivery, per-service queue caps, pipeline DSL.

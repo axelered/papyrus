@@ -17,6 +17,12 @@ RUN PAPYRUS_ASSETS_DIR=/app/assets /app/.venv/bin/python -m scripts.prefetch && 
 
 FROM python:3.14-slim
 
+# LibreOffice is driven in-process through LibreOfficeKit (adr/convert.md), only the headless components
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libreoffice-writer-nogui libreoffice-calc-nogui libreoffice-impress-nogui fonts-liberation \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN useradd --system --uid 10001 --no-create-home papyrus
 WORKDIR /app
 COPY --from=build /app/.venv /app/.venv

@@ -87,6 +87,54 @@ def pdf() -> bytes:
     return body
 
 
+_ODT_MANIFEST = (
+    '<?xml version="1.0" encoding="UTF-8"?>'
+    '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.2">'
+    '<manifest:file-entry manifest:full-path="/" manifest:media-type="application/vnd.oasis.opendocument.text"/>'
+    '<manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>'
+    '</manifest:manifest>'
+)
+_ODT_CONTENT = (
+    '<?xml version="1.0" encoding="UTF-8"?>'
+    '<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" '
+    'xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" '
+    'xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" '
+    'xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" '
+    'xmlns:xlink="http://www.w3.org/1999/xlink" office:version="1.2">'
+    '<office:body><office:text>{body}</office:text></office:body></office:document-content>'
+)
+ODT_REPORT = '<text:h text:outline-level="1">Report</text:h><text:p>Revenue grew.</text:p>'
+
+
+def odt(body: str = ODT_REPORT) -> bytes:
+    """`mimetype` must be the first entry and stored uncompressed"""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, 'w') as archive:
+        archive.writestr('mimetype', 'application/vnd.oasis.opendocument.text', zipfile.ZIP_STORED)
+        archive.writestr('META-INF/manifest.xml', _ODT_MANIFEST, zipfile.ZIP_DEFLATED)
+        archive.writestr('content.xml', _ODT_CONTENT.format(body=body), zipfile.ZIP_DEFLATED)
+    return buffer.getvalue()
+
+
+def odt_linked_image(url: str) -> str:
+    return (
+        '<text:p><draw:frame svg:width="1cm" svg:height="1cm" text:anchor-type="as-char">'
+        f'<draw:image xlink:href="{url}" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"/>'
+        '</draw:frame></text:p>'
+    )
+
+
+def odt_linked_section(url: str) -> str:
+    return (
+        '<text:section text:name="linked">'
+        f'<text:section-source xlink:href="{url}" xlink:type="simple" xlink:show="embed"/>'
+        '<text:p>placeholder</text:p></text:section>'
+    )
+
+
+RTF = rb'{\rtf1\ansi\deff0{\fonttbl{\f0 Arial;}}{\pard\s1\b\fs32 Report\par}{\pard Revenue grew.\par}}'
+
+
 def zip_archive() -> bytes:
     return _zip({'notes.txt': 'first file\n', 'data.csv': 'a,b\n1,2\n'})
 

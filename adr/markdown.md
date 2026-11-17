@@ -33,7 +33,7 @@ curl -H "Authorization: Bearer $KEY" -H 'content-type: application/json' \
   format (`MARKDOWN_FORMATS` and `accepts` in `api/markdown.py`).
   The source is detected and its extension normalized before the worker runs, so markitdown always receives a
   correct extension.
-- todo: route `doc`, `ppt`, `rtf`, `odt`, `ods`, `odp` through the convert service once it exists.
+- todo: route `doc`, `ppt`, `rtf`, `odt`, `ods`, `odp` through the convert service (`adr/convert.md`).
 - todo: parse `eml` with the stdlib `email` package (headers, text body, attachment names); raw text until then.
 
 ### Code

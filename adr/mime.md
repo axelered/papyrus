@@ -157,7 +157,8 @@ failure, never a silent `unknown`.
 - Each op declares an allowlist (`frozenset[FormatLabel]`, plus group rules such as "every derived text format")
   in its route module. Anything else gives
   `415 unsupported_format` with the detected MIME in `detail`, before a worker is used.
-- todo: future routes are entries next to the allowlist, e.g. `doc`, `ppt`, `rtf`, `odt` -> convert service -> op.
+- todo: future routes are entries next to the allowlist, e.g. `doc`, `ppt`, `rtf`, `odt` -> convert service -> op
+  (`adr/convert.md`).
 
 ## Exposure
 
