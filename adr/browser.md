@@ -34,8 +34,8 @@ DNS pinning proxy), which validates the egress design below.
 | Concern  | Choice                                                                                       |
 |----------|----------------------------------------------------------------------------------------------|
 | Driver   | `playwright` (main dependency, wheel bundles the Node driver)                                |
-| Browser  | `chrome-headless-shell` via `playwright install --with-deps --only-shell chromium` at Docker build into `PLAYWRIGHT_BROWSERS_PATH=/opt/playwright` |
-| Fonts    | `fonts-liberation` (already present), `fonts-noto-color-emoji`                               |
+| Browser  | `chrome-headless-shell` via `playwright install --with-deps --only-shell chromium` at Docker build into `PLAYWRIGHT_BROWSERS_PATH=/opt/playwright`, run from a lock-only `deps` stage venv bind-mounted into `base` so code changes never invalidate the layer |
+| Fonts    | Installed by `--with-deps`: liberation, noto color emoji, CJK (wqy-zenhei, ipafont), thai     |
 | Init     | `tini` as image entrypoint (see Process Model)                                               |
 | Egress   | `utils/proxy.py` pinning forward proxy in the API event loop                                 |
 
@@ -74,7 +74,9 @@ tini (PID 1)
 - `--js-flags=--max-old-space-size=512` caps the V8 heap per renderer: a memory bomb crashes its renderer (`500`)
   instead of OOM-killing the container with the pebble pools.
 - Full-page captures are capped at 4096 px height (`adr/render.md`), so infinite scroll cannot exhaust memory.
-- Memory: about 150 MB idle browser plus about 150 MB per concurrent context; image grows by about 300 MB.
+- Memory: about 150 MB idle browser plus about 150 MB per concurrent context; image grows by about
+  1.1 GB (measured: headless shell 287 MB, system libraries and fonts 327 MB, Python package with the Node driver
+  165 MB). todo: install a hand-picked dependency list instead of `--with-deps` if image size matters.
 
 ### Sandbox
 

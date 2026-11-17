@@ -343,7 +343,7 @@ Imports only point down; a violation is a design bug, not a style nit.
 - One container = one uvicorn process under `tini` (reaps orphaned Chromium processes). Never use `--workers`: it
   multiplies pools and splits the admission semaphore.
 - Image: multi-stage build (`uv sync --locked --no-dev` into `/app/.venv`, then a clean `python:3.14-slim` base
-  with LibreOffice; a `dev` stage for local and CI testing, `adr/development.md`), runs as
+  with LibreOffice and chrome-headless-shell; a `dev` stage for local and CI testing, `adr/development.md`), runs as
   non-root uid 10001, 30s graceful shutdown. Only runtime dependencies are installed, so anything the server needs
   (uvicorn, python-multipart) must be a main dependency, not only part of `fastapi[standard]`.
 - Config mounted at `/etc/papyrus/config.yml`; secrets via env.

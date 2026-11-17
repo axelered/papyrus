@@ -1,4 +1,5 @@
-FROM python:3.14-slim AS build
+# locked runtime venv only, so code changes never invalidate the system layers that mount it
+FROM python:3.14-slim AS deps
 
 COPY --from=ghcr.io/astral-sh/uv:0.11.30 /uv /bin/uv
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=0
@@ -7,6 +8,9 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --locked --no-dev --no-install-project
+
+
+FROM deps AS build
 
 # libraries must never download at runtime: grammars and tokenizers are baked in here
 COPY server ./server
@@ -21,11 +25,20 @@ FROM python:3.14-slim AS base
 # LibreOffice is driven in-process through LibreOfficeKit (adr/convert.md), only the headless components
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        libreoffice-writer-nogui libreoffice-calc-nogui libreoffice-impress-nogui fonts-liberation \
+        libreoffice-writer-nogui libreoffice-calc-nogui libreoffice-impress-nogui fonts-liberation tini \
+    && rm -rf /var/lib/apt/lists/*
+
+# chrome-headless-shell with its system libraries and fonts, installed by the locked playwright (adr/browser.md)
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright
+RUN --mount=type=bind,from=deps,source=/app/.venv,target=/app/.venv \
+    /app/.venv/bin/playwright install --with-deps --only-shell chromium \
+    && chmod -R a+rX /opt/playwright \
     && rm -rf /var/lib/apt/lists/*
 
 RUN useradd --system --uid 10001 --no-create-home papyrus
 WORKDIR /app
+# PID 1 reaps orphaned Chromium processes and forwards signals, uvicorn does neither
+ENTRYPOINT ["tini", "-s", "--"]
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PAPYRUS_ASSETS_DIR=/app/assets

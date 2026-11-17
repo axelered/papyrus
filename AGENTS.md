@@ -43,7 +43,7 @@
 ### Browser (spec: `adr/browser.md`)
 
 - [ ] Extract `utils/net.py` from `io/http.py` and add the `utils/proxy.py` pinning proxy
-- [ ] `tini` entrypoint, Playwright headless shell and emoji font in the image
+- [x] `tini` entrypoint, Playwright headless shell and fonts in the image
 - [ ] Spike gate: sandbox as non-root, egress coverage, rebinding, crash and recycle behaviour
 - [ ] `BrowserService` and `POST /v1/screenshot`
 - [!] HTML in `/v1/render` and `/v1/thumbnail` through Chromium, uploaded `file://` HTML for screenshots
