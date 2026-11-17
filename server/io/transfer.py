@@ -7,17 +7,16 @@ from fsspec import AbstractFileSystem
 
 from server.errors import (
     DestinationFailed,
-    PapyrusError,
     SourceFetchFailed,
     SourceNotFound,
     SourceTooLarge,
     UnsupportedUri,
-    ValidationFailed,
 )
 from server.io.connectors import Connectors
 from server.io.http import HttpFetcher
 from server.io.uri import Uri, parse_uri
 from server.io.workspace import Workspace
+from server.utils.problem import ProblemError, ValidationFailed
 
 logger = logging.getLogger('papyrus.transfer')
 
@@ -68,7 +67,7 @@ class Transfer:
             if (info.get('size') or 0) > self._max_file_size:
                 raise SourceTooLarge(f'source exceeds {self._max_file_size} bytes')
             filesystem.get_file(remote, str(local))
-        except PapyrusError:
+        except ProblemError:
             raise
         except FileNotFoundError as e:
             raise SourceNotFound(f'{remote!r} does not exist') from e

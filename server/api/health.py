@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from server.api.admission import Admission
-from server.errors import problem
+from server.utils.problem import problem
 
 router = APIRouter(tags=['health'])
 

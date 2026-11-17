@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -7,12 +8,12 @@ from fastapi import FastAPI
 from server.api import health, markdown
 from server.api.admission import Admission
 from server.config import Config, Settings, load_config
-from server.errors import install_error_handlers
 from server.io.connectors import Connectors
 from server.io.http import HttpFetcher
 from server.io.transfer import Transfer
 from server.logs import RequestIdMiddleware, configure_logging
 from server.services.registry import Services
+from server.utils.problem import install_problem_handlers
 
 
 def create_app(settings: Settings | None = None, config: Config | None = None) -> FastAPI:
@@ -40,7 +41,7 @@ def create_app(settings: Settings | None = None, config: Config | None = None) -
     configure_logging()
     app = FastAPI(title='Axelered Papyrus', lifespan=lifespan)
     app.add_middleware(RequestIdMiddleware)
-    install_error_handlers(app)
+    install_problem_handlers(app, logging.getLogger('papyrus.errors'))
     app.include_router(health.router)
     app.include_router(markdown.router)
     return app

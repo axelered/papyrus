@@ -5,7 +5,8 @@ from typing import Any
 
 import pebble
 
-from server.errors import PapyrusError, ProcessingFailed, ProcessingTimeout
+from server.errors import ProcessingFailed, ProcessingTimeout
+from server.utils.problem import ProblemError
 
 logger = logging.getLogger('papyrus.pool')
 
@@ -25,7 +26,7 @@ class ProcessPool:
         return self._pool is not None
 
     async def run[T](self, fn: Callable[..., T], *args: Any) -> T:
-        """Worker functions must be top-level and should raise PapyrusError, other errors are reported generically"""
+        """Worker functions must be top-level and should raise ProblemError, other errors are reported generically"""
         future = self._ensure().schedule(fn, args=args, timeout=self.timeout)
         try:
             return await asyncio.wrap_future(future)
@@ -37,7 +38,7 @@ class ProcessPool:
         except pebble.ProcessExpired as e:
             logger.warning('%s worker died with exit code %s', self.name, e.exitcode)
             raise ProcessingFailed(f'{self.name} worker died') from e
-        except PapyrusError:
+        except ProblemError:
             raise
         except Exception as e:
             logger.warning('%s task failed', self.name, exc_info=e)

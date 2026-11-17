@@ -10,11 +10,11 @@ from server.errors import (
     SourceTooLarge,
     UnknownConnector,
     UnsupportedUri,
-    ValidationFailed,
 )
 from server.io.connectors import Connectors
 from server.io.transfer import Transfer
 from server.io.workspace import Workspace
+from server.utils.problem import ValidationFailed
 from test.fixtures.http import FetcherFactory
 
 pytestmark = pytest.mark.anyio

@@ -3,10 +3,11 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from server.errors import PapyrusError, ProcessingFailed, UnsupportedFormat
+from server.errors import ProcessingFailed, UnsupportedFormat
 from server.services.chunking.chunker import ChunkOptions
 from server.services.fence import fence
 from server.services.pool import ProcessPool
+from server.utils.problem import ProblemError
 
 TIMEOUT = 120
 MAX_TASKS = 100
@@ -19,7 +20,7 @@ def convert_to_markdown(
 ) -> str | None:
     """Pool worker: writes markdown to `target` (and chunks to `chunks_target`), returns the document title
 
-    markitdown is imported here so only worker processes pay for it, and its errors are translated to PapyrusError
+    markitdown is imported here so only worker processes pay for it, and its errors are translated to ProblemError
     so the parent never has to unpickle library exception types.
     """
     global _converter
@@ -72,7 +73,7 @@ def _write(markdown: str, target: str, chunking: ChunkOptions | None, chunks_tar
 
     try:
         chunks = chunk_markdown(markdown, chunking)
-    except PapyrusError:
+    except ProblemError:
         raise
     except Exception as e:
         raise ProcessingFailed(f'chunking failed ({type(e).__name__})') from None

@@ -13,15 +13,10 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from starlette.datastructures import UploadFile
 
 from server.config import Config
-from server.errors import (
-    DeadlineExceeded,
-    SourceTooLarge,
-    UnsupportedMediaType,
-    UnsupportedUri,
-    ValidationFailed,
-)
+from server.errors import DeadlineExceeded, SourceTooLarge, UnsupportedUri
 from server.io.uri import PART_SCHEME
 from server.io.workspace import Workspace
+from server.utils.problem import UnsupportedMediaType, ValidationFailed
 
 DEFAULT_PART = 'file'
 METADATA_FIELD = 'metadata'

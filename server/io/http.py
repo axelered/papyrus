@@ -10,9 +10,10 @@ from urllib.parse import unquote
 import httpx
 
 from server.config import HttpConfig
-from server.errors import PapyrusError, SourceFetchFailed, SourceForbidden, SourceNotFound, SourceTooLarge
+from server.errors import SourceFetchFailed, SourceForbidden, SourceNotFound, SourceTooLarge
 from server.io.uri import HTTP_SCHEMES
 from server.io.workspace import Workspace
+from server.utils.problem import ProblemError
 
 logger = logging.getLogger('papyrus.http')
 
@@ -65,7 +66,7 @@ class HttpFetcher:
                         current = self._redirect_target(response)
                         continue
                     return await self._save(response, workspace)
-        except PapyrusError:
+        except ProblemError:
             raise
         except httpx.HTTPError as e:
             logger.warning('fetch of %s failed', current, exc_info=e)
