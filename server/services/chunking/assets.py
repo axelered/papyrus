@@ -3,7 +3,7 @@ import os
 import shutil
 from pathlib import Path
 
-from server.services.chunking.types import CodeLanguage, Tokenizer
+from server.types.markdown import CodeLanguage, Tokenizer
 
 logger = logging.getLogger('papyrus.assets')
 

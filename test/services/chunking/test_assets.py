@@ -7,7 +7,7 @@ import tiktoken
 import tree_sitter_language_pack as language_pack
 
 from server.services.chunking import assets
-from server.services.chunking.types import CodeLanguage, Tokenizer
+from server.types.markdown import CodeLanguage, Tokenizer
 
 
 @pytest.fixture

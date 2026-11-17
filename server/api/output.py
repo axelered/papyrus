@@ -1,33 +1,19 @@
 from collections.abc import Callable
 from pathlib import Path
-from typing import Self
 
 from fastapi import Request
 from fastapi.responses import FileResponse, JSONResponse, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from starlette.types import Receive, Scope, Send
 
-from server.api.request import Op, OutputMode
-from server.formats import Format, FormatGroup
+from server.api.request import Op
 from server.io.workspace import Workspace
+from server.services.detect import Format
+from server.types.common import OutputMode, Receipt, SourceType
 
 
-class SourceType(BaseModel):
-    mime_type: str = Field(description='Explicit format MIME or the MIME magika reports for derived formats')
-    extension: str
-    label: str = Field(description='Papyrus format label or magika content type label; the language for code')
-    group: FormatGroup
-
-    @classmethod
-    def of(cls, value: Format) -> Self:
-        return cls(mime_type=value.mime_type, extension=value.extension, label=value.label, group=value.group)
-
-
-class Receipt(BaseModel):
-    destination: str
-    content_type: str
-    size: int
-    source_type: SourceType | None = None
+def source_type_of(value: Format) -> SourceType:
+    return SourceType(mime_type=value.mime_type, extension=value.extension, label=value.label, group=value.group)
 
 
 class WorkspaceFileResponse(FileResponse):

@@ -5,7 +5,7 @@ import pytest
 from server.services.chunking import chunker
 from server.services.chunking.assets import available_languages
 from server.services.chunking.chunker import ChunkOptions, chunk_markdown
-from server.services.chunking.types import ChunkKind, CodeLanguage, Tokenizer
+from server.types.markdown import ChunkKind, CodeLanguage, Tokenizer
 
 pytestmark = pytest.mark.usefixtures('chunking_assets')
 

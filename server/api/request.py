@@ -2,18 +2,18 @@ import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
 from fastapi import Request
 from fastapi.exceptions import RequestValidationError
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ValidationError
 
 from server.config import Config
 from server.errors import DeadlineExceeded, UnsupportedUri
 from server.io.uri import PART_SCHEME
 from server.io.workspace import Workspace
+from server.types.common import OpRequest
 from server.utils.body import JSON, MULTIPART, read_body
 from server.utils.openapi import inline_refs
 
@@ -21,21 +21,6 @@ DEFAULT_PART = 'file'
 METADATA_FIELD = 'metadata'
 
 _MAX_FILE_PARTS = 8
-
-
-class OutputMode(StrEnum):
-    FILE = 'file'
-    JSON = 'json'
-
-
-class OpRequest(BaseModel):
-    """Common request contract; operations subclass it, override `output` defaults and add typed `options`"""
-
-    model_config = ConfigDict(extra='forbid')
-
-    source: str = Field(description='file://<part>, http(s):// URL or <protocol>://<connector>/<path>')
-    destination: str | None = Field(default=None, description='Connector URI to write the result to')
-    output: OutputMode = OutputMode.JSON
 
 
 @dataclass

@@ -1,20 +1,11 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 
 from server.api.admission import Admission
+from server.types.common import RootResponse, StatusResponse
 from server.utils.problem import problem
 
 router = APIRouter(tags=['health'])
-
-
-class RootResponse(BaseModel):
-    status: str = 'ok'
-    name: str = 'Axelered Papyrus'
-
-
-class StatusResponse(BaseModel):
-    status: str = 'ok'
 
 
 @router.get('/')

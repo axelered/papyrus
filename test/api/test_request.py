@@ -10,8 +10,9 @@ from fsspec import AbstractFileSystem
 from pydantic import BaseModel
 
 from server.api.output import respond
-from server.api.request import OpRequest, OutputMode, op_context, openapi_body
+from server.api.request import op_context, openapi_body
 from server.config import Config, LimitsConfig
+from server.types.common import OpRequest, OutputMode
 
 
 class EchoOptions(BaseModel):

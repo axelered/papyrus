@@ -6,8 +6,9 @@ from functools import cache
 from typing import Any
 
 from server.services.chunking import assets
-from server.services.chunking.types import ChunkKind, CodeLanguage, Tokenizer, resolve_language
+from server.services.chunking.types import resolve_language
 from server.services.fence import fence
+from server.types.markdown import ChunkKind, CodeLanguage, Tokenizer
 
 _HEADING = re.compile(r'^(#{1,6})[ \t]+(.+?)[ \t#]*$', re.MULTILINE)
 _SLIDE = re.compile(r'<!--\s*Slide number:\s*(\d+)\s*-->')
