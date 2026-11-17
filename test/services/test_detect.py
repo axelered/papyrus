@@ -8,6 +8,7 @@ from server.services.detect import (
     EXPLICIT,
     DetectService,
     Formats,
+    _brand,
     from_extension,
     lookup,
     normalize_extension,
@@ -30,6 +31,21 @@ async def test_pins_magika_label_per_fixture(service: DetectService, make_docume
     document = await service.detect(make_document('sample', SAMPLES[label]()))
 
     assert document.format.label == label
+
+
+async def test_avif_is_told_apart_from_mp4_by_brand(service: DetectService, make_document: DocumentFactory):
+    document = await service.detect(make_document('photo.dat', SAMPLES['avif']()))
+
+    assert document.format.label == FormatLabel.AVIF
+    assert document.path.name == 'photo.avif'
+
+
+def test_brand_requires_an_ftyp_box(tmp_path: Path):
+    path = tmp_path / 'x'
+    path.write_bytes(b'\x00\x00\x00\x1cftypavif')
+    assert _brand(path) == b'avif'
+    path.write_bytes(b'not a container')
+    assert _brand(path) == b''
 
 
 async def test_content_wins_and_extension_is_normalized(service: DetectService, make_document: DocumentFactory):
@@ -131,9 +147,14 @@ def test_lookup_derives_text_formats_from_magika():
 
 
 def test_lookup_derives_binary_formats_as_unknown_group():
-    png = lookup('png')
+    mp4 = lookup('mp4')
 
-    assert (png.mime_type, png.group, png.text, png.derived) == ('image/png', FormatGroup.UNKNOWN, False, True)
+    assert (mp4.mime_type, mp4.group, mp4.text, mp4.derived) == ('video/mp4', FormatGroup.UNKNOWN, False, True)
+
+
+def test_lookup_images_are_explicit():
+    assert (lookup('png').group, lookup('png').derived) == (FormatGroup.IMAGE, False)
+    assert lookup('jpeg').extensions == ('jpg', 'jpeg', 'jpe')
 
 
 def test_lookup_unknown_label():

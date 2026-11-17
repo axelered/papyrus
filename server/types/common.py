@@ -38,6 +38,7 @@ class FormatGroup(StrEnum):
     DATA = 'data'
     CODE = 'code'
     TEXT = 'text'
+    IMAGE = 'image'
     UNKNOWN = 'unknown'
 
 
@@ -69,6 +70,13 @@ class FormatLabel(StrEnum):
     JSON = 'json'
     JSONL = 'jsonl'
     IPYNB = 'ipynb'
+    PNG = 'png'
+    JPEG = 'jpeg'
+    WEBP = 'webp'
+    GIF = 'gif'
+    BMP = 'bmp'
+    TIFF = 'tiff'
+    AVIF = 'avif'
     UNKNOWN = 'unknown'
 
 

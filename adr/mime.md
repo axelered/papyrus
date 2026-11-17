@@ -145,6 +145,8 @@ Applied in order; the file is never rejected for a mismatch (the virus scan is t
 labels (`empty`, `undefined`) count as `unknown`; a non-ok magika status (e.g. unreadable file) is a detection
 failure, never a silent `unknown`.
 
+- magika reports every ISO BMFF file (AVIF, HEIC, MP4) as `mp4`; when the `ftyp` major brand is `avif` or `avis`
+  the content resolves to `avif` before the rules below, so a renamed AVIF is still detected by content.
 - magika reports single-line JSON as `jsonl` (a valid JSONL document), so a minified `data.json` resolves to `jsonl`;
   both are processed as text, only `source_type` differs.
 

@@ -160,6 +160,20 @@ TYPESCRIPT = (
     b'export function greet(user: User): string {\n  return `Hello ${user.name}`;\n}\n'
 )
 
+
+def image(format: str, size: tuple[int, int] = (64, 48), mode: str = 'RGB', frames: int = 1, **options) -> bytes:
+    """Solid image; frames get distinct colors so frame selection is observable"""
+    from PIL import Image
+
+    colors = [(200, 30, 30), (30, 200, 30), (30, 30, 200), (200, 200, 30)]
+    images = [Image.new('RGB', size, colors[index % len(colors)]).convert(mode) for index in range(frames)]
+    buffer = io.BytesIO()
+    if frames > 1:
+        options.update(save_all=True, append_images=images[1:])
+    images[0].save(buffer, format=format, **options)
+    return buffer.getvalue()
+
+
 SAMPLES: dict[str, Callable[[], bytes]] = {
     'pdf': pdf,
     'docx': docx,
@@ -173,4 +187,11 @@ SAMPLES: dict[str, Callable[[], bytes]] = {
     'markdown': lambda: MARKDOWN,
     'python': lambda: PYTHON,
     'typescript': lambda: TYPESCRIPT,
+    'png': lambda: image('PNG'),
+    'jpeg': lambda: image('JPEG'),
+    'webp': lambda: image('WEBP'),
+    'gif': lambda: image('GIF'),
+    'bmp': lambda: image('BMP'),
+    'tiff': lambda: image('TIFF'),
+    'avif': lambda: image('AVIF'),
 }

@@ -83,11 +83,20 @@ class Formats:
     JSON = Format(_L.JSON, 'application/json', 'json', _G.DATA, _L.TXT, text=True)
     JSONL = Format(_L.JSONL, 'application/jsonl', 'jsonl', _G.DATA, _L.JSON, text=True, aliases=('ndjson',))
     IPYNB = Format(_L.IPYNB, 'application/x-ipynb+json', 'ipynb', _G.CODE, _L.JSON, text=True)
+    PNG = Format(_L.PNG, 'image/png', 'png', _G.IMAGE)
+    JPEG = Format(_L.JPEG, 'image/jpeg', 'jpg', _G.IMAGE, aliases=('jpeg', 'jpe'))
+    WEBP = Format(_L.WEBP, 'image/webp', 'webp', _G.IMAGE)
+    GIF = Format(_L.GIF, 'image/gif', 'gif', _G.IMAGE)
+    BMP = Format(_L.BMP, 'image/bmp', 'bmp', _G.IMAGE, aliases=('dib',))
+    TIFF = Format(_L.TIFF, 'image/tiff', 'tiff', _G.IMAGE, aliases=('tif',))
+    AVIF = Format(_L.AVIF, 'image/avif', 'avif', _G.IMAGE)
     UNKNOWN = Format(_L.UNKNOWN, 'application/octet-stream', 'bin', _G.UNKNOWN)
 
 
 # magika labels that say nothing about the format, so the extension decides
 _NO_SIGNAL = frozenset({'empty', 'undefined'})
+# magika labels every ISO BMFF file mp4; the ftyp major brand tells AVIF apart
+_AVIF_BRANDS = frozenset({b'avif', b'avis'})
 
 EXPLICIT: dict[str, Format] = {value.label: value for value in vars(Formats).values() if isinstance(value, Format)}
 
@@ -171,6 +180,12 @@ def resolve(detected: str, extension: str) -> Format:
     return content
 
 
+def _brand(path: Path) -> bytes:
+    with path.open('rb') as file:
+        head = file.read(12)
+    return head[8:12] if head[4:8] == b'ftyp' else b''
+
+
 @dataclass(frozen=True)
 class Document:
     path: Path
@@ -205,7 +220,10 @@ class DetectService:
         result = self._model().identify_path(path)
         if not result.ok:
             raise OSError(f'magika status {result.status}')
-        return str(result.output.label)
+        label = str(result.output.label)
+        if label == 'mp4' and _brand(path) in _AVIF_BRANDS:
+            return FormatLabel.AVIF
+        return label
 
     def _model(self) -> Any:
         with self._lock:

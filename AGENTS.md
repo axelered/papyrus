@@ -34,7 +34,7 @@
 
 ### Rendering (spec: `adr/render.md`)
 
-- [ ] Image labels and `image` group in the format table, `image_too_large` and `page_out_of_range` errors
+- [x] Image labels and `image` group in the format table, `image_too_large` and `page_out_of_range` errors
 - [ ] `RenderService` (pypdfium2 + Pillow) with `/v1/thumbnail` and `/v1/render`
 - [ ] Office and HTML to single-page pdf via `PageRange`, spike for out of range and HTML pagination
 - [!] Multi-page output to a destination prefix

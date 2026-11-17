@@ -30,6 +30,12 @@ class SourceTooLarge(PayloadTooLarge):
     code = 'source_too_large'
 
 
+class ImageTooLarge(SourceTooLarge):
+    """Source image has more pixels than the decompression bomb guard allows"""
+
+    code = 'image_too_large'
+
+
 class UnsupportedFormat(ProblemError):
     """Detected document format is not accepted by the operation"""
 
@@ -40,6 +46,12 @@ class UnsupportedUri(ProblemError):
     """URI is malformed or its scheme cannot be used where it appears"""
 
     status, code = 422, 'unsupported_uri'
+
+
+class PageOutOfRange(ProblemError):
+    """Requested page or frame is beyond the end of the document"""
+
+    status, code = 422, 'page_out_of_range'
 
 
 class UnknownConnector(ProblemError):
