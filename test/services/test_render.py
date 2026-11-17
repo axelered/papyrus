@@ -5,7 +5,7 @@ import pytest
 from PIL import Image
 
 from server.errors import ImageTooLarge, PageOutOfRange, UnsupportedFormat
-from server.services.render import Plan, RenderService, RenderSpec, plan
+from server.services.render import RenderService, RenderSpec, plan
 from server.types.common import MAX_IMAGE_SIDE, ImageFormat
 from server.types.render import Fit
 from test.fixtures.documents import DocumentFactory
@@ -34,10 +34,10 @@ def _spec(
     ('source', 'spec', 'vector', 'size', 'crop'),
     [
         (A4, _spec(256, 256), True, (181, 256), None),
-        (A4, _spec(256, 256, fit=Fit.COVER), True, (256, 362), (256, 256)),
-        (A4, _spec(), True, (1240, 1754), None),
+        (A4, _spec(256, 256, fit=Fit.COVER), True, (256, 363), (256, 256)),
+        (A4, _spec(), True, (1240, 1755), None),
         (A4, _spec(dpi=72), True, A4, None),
-        (A4, _spec(width=800), True, (800, 1132), None),
+        (A4, _spec(width=800), True, (800, 1133), None),
         (A4, _spec(height=421), True, (298, 421), None),
         ((2384, 3370), _spec(dpi=600), True, (2898, MAX_IMAGE_SIDE), None),
         ((100, 50), _spec(256, 256), False, (100, 50), None),
@@ -57,7 +57,10 @@ def test_plan(source: tuple[int, int], spec: RenderSpec, vector: bool, size: tup
 
 
 def test_plan_keeps_scale_for_pdfium():
-    assert plan(*A4, _spec(dpi=144), vector=True) == Plan(2.0, (1190, 1684), None)
+    layout = plan(*A4, _spec(dpi=144), vector=True)
+
+    assert layout.scale == pytest.approx(2.0)
+    assert (layout.size, layout.crop) == ((1190, 1684), None)
 
 
 # - - - Worker
@@ -86,6 +89,14 @@ async def test_renders_selected_pdf_page(service: RenderService, make_document: 
     assert output.size == (842, 595)
     assert (raster.page, raster.page_count) == (2, 2)
     assert output.getpixel((10, 10)) == (255, 255, 255)
+
+
+async def test_pdf_size_matches_plan_and_cap(service: RenderService, make_document: DocumentFactory, tmp_path: Path):
+    for page, spec in (((2384, 3370), _spec(dpi=600)), (A4, _spec()), (A4, _spec(width=800))):
+        output, _ = await _render(service, make_document('doc.pdf', pdf_pages(page)), tmp_path, spec)
+
+        assert output.size == plan(*page, spec, vector=True).size
+        assert max(output.size) <= MAX_IMAGE_SIDE
 
 
 async def test_pdf_rotation_is_applied(service: RenderService, make_document: DocumentFactory, tmp_path: Path):

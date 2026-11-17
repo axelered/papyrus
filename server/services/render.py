@@ -18,6 +18,7 @@ MAX_TASKS = 200
 DEFAULT_DPI = 150
 QUALITY = 85
 _POINTS_PER_INCH = 72
+_EPSILON = 1e-9
 # exif orientations that swap width and height
 _TRANSPOSED = frozenset({5, 6, 7, 8})
 _ORIENTATION_TAG = 0x0112
@@ -69,7 +70,11 @@ def plan(width: float, height: float, spec: RenderSpec, vector: bool) -> Plan:
     if not vector:
         scale = min(scale, 1.0)
     scale = min(scale, MAX_IMAGE_SIDE / max(width, height))
-    size = (max(1, round(width * scale)), max(1, round(height * scale)))
+    if vector:
+        # pdfium sizes its bitmap with a plain ceil: a hair less scale keeps exact sizes (800, 4096) exact
+        scale *= 1 - _EPSILON
+    measure = math.ceil if vector else round
+    size = (max(1, measure(width * scale)), max(1, measure(height * scale)))
     if not cover or spec.width is None or spec.height is None:
         return Plan(scale, size, None)
     # largest box of the requested aspect inside the bitmap: the box itself unless no-upscale or the clamp shrank it

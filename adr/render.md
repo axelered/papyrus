@@ -58,7 +58,8 @@ Both in `server/api/render.py` (shared allowlist and coordinator). Default `outp
 ### Sizing Rules
 
 - PDF pages are vectors: scale = `dpi / 72`, `width / page_width_pt`, contain `min(w / pw, h / ph)`, cover
-  `max(w / pw, h / ph)` then center crop. Page rotation is applied by pdfium.
+  `max(w / pw, h / ph)` then center crop. Page rotation is applied by pdfium. pdfium sizes its bitmap with a plain
+  `ceil` (A4 at 150 dpi is 1240x1755), so the scale is reduced by 1e-9 to keep exact sizes (800, 4096) exact.
 - Raster images are never upscaled: a box larger than the image yields the natural size (cover still crops to the
   box aspect).
 - Every rendered bitmap is clamped to 4096 px per side (aspect kept), including images at natural size and the

@@ -1,0 +1,43 @@
+info:
+  name: Thumbnail
+  type: http
+  seq: 5
+
+http:
+  method: POST
+  url: "{{host}}/v1/thumbnail"
+  body:
+    type: json
+    data: |-
+      {
+        "source": "https://svara.io/sample.pdf"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+examples:
+  - name: Simple File
+    description: Thumbnail of a local file upload
+    request:
+      url: "{{host}}/v1/thumbnail"
+      method: POST
+      body:
+        type: multipart-form
+        data:
+          - name: file
+            type: file
+            value:
+              - C:\Software\_data\pdf\sample.pdf
+            contentType: application/pdf
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: text
+        data: ""

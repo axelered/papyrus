@@ -3,12 +3,10 @@ from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, Request, Response
 
-from server.api.output import respond
+from server.api.output import image_responses, respond
 from server.api.request import op_context, openapi_body
 from server.auth import require_api_key
-from server.types.common import ImageFormat, Receipt
 from server.types.screenshot import ScreenshotRequest, ScreenshotResult
-from server.utils.openapi import inline_refs
 
 router = APIRouter(prefix='/v1', tags=['screenshot'], dependencies=[Depends(require_api_key)])
 
@@ -18,22 +16,7 @@ router = APIRouter(prefix='/v1', tags=['screenshot'], dependencies=[Depends(requ
     summary='Screenshot a web page in headless Chromium',
     openapi_extra=openapi_body(ScreenshotRequest),
     response_model=None,
-    responses={
-        200: {
-            'description': 'Image as a file, as JSON, or a receipt when `destination` is set',
-            'content': {
-                'application/json': {
-                    'schema': {
-                        'anyOf': [
-                            inline_refs(ScreenshotResult.model_json_schema()),
-                            inline_refs(Receipt.model_json_schema()),
-                        ]
-                    }
-                },
-                **{format.mime_type: {'schema': {'type': 'string', 'format': 'binary'}} for format in ImageFormat},
-            },
-        }
-    },
+    responses=image_responses(ScreenshotResult),
 )
 async def screenshot(request: Request) -> Response:
     async with op_context(request, ScreenshotRequest) as op:

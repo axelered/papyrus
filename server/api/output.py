@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from fastapi import Request
 from fastapi.responses import FileResponse, JSONResponse, Response
@@ -9,11 +10,29 @@ from starlette.types import Receive, Scope, Send
 from server.api.request import Op
 from server.io.workspace import Workspace
 from server.services.detect import Format
-from server.types.common import OutputMode, Receipt, SourceType
+from server.types.common import ImageFormat, OutputMode, Receipt, SourceType
+from server.utils.openapi import inline_refs
 
 
 def source_type_of(value: Format) -> SourceType:
     return SourceType(mime_type=value.mime_type, extension=value.extension, label=value.label, group=value.group)
+
+
+def image_responses(result: type[BaseModel]) -> dict[int | str, dict[str, Any]]:
+    """OpenAPI 200 response of operations producing one image: the file, the JSON result or a receipt"""
+    return {
+        200: {
+            'description': 'Image as a file, as JSON, or a receipt when `destination` is set',
+            'content': {
+                'application/json': {
+                    'schema': {
+                        'anyOf': [inline_refs(result.model_json_schema()), inline_refs(Receipt.model_json_schema())]
+                    }
+                },
+                **{format.mime_type: {'schema': {'type': 'string', 'format': 'binary'}} for format in ImageFormat},
+            },
+        }
+    }
 
 
 class WorkspaceFileResponse(FileResponse):

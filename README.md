@@ -21,6 +21,7 @@ Axelered Papyrus is your single point stop for Agentic document processing.
 | Data       | `.json`, `.jsonl`      | Passed through                          |
 | Text       | `.txt`, `.md`, `.rst`, `.tex`, ... | Passed through              |
 | Code       | `.py`, `.ts`, `.go`, `.sql`, `.yaml`, ... | Any text format magika knows |
+| Images     | `.png`, `.jpg`, `.webp`, `.gif`, `.bmp`, `.tiff`, `.avif` | Thumbnail and render only |
 
 The format is detected from the content (magika); the extension only refines generic matches such as `.csv` or
 `.rss`. Mislabeled files are processed by their real type and reported in `source_type`.
@@ -80,6 +81,36 @@ The result gains `chunks`:
 
 `kind` is `text`, `table` or `code`; `start`/`end` are offsets into `markdown`; `slide` is set for presentations.
 
+### Thumbnail and Render
+
+`POST /v1/thumbnail` fits one page or image into a box, `POST /v1/render` renders it at a readable size. Both accept
+PDF and images, and return a file by default. For images, `page` selects the frame of a GIF, TIFF or animated WebP.
+
+```shell
+curl -H "Authorization: Bearer <key>" -F file=@report.pdf -o report.webp http://localhost:8000/v1/thumbnail
+curl -H "Authorization: Bearer <key>" -F file=@report.pdf -F 'metadata={"options": {"page": 3, "dpi": 200}}' \
+  -o report-3.png http://localhost:8000/v1/render
+```
+
+| Thumbnail option | Default   | Values                                        |
+|------------------|-----------|-----------------------------------------------|
+| `page`           | `1`       | page or frame                                 |
+| `width`          | `256`     | box width, `1` to `4096`                      |
+| `height`         | `256`     | box height, `1` to `4096`                     |
+| `fit`            | `contain` | `contain` keeps the whole page, `cover` fills the box and crops the center |
+| `format`         | `webp`    | `png`, `jpeg`, `webp`                         |
+
+| Render option | Default             | Values                                                        |
+|---------------|---------------------|---------------------------------------------------------------|
+| `page`        | `1`                 | page or frame                                                 |
+| `width`       | none                | `1` to `4096`, the height follows the aspect ratio            |
+| `height`      | none                | `1` to `4096`; with `width` the page fits inside the box      |
+| `dpi`         | `150` when no size  | `1` to `600`, not combined with `width`/`height`; images ignore it |
+| `format`      | `png`               | `png`, `jpeg`, `webp`                                         |
+
+Images are never enlarged, and every output is at most 4096 px per side. `json` returns
+`{"data": "<base64>", "content_type": "image/png", "width": 1240, "height": 1755, "page": 3, "page_count": 12, "source_type": {...}}`.
+
 ### Screenshot
 
 `POST /v1/screenshot` loads a web page in headless Chromium and captures it. `source` must be an `http(s)://` URL.
@@ -124,9 +155,9 @@ Errors are `application/problem+json` with a stable `code`:
 | 401    | `unauthorized`                                 | Missing or invalid API key                    |
 | 403    | `source_forbidden`                             | URL targets a private address or is not allowed |
 | 404    | `source_not_found`                             | Source does not exist                         |
-| 413    | `payload_too_large`, `source_too_large`        | Body or upload too large, remote source exceeds `limits.max_file_size` |
+| 413    | `payload_too_large`, `source_too_large`, `image_too_large` | Body or upload too large, remote source exceeds `limits.max_file_size`, image has too many pixels |
 | 415    | `unsupported_format`, `unsupported_media_type` | Unsupported document or request body          |
-| 422    | `validation_error`, `unsupported_uri`, `unknown_connector` | Invalid request, URI or connector |
+| 422    | `validation_error`, `unsupported_uri`, `unknown_connector`, `page_out_of_range` | Invalid request, URI, connector or page |
 | 502    | `source_fetch_failed`, `destination_failed`    | Remote source or destination failed           |
 | 503    | `queue_full`                                   | Server busy, retry after `Retry-After`        |
 | 504    | `processing_timeout`, `deadline_exceeded`      | Processing or request took too long           |

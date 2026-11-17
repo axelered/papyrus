@@ -1,0 +1,48 @@
+info:
+  name: Render
+  type: http
+  seq: 6
+
+http:
+  method: POST
+  url: "{{host}}/v1/render"
+  body:
+    type: json
+    data: |-
+      {
+        "output": "json",
+        "source": "https://svara.io/sample.pdf",
+        "options": {
+          "page": 1,
+          "dpi": 150
+        }
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+examples:
+  - name: Simple File
+    description: Render of a local file upload
+    request:
+      url: "{{host}}/v1/render"
+      method: POST
+      body:
+        type: multipart-form
+        data:
+          - name: file
+            type: file
+            value:
+              - C:\Software\_data\pdf\sample.pdf
+            contentType: application/pdf
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: text
+        data: ""
