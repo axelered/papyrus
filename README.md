@@ -129,6 +129,20 @@ dekit reload --yes
 dekit up
 ```
 
+LibreOffice (legacy formats) only runs in the Linux image. On any OS with Docker, dekit runs the image loop
+(`adr/development.md`):
+
+| Task                | What                                                           | Port |
+|---------------------|----------------------------------------------------------------|------|
+| `docker/dev`        | dev image, source mounted read-only, reload, auth disabled     | 8001 |
+| `docker/prod`       | prod image as shipped, API key `dev`                           | 8002 |
+| `docker/test`       | full test suite inside the dev image                           |      |
+
+```shell
+dekit start docker/dev
+dekit start docker/build-dev   # rebuild after changing dependencies or the Dockerfile
+```
+
 Format and Lint
 
 ```shell
@@ -136,7 +150,7 @@ ruff format
 ruff check --fix
 ```
 
-Test
+Test, tests marked `full` need the image and are deselected on the host (run them with `dekit start docker/test`)
 
 ```shell
 uv run pytest

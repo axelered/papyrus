@@ -21,7 +21,7 @@
 
 ### Development and CI (spec: `adr/development.md`)
 
-- [ ] `dev` Docker stage, dekit tasks for dev/prod containers and tests, `full` test mark
+- [x] `dev` Docker stage, dekit tasks for dev/prod containers and tests, `full` test mark
 - [ ] GitHub Actions check job building the image and running the full suite inside it
 - [!] Publish the image to GHCR
 

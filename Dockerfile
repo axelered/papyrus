@@ -45,7 +45,8 @@ COPY --from=build /app/assets /app/assets
 
 USER papyrus
 EXPOSE 8000
-CMD ["fastapi", "dev", "--host", "0.0.0.0", "--port", "8000", "--entrypoint", "server:app"]
+# watch only the mounted source: polling the whole /app (venv included) misses changes for seconds
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "server"]
 
 
 FROM base AS runtime
