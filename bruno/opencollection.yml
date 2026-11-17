@@ -15,10 +15,15 @@ config:
       bypassProxy: ""
 
 request:
+  auth:
+    type: bearer
+    token: "{{token}}"
   variables:
     - name: host
       value: 127.0.0.1:8001
       description: Base URL of the server being tested
+    - name: token
+      value: dev
 bundled: false
 extensions:
   bruno:
