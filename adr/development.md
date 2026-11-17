@@ -19,7 +19,8 @@ full-fidelity image loop.
 | Full loop       | `dev` Docker stage with source bind-mounted, driven by dekit                              |
 | Orchestration   | dekit only, no compose: `cmd` is an argv array, so relative `-v ./x:/app/x` works in any shell |
 | Image layout    | One multi-stage Dockerfile, `runtime` stays last so `docker build .` builds prod           |
-| CI              | One GitHub Actions job: build `dev`, lint and test inside it, build `runtime`, push it to GHCR on `v*` tags |
+| CI              | One GitHub Actions job: stamp version and watermark, build `dev`, lint and test inside it, build `runtime`, push it to GHCR on `v*` tags |
+| Versioning      | Hand-pushed `vX.Y.Z` tags; `svaraborut/semver` (always preview) and `svaraborut/watermark` stamp the build |
 | Skip guard      | `full` marker deselected by `addopts` on the host, re-included with `-m "full or not full"` in the image |
 
 ## Dockerfile
@@ -91,11 +92,42 @@ runtime  FROM base: prod venv, assets, server; HEALTHCHECK and CMD as today (las
 job:
 
 1. `actions/checkout`, `docker/setup-buildx-action`.
-2. `docker/build-push-action`: `target: dev`, `load: true`, `tags: papyrus:dev`, GHA cache in scope `dev`.
-3. Run inside `papyrus:dev` with the same mounts as dekit `docker/test` plus `ruff.toml`: `ruff format --check`,
+2. Versioning, always run (see Versioning): `svaraborut/semver` stamps `server/version.py`, then
+   `svaraborut/watermark` builds the watermark from its version.
+3. `docker/build-push-action`: `target: dev`, `load: true`, `tags: papyrus:dev`, GHA cache in scope `dev`.
+4. Run inside `papyrus:dev` with the same mounts as dekit `docker/test` plus `ruff.toml`: `ruff format --check`,
    `ruff check`, `pytest -m "full or not full"`.
-4. `docker/build-push-action`: default target (`runtime`), reads the `dev` and `runtime` cache scopes, writes
-   `runtime`. This always proves the prod image builds.
+5. `docker/build-push-action`: default target (`runtime`), `build-args: WATERMARK=<watermark>`, reads the `dev`
+   and `runtime` cache scopes, writes `runtime`. This always proves the prod image builds.
+
+- Timing: about 5-8 min with a cold cache (LibreOffice apt layer), about 1-2 min warm.
+- `concurrency` cancels superseded runs on the same ref.
+
+## Versioning
+
+Git tags are the only source of truth: releases are `vX.Y.Z` tags pushed by hand, nothing is committed back.
+
+| Step      | Config                                                                                       |
+|-----------|----------------------------------------------------------------------------------------------|
+| Version   | `svaraborut/semver@v1`, `preview: true` always, `files: server/version.py`                    |
+| Watermark | `svaraborut/watermark@v2`, `version: <semver version>`, `format: vVERSION #SHA7 DATE`          |
+
+- semver checks for a tagged HEAD before it checks preview. A `vX.Y.Z` tag at HEAD gives that version, anything else
+  renders the next version as `X.Y.Z-rcN` (N = commits since the last release). With preview always on it never
+  pushes tags, so the job keeps `contents: read`. Every run logs a version.
+- Example watermarks: `v1.2.3 #2e6dcdd 2026-11-17` on a release, `v1.2.4-rc5 #9f1c0de 2026-11-20` on `main` or a PR.
+- `server/version.py` holds `__version__ = '0.0.0'` (stamped in the CI workspace, never committed) and
+  `__watermark__ = os.environ.get('WATERMARK') or None`.
+- The `runtime` stage ends with `ARG WATERMARK=` and `ENV WATERMARK=$WATERMARK`. They are last so they never
+  invalidate cached layers. `dev` has no watermark.
+- `GET /` (`HelloResponse`) returns `version` from `__version__` and `watermark` from `__watermark__`. Locally that
+  is `0.0.0` and `null`.
+- `pyproject.toml` keeps the `0.0.0` placeholder: `uv.lock` records the project version, so stamping it breaks
+  `uv sync --locked`. The server is never published as a wheel, so nothing reads it.
+- todo: packages added to the repo get their own `__version__` stamped the same way. Stamping their
+  `pyproject.toml` means building with `uv sync --frozen` behind a `uv lock --check` step that runs before stamping.
+- todo: semver only recognises `vX.Y.Z`. A hand-pushed `v1.3.0-rc1` gets semver's `1.3.0-rcN` while
+  `metadata-action` tags the image from the git tag, so decide on one RC naming scheme before building RCs.
 
 ## Release
 
@@ -103,11 +135,8 @@ job:
   runtime image to `ghcr.io/<owner>/<repo>`.
 - Tags come from `docker/metadata-action`: `v1.2.3` publishes `1.2.3`, `1.2` and `latest`. A `v*` tag that is not
   semver publishes nothing and fails the push.
-- Only tag builds publish. `main` and PRs build the runtime image without pushing it.
+- Only tag builds publish. `main` and PRs build the runtime image, watermark included, without pushing it.
 - todo: amd64 only, add `linux/arm64` with QEMU once arm hosts need it.
-
-- Timing: about 5-8 min with a cold cache (LibreOffice apt layer), about 1-2 min warm.
-- `concurrency` cancels superseded runs on the same ref.
 
 ## Out of Scope
 
