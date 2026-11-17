@@ -1,7 +1,7 @@
 # Document Conversion
 
 Internal conversion of legacy and OpenDocument formats with LibreOffice, so existing operations can accept them
-(`doc` -> `docx` -> markdown, later office -> `pdf` -> thumbnail). Plugs into the Pool service kind of
+(`doc` -> `docx` -> markdown, office and HTML -> `pdf` -> render). Plugs into the Pool service kind of
 `adr/architecture.md`; routing uses the format labels of `adr/mime.md`.
 
 ## Goals
@@ -82,7 +82,8 @@ binding inside a pebble pool worker.
 - Without LibreOffice (host development) legacy requests fail with `500 processing_failed`; API tests replace the
   service with a fake writing OOXML samples, end to end tests carry the `full` mark and run only in the image
   (`adr/development.md`).
-- todo: office -> `pdf` for the thumbnail service.
+- The render routes convert office and HTML to `pdf` with the `PageRange=<page>` export option so only the
+  requested page is exported (`adr/render.md`).
 
 ## Security
 

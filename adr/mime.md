@@ -37,6 +37,7 @@ class FormatGroup(StrEnum):
     DATA = 'data'
     CODE = 'code'
     TEXT = 'text'
+    IMAGE = 'image'
     UNKNOWN = 'unknown'
 
 
@@ -106,9 +107,17 @@ MIME, gives `outlook` no extension, and groups `csv` as code). Formats magika ca
 | `json`     | `application/json`                                                          | `json`  | data         | `txt`  |
 | `jsonl`    | `application/jsonl`                                                         | `jsonl` | data         | `json` |
 | `ipynb`    | `application/x-ipynb+json`                                                  | `ipynb` | code         | `json` |
+| `png`      | `image/png`                                                                 | `png`   | image        |        |
+| `jpeg`     | `image/jpeg`                                                                | `jpg`   | image        |        |
+| `webp`     | `image/webp`                                                                | `webp`  | image        |        |
+| `gif`      | `image/gif`                                                                 | `gif`   | image        |        |
+| `bmp`      | `image/bmp`                                                                 | `bmp`   | image        |        |
+| `tiff`     | `image/tiff`                                                                | `tiff`  | image        |        |
 | `unknown`  | `application/octet-stream`                                                  | `bin`   | unknown      |        |
 
-- Each format also lists the extensions that map to it (e.g. `htm`, `markdown`, `docm`) for the refinement rule.
+- Each format also lists the extensions that map to it (e.g. `htm`, `markdown`, `docm`, `jpeg`, `tif`) for the
+  refinement rule.
+- Image formats are explicit so the render allowlist (`adr/render.md`) is a `frozenset[FormatLabel]`.
 
 ### Derived Formats
 
@@ -117,14 +126,14 @@ MIME, gives `outlook` no extension, and groups `csv` as code). Formats magika ca
   metadata: its label, MIME (`text/x-python`), first extension (else `txt`), group, base `txt`, `derived=True`.
 - Derived group: magika `code` -> `code`, any other text group -> `text`.
 - A derived label whose magika group or MIME is wrong for our use gets an explicit entry instead.
-- Non-text labels outside the explicit table are derived too (magika label and MIME, e.g. `png` / `image/png`) with
+- Non-text labels outside the explicit table are derived too (magika label and MIME, e.g. `svg` / `image/svg+xml`) with
   group `unknown` and `text=False`, so responses stay informative while text-family allowlists reject them.
 - magika metadata comes from its bundled content types knowledge base (`Magika._load_content_types_kb`, JSON only,
   no model load). It is private API, so tests pin that every explicit label exists in it.
 - Extension index: derived text formats by magika extensions, then explicit formats override.
 - A test pins magika's label for one fixture per format, so a magika upgrade that changes labels fails CI instead
   of silently rerouting. Fixtures are generated in `test/fixtures/samples.py` (pdf, docx, xlsx, pptx, zip, html,
-  csv, json, jsonl, markdown, python, typescript). Legacy binaries (doc, ppt, xls, odp, ods) are produced by
+  csv, json, jsonl, markdown, python, typescript, png, jpeg, webp, gif, bmp, tiff). Legacy binaries (doc, ppt, xls, odp, ods) are produced by
   LibreOffice in `test/fixtures/legacy.py` and their labels are pinned inside the image
   (`test/api/test_markdown_convert.py`). todo: pin `msg` once a real sample file is checked in.
 

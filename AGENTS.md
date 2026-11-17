@@ -9,7 +9,6 @@
 - [x] Markdown extraction service and `/v1/markdown` (markitdown, spec: `adr/markdown.md`)
 - [x] MIME detection with magika, canonical and derived format tables, per-op allowlists, fenced code markdown (spec: `adr/mime.md`)
 - [x] Optional structure-aware markdown chunking with chonkie (spec: `adr/chunking.md`)
-- [ ] Thumbnail render service and `/v1/thumbnail` for PDF and images (pypdfium2 + Pillow)
 - [ ] Virus scan service and `/v1/scan` (clamd inside the image, own ADR)
 - [!] Pipeline endpoint with a step DSL over existing services
 - [!] Multiple file parts referenced from metadata via `file://<key>`
@@ -32,12 +31,29 @@
 - [x] LibreOfficeKit conversion engine in a pebble pool, spike gate passed
 - [x] Wire `ConvertService` into the service registry and route legacy formats (doc, ppt, rtf, odt, ods, odp) to markdown
 - [!] Public `POST /v1/convert` endpoint (any supported format to pdf or OOXML)
-- [!] Office to pdf conversion for thumbnails
+
+### Rendering (spec: `adr/render.md`)
+
+- [ ] Image labels and `image` group in the format table, `image_too_large` and `page_out_of_range` errors
+- [ ] `RenderService` (pypdfium2 + Pillow) with `/v1/thumbnail` and `/v1/render`
+- [ ] Office and HTML to single-page pdf via `PageRange`, spike for out of range and HTML pagination
+- [!] Multi-page output to a destination prefix
+- [!] `heic`/`avif` and `svg` input, `quality` option
+
+### Browser (spec: `adr/browser.md`)
+
+- [ ] Extract `utils/net.py` from `io/http.py` and add the `utils/proxy.py` pinning proxy
+- [ ] `tini` entrypoint, Playwright headless shell and emoji font in the image
+- [ ] Spike gate: sandbox as non-root, egress coverage, rebinding, crash and recycle behaviour
+- [ ] `BrowserService` and `POST /v1/screenshot`
+- [!] HTML in `/v1/render` and `/v1/thumbnail` through Chromium, uploaded `file://` HTML for screenshots
+- [!] Pin the validated IP in the httpx transport via `utils/net.py`
 
 ## Future Issues
 
 - Starlette parses multipart bodies before size checks; the request body limit must also be enforced at the reverse proxy
 - SSRF guard is vulnerable to DNS rebinding until the validated IP is pinned on connect (`server/io/http.py`)
+- Chromium sandbox needs unprivileged user namespaces; hardened runtimes may force `browser.sandbox: false`
 - clamd inside the image needs a multi-process entrypoint and adds about 1 GB RAM per replica
 - LibreOffice workers keep network access; deny egress for the worker (network namespace or deployment policy)
 - LibreOffice adds about 630 MB to the image and about 330 MB RAM per convert worker, 1 GB+ spikes on large files

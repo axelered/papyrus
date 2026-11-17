@@ -22,6 +22,7 @@ and returns the result as a file or JSON, or writes it to a configured destinati
 | Connectors           | fsspec (s3fs now; other protocols by adding the dependency)    |
 | Markdown extraction  | markitdown with `pdf,docx,pptx,xlsx,xls,outlook` extras        |
 | Rendering            | pypdfium2 + Pillow (PyMuPDF rejected: AGPL)                    |
+| Browser              | Playwright + chrome-headless-shell, see `adr/browser.md`       |
 | Virus scan           | ClamAV clamd inside the image (own ADR, out of scope here)     |
 | Errors               | RFC 9457 `application/problem+json`                            |
 | Packaging            | Docker, `python:3.14-slim`, uv multi-stage, non-root           |
@@ -55,14 +56,14 @@ and returns the result as a file or JSON, or writes it to a configured destinati
 
 ## Services
 
-A service is a class with async methods over paths, e.g. `await render.thumbnail(path, opts) -> Path`. It owns its
+A service is a class with async methods over paths, e.g. `await render.page(path, target, spec) -> RenderResult`. It owns its
 backend and hides its kind from coordinators. Services compose in coordinators
-(e.g. `pdf = await convert.to_pdf(p)` then `await render.thumbnail(pdf, ...)`).
+(e.g. `await convert.convert(p, pdf, ConvertFormat.PDF)` then `await render.page(pdf, ...)`).
 
 | Kind      | Backend                                 | Capacity control                     | Examples                |
 |-----------|-----------------------------------------|--------------------------------------|-------------------------|
 | Pool      | `pebble.ProcessPool`, top-level worker fn | `processes`, `timeout`, `max_tasks`  | markdown, render, convert |
-| Daemon    | N supervised long-lived processes       | async queue of instances             | none yet                |
+| Daemon    | N supervised long-lived processes       | async queue of instances or semaphore | browser (one Chromium, context per request) |
 | Remote    | TCP / HTTP client                       | `asyncio.Semaphore(concurrency)`     | scan (clamd), OCR API   |
 | Inline    | In-process, `asyncio.to_thread`         | admission only (ms-scale, GIL-free)  | detect (magika)         |
 
@@ -104,7 +105,7 @@ One Pydantic request model per operation, sharing common fields:
 |---------------|------------------------------------------------------------------------------------|
 | `source`      | Required URI. Defaults to `file://file` in multipart when a `file` part is present |
 | `destination` | Optional connector URI. When set, the result is written there and a JSON receipt is returned |
-| `output`      | `file` or `json`; per-op default (thumbnail=`file`, markdown=`json`, scan=`json` only) |
+| `output`      | `file` or `json`; per-op default (thumbnail=render=`file`, markdown=`json`, scan=`json` only) |
 | `options`     | Op-specific typed model                                                             |
 
 ### Transports
@@ -146,6 +147,7 @@ Anything else: `422 unsupported_uri`. Unknown connector: `422 unknown_connector`
 - `http.enabled: false` rejects every http(s) source with `403 source_forbidden`.
 - Resolve the host and reject it if any address is not public (`ipaddress.is_global`, multicast excluded, IPv4-mapped
   IPv6 unwrapped): loopback, private, CGNAT, link-local/metadata, ULA, unless `http.allow_private`.
+- The resolve-and-validate check lives in `utils/net.py`, shared with the browser egress proxy (`adr/browser.md`).
 - todo: httpx re-resolves on connect, so DNS rebinding can bypass the check; pin the validated IP in the transport.
 - The file name is the decoded URL basename; when it has no extension, one is guessed from `Content-Type`.
 - If `http.allowed_hosts` is non-empty, only those hosts are allowed.
@@ -166,7 +168,9 @@ Anything else: `422 unsupported_uri`. Unknown connector: `422 unknown_connector`
 | `GET /health`         | no   | Liveness, always 200                                          |
 | `GET /ready`          | no   | 503 when admission is exhausted so the LB drains the replica  |
 | `POST /v1/markdown`   | yes  | Extract markdown (markitdown), see `adr/markdown.md`          |
-| `POST /v1/thumbnail`  | yes  | Render a thumbnail of the first page / image at requested size |
+| `POST /v1/thumbnail`  | yes  | Render one page / image into a fixed box, see `adr/render.md`  |
+| `POST /v1/render`     | yes  | Render one page / image by width, height or dpi, see `adr/render.md` |
+| `POST /v1/screenshot` | yes  | Screenshot a web page in headless Chromium, see `adr/browser.md` |
 | `POST /v1/scan`       | yes  | Virus scan, JSON result only                                  |
 
 Op-specific options and results are defined in each task's ADR.
@@ -205,6 +209,9 @@ http:
   timeout: 30              # seconds
   max_redirects: 5
 
+browser:
+  sandbox: true            # see adr/browser.md
+
 connectors:
   prod:
     protocol: s3
@@ -234,9 +241,9 @@ RFC 9457 problem+json with a stable `code` extension. Codes are part of the publ
 | 403    | `source_forbidden`                                                                 |
 | 404    | `source_not_found`, `not_found` (unknown route)                                    |
 | 405    | `method_not_allowed`                                                               |
-| 413    | `payload_too_large` (request body, upload), `source_too_large` (http, connector)   |
+| 413    | `payload_too_large` (request body, upload), `source_too_large` (http, connector), `image_too_large` (pixel bomb guard) |
 | 415    | `unsupported_format` (document), `unsupported_media_type` (request body)           |
-| 422    | `validation_error`, `unsupported_uri`, `unknown_connector`                         |
+| 422    | `validation_error`, `unsupported_uri`, `unknown_connector`, `page_out_of_range`    |
 | 500    | `processing_failed`, `internal_error` (unhandled, details only in logs)            |
 | 502    | `source_fetch_failed`, `destination_failed`                                        |
 | 503    | `queue_full` (with `Retry-After`), `not_ready` (`/ready`), `service_unavailable`   |
@@ -268,6 +275,9 @@ server/
   types/               wire contract: request, result and option models, public enums
     common.py          OpRequest, OutputMode, SourceType, Receipt, FormatGroup, FormatLabel, health responses
     markdown.py        markdown request, options, result, Chunk, Tokenizer, ChunkKind, CodeLanguage
+    convert.py         ConvertFormat
+    render.py          thumbnail and render requests, options, RenderResult, ImageFormat, Fit
+    screenshot.py      screenshot request, options, result, WaitUntil
   utils/               generic primitives
     problem.py         ProblemError, generic errors, problem+json rendering and handlers
     body.py            JSON | multipart body reading, caps, size-limited upload copy
@@ -275,13 +285,16 @@ server/
     yaml.py            YAML loading with ${VAR} expansion
     logs.py            JSON log formatter, X-Request-ID middleware
     text.py            text decoding, CommonMark fences
+    net.py             host resolution and public address policy
+    proxy.py           pinning forward proxy (CONNECT and http)
   api/
     admission.py       non-blocking in-flight counter (event loop only, no semaphore needed)
     request.py         op context (admission, workspace, deadline), body -> model, OpenAPI request body
     output.py          file | json | destination responses
     health.py          /, /health, /ready
     markdown.py        route + coordinator
-    thumbnail.py       route + coordinator
+    render.py          /v1/thumbnail and /v1/render routes + shared coordinator
+    screenshot.py      route + coordinator
     scan.py            route + coordinator
   io/
     uri.py             URI parsing and validation
@@ -294,7 +307,10 @@ server/
     detect.py          DetectService (magika, inline), format table and resolution
     chunking.py        chunker, asset configuration, code language resolution
     markdown.py        MarkdownService + worker fns
-    render.py          RenderService + worker fn
+    convert.py         ConvertService + worker fn (LibreOfficeKit)
+    lok.py             LibreOfficeKit ctypes binding
+    render.py          RenderService + worker fn (pypdfium2, Pillow)
+    browser.py         BrowserService (Playwright), egress policy wiring
     scan.py            ScanService
 test/                  mirrors server/, shared fixtures in test/fixtures/
 Dockerfile
@@ -324,7 +340,8 @@ Imports only point down; a violation is a design bug, not a style nit.
 
 ## Deployment
 
-- One container = one uvicorn process. Never use `--workers`: it multiplies pools and splits the admission semaphore.
+- One container = one uvicorn process under `tini` (reaps orphaned Chromium processes). Never use `--workers`: it
+  multiplies pools and splits the admission semaphore.
 - Image: multi-stage build (`uv sync --locked --no-dev` into `/app/.venv`, then a clean `python:3.14-slim` base
   with LibreOffice; a `dev` stage for local and CI testing, `adr/development.md`), runs as
   non-root uid 10001, 30s graceful shutdown. Only runtime dependencies are installed, so anything the server needs
@@ -336,10 +353,11 @@ Imports only point down; a violation is a design bug, not a style nit.
 - Logs: stdlib `logging` under the `papyrus.*` logger namespace, JSON lines on stderr, `X-Request-ID` echoed (if it
   matches `[A-Za-z0-9._:-]{1,128}`) or generated and bound to every line. Uvicorn keeps its own access log format.
 - Memory sizing must account for pool processes plus daemons (about 330 MB per convert worker, about 1 GB for
-  clamd signatures).
+  clamd signatures, about 150 MB plus 150 MB per context for the browser).
 
 ## Out of Scope
 
 - Virus scan engine integration details (clamd lifecycle, signature updates, multi-process entrypoint): own ADR.
-- Printing, OCR: future ADRs, plugging into the service kinds above. Conversion: `adr/convert.md`.
+- Printing, OCR: future ADRs, plugging into the service kinds above. Conversion: `adr/convert.md`, rendering:
+  `adr/render.md`, browser: `adr/browser.md`.
 - Metrics, async/webhook delivery, per-service queue caps, pipeline DSL.
