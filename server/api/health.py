@@ -1,16 +1,17 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
+from server import version
 from server.api.admission import Admission
-from server.types.common import RootResponse, StatusResponse
+from server.types.common import HelloResponse, StatusResponse
 from server.utils.problem import problem
 
 router = APIRouter(tags=['health'])
 
 
 @router.get('/')
-async def read_root() -> RootResponse:
-    return RootResponse()
+async def read_root() -> HelloResponse:
+    return HelloResponse(version=version.__version__, watermark=version.__watermark__)
 
 
 @router.get('/health')

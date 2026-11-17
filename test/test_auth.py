@@ -57,4 +57,4 @@ def test_disabled_auth_skips_check(config):
 def test_health_routes_are_public(client: TestClient):
     assert client.get('/health').status_code == 200
     assert client.get('/ready').status_code == 200
-    assert client.get('/').json() == {'status': 'ok', 'name': 'Axelered Papyrus'}
+    assert client.get('/').status_code == 200

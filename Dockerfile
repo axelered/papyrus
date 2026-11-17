@@ -65,3 +65,7 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=15s \
 
 # single process on purpose: --workers would multiply pools and split the admission limit
 CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000", "--timeout-graceful-shutdown", "30"]
+
+# last so a new watermark never invalidates cached layers (adr/development.md)
+ARG WATERMARK=
+ENV WATERMARK=$WATERMARK

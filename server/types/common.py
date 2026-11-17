@@ -76,9 +76,11 @@ class Receipt(BaseModel):
     source_type: SourceType | None = None
 
 
-class RootResponse(BaseModel):
+class HelloResponse(BaseModel):
     status: str = 'ok'
     name: str = 'Axelered Papyrus'
+    version: str
+    watermark: str | None = None
 
 
 class StatusResponse(BaseModel):
