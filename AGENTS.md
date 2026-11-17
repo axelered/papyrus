@@ -42,9 +42,10 @@
 
 ### Browser (spec: `adr/browser.md`)
 
-- [ ] Extract `utils/net.py` from `io/http.py` and add the `utils/proxy.py` pinning proxy
+- [x] Extract `utils/net.py` from `io/http.py` and add the `utils/proxy.py` pinning proxy
 - [x] `tini` entrypoint, Playwright headless shell and fonts in the image
-- [ ] Spike gate: sandbox as non-root, egress coverage, rebinding, crash and recycle behaviour
+- [x] Spike gate: sandbox as non-root, egress coverage, rebinding, crash and recycle behaviour
+- [ ] Security: enable the Chromium sandbox by default, ship a seccomp profile allowing user namespaces
 - [ ] `BrowserService` and `POST /v1/screenshot`
 - [!] HTML in `/v1/render` and `/v1/thumbnail` through Chromium, uploaded `file://` HTML for screenshots
 - [!] Pin the validated IP in the httpx transport via `utils/net.py`
@@ -53,7 +54,7 @@
 
 - Starlette parses multipart bodies before size checks; the request body limit must also be enforced at the reverse proxy
 - SSRF guard is vulnerable to DNS rebinding until the validated IP is pinned on connect (`server/io/http.py`)
-- Chromium sandbox needs unprivileged user namespaces; hardened runtimes may force `browser.sandbox: false`
+- Chromium runs without its sandbox by default (Docker seccomp blocks user namespaces): a renderer exploit runs as the API user with access to secrets and workspaces
 - clamd inside the image needs a multi-process entrypoint and adds about 1 GB RAM per replica
 - LibreOffice workers keep network access; deny egress for the worker (network namespace or deployment policy)
 - LibreOffice adds about 630 MB to the image and about 330 MB RAM per convert worker, 1 GB+ spikes on large files

@@ -15,6 +15,7 @@ from server.config import Config, ConfigError, Settings
 from server.io.connectors import Connectors
 from server.io.http import HttpFetcher
 from server.io.transfer import Transfer
+from server.services.browser import BrowserService
 from server.services.convert import ConvertService
 from server.services.detect import DetectService
 from server.services.markdown import MarkdownService
@@ -30,6 +31,7 @@ class Services:
     detect: DetectService
     markdown: MarkdownService
     convert: ConvertService
+    browser: BrowserService
 
     @classmethod
     def create(cls, config: Config) -> Self:
@@ -40,9 +42,16 @@ class Services:
             markdown=MarkdownService(processes=processes),
             # LibreOffice workers weigh about 330 MB each
             convert=ConvertService(processes=max(1, processes // 2), profiles=config.limits.tmp_dir / 'lo-profiles'),
+            # each open page weighs 50 to 150 MB
+            browser=BrowserService(config.http, config.browser, concurrency=max(1, processes // 2)),
         )
 
-    def close(self) -> None:
+    async def aclose(self) -> None:
+        await self.browser.aclose()
+        # pool joins block
+        await asyncio.to_thread(self._close_pools)
+
+    def _close_pools(self) -> None:
         self.markdown.close()
         self.convert.close()
 
@@ -78,7 +87,7 @@ def create_app(settings: Settings | None = None, config: Config | None = None) -
             yield
         finally:
             await http.aclose()
-            await asyncio.to_thread(services.close)
+            await services.aclose()
 
     configure_logging(LOGGER_NAMESPACE)
     app = FastAPI(title='Axelered Papyrus', lifespan=lifespan)

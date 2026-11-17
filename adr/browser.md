@@ -1,8 +1,8 @@
 # Browser Engine
 
 Headless Chromium for content that needs a real browser: `POST /v1/screenshot` of live web pages now, full-fidelity
-HTML rendering later. Extends the service kinds of `adr/architecture.md`; image output reuses `ImageFormat` and the
-pixel cap of `adr/render.md`.
+HTML rendering later. Extends the service kinds of `adr/architecture.md`; image output uses the shared
+`ImageFormat` and `MAX_IMAGE_SIDE` of `server/types/common.py` (also used by `adr/render.md`).
 
 ## Goals
 
@@ -38,12 +38,13 @@ DNS pinning proxy), which validates the egress design below.
 | Fonts    | Installed by `--with-deps`: liberation, noto color emoji, CJK (wqy-zenhei, ipafont), thai     |
 | Init     | `tini` as image entrypoint (see Process Model)                                               |
 | Egress   | `utils/proxy.py` pinning forward proxy in the API event loop                                 |
+| Capture  | Raw CDP `Page.captureScreenshot` on a session of the page: Playwright cannot encode webp      |
 
 ## Process Model
 
 ```
 tini (PID 1)
-└─ uvicorn: event loop, routes, PinningProxy coroutine on 127.0.0.1:<random>
+└─ uvicorn: event loop, routes, PinningProxy coroutines on 127.0.0.1:<random> (one per request, one deny-all)
    ├─ pebble pools (unchanged)
    └─ node: Playwright driver, stdin/stdout pipe to Python, spawned on first screenshot
       └─ chrome-headless-shell browser, CDP over --remote-debugging-pipe (no TCP port)
@@ -52,7 +53,8 @@ tini (PID 1)
 ```
 
 - `tini` is required: Chromium churns short-lived processes and orphaned descendants are reparented to PID 1;
-  uvicorn never reaps them. `ENTRYPOINT ["tini", "--"]` also forwards signals. It also serves the future clamd
+  uvicorn never reaps them. `ENTRYPOINT ["tini", "-s", "--"]` (in `base`, so dev and runtime) also forwards signals;
+  `-s` registers it as subreaper so `docker run --init` (dekit, CI) nests cleanly. It also serves the future clamd
   multi-process entrypoint.
 - If Python dies hard the chain ends by pipe EOF (the driver exits on stdin close, Chromium on CDP pipe close).
 
@@ -64,44 +66,58 @@ tini (PID 1)
 | Request                  | `Semaphore(concurrency)` -> `new_context` -> `goto` -> optional delay -> `screenshot` -> `context.close()` in `finally` | Renderers exit with the context |
 | Timeout, deadline cancel | Operation under `asyncio.timeout(30)`, then `context.close()` (kills renderers stuck in JS loops) | `504`, browser stays healthy |
 | Renderer crash           | Page `crash` event                                                              | `500` for that request only |
-| Browser or driver crash  | `browser.on('disconnected')` marks it dead                                      | In-flight `500`, next call relaunches lazily (no restart loop) |
+| Browser or driver crash  | In-flight Playwright calls fail; the next acquire sees `is_connected()` false and relaunches; a failing launch retries once with a fresh driver | In-flight `500`, next call relaunches lazily (no restart loop) |
 | Recycle after 200 contexts | Launch a fresh browser for new contexts, close the old one when its in-flight count reaches 0 | No killed requests |
 | Shutdown                 | `aclose()`: `browser.close()`, `playwright.stop()`, proxy close                 | Within the 30s grace period |
 
 ### Sizing
 
-- Concurrency: `max(1, workers.processes // 2)` contexts (convert heuristic, each tab costs 50-150 MB).
+- Concurrency: `max(1, workers.processes // 2)` contexts (convert heuristic).
 - `--js-flags=--max-old-space-size=512` caps the V8 heap per renderer: a memory bomb crashes its renderer (`500`)
   instead of OOM-killing the container with the pebble pools.
 - Full-page captures are capped at 4096 px height (`adr/render.md`), so infinite scroll cannot exhaust memory.
-- Memory: about 150 MB idle browser plus about 150 MB per concurrent context; image grows by about
+- Memory (measured, summed RSS of driver and browser, shared pages overcounted): about 325 MB idle, about 100 MB per
+  open simple page, real sites more. Image grows by about
   1.1 GB (measured: headless shell 287 MB, system libraries and fonts 327 MB, Python package with the Node driver
   165 MB). todo: install a hand-picked dependency list instead of `--with-deps` if image size matters.
 
 ### Sandbox
 
-- Launch with `chromium_sandbox=True` (Playwright defaults to `--no-sandbox`): untrusted JS must not run unsandboxed
-  next to `PAPYRUS_API_KEY` and connector secrets.
-- The sandbox needs unprivileged user namespaces; when the runtime blocks them launch fails loudly
-  (`500 processing_failed`).
-- Opt-out `browser.sandbox: false` is explicit and logs a warning at startup; never a silent fallback.
+- Off by default (`browser.sandbox: false`): the Chromium sandbox needs unprivileged user namespaces and Docker's
+  default seccomp profile blocks them (`unshare -U` gives EPERM, the spike confirmed it; Kubernetes `RuntimeDefault`
+  and Ubuntu 24.04+ AppArmor restrict them too). It works under `seccomp=unconfined`.
+- Mitigations without it: non-root uid 10001, every connection through the pinning proxy, V8 heap cap, fresh context
+  per request, image rebuilt with current Chromium. Remaining risk: a renderer exploit runs as the API user and can
+  read `PAPYRUS_API_KEY`, connector secrets and other workspaces.
+- `browser.sandbox: true` where the runtime allows user namespaces; a blocked sandbox then fails the launch loudly
+  (`500 processing_failed`), never a silent fallback. The launch log line states the sandbox mode.
+- todo: ship a seccomp profile (Docker default plus user namespaces) and turn the sandbox on by default.
 
 ## Egress
 
-Every TCP connection of the browser goes through the pinning proxy; UDP paths are disabled.
+Every TCP connection of the browser goes through a pinning proxy; UDP paths are disabled.
 
-- `server/utils/proxy.py`: generic `PinningProxy(check)` asyncio forward proxy, `start() -> port`, `aclose()`.
-  Handles `CONNECT host:port` tunnels (https, wss; TLS stays end to end, never decrypted) and absolute-URI
-  `http://` forwarding. `check(host, port) -> IPAddress` raises on deny; the proxy connects to the returned IP
-  (the pin) and answers `403` on denial.
-- `server/utils/net.py`: `resolve_allowed(host, allowed_hosts, allow_private) -> IPAddress`, moved out of
-  `io/http.py` (which now uses it, behaviour unchanged). Resolves once; any non-global address denies.
-- `services/browser.py` wires the `http.*` policy as `check`, gives each context proxy credentials (a per-request
-  token) and records denied hosts per token, so a denied top-level navigation becomes `403 source_forbidden` while a
-  denied subresource just fails inside the page.
-- Chromium flags: `--proxy-server=127.0.0.1:<port>`, `--proxy-bypass-list=<-loopback>` (otherwise loopback bypasses
-  the proxy), `--disable-quic`, `--force-webrtc-ip-handling-policy=disable_non_proxied_udp`.
-- Context options: `service_workers='block'`; navigation to `file:`, `chrome:` and other non-http schemes is denied.
+- `server/utils/proxy.py`: generic `PinningProxy(check, on_reject)` asyncio forward proxy, `start() -> port`,
+  `aclose()`. Handles `CONNECT host:port` tunnels (https, wss; TLS stays end to end, never decrypted) and absolute-URI
+  `http://` forwarding (one request per client connection, sent with `Connection: close`). `check(host, port)` returns
+  the address to connect to (the pin) and raises `PermissionError` to deny (`403`); other failures and refused
+  upstreams answer `502`. `on_reject(host, port, status)` reports every `403`/`502`.
+- `server/utils/net.py`: `HostPolicy(allowed_hosts, allow_private, resolver)` with `check` (validate) and `resolve`
+  (validate and return the pin), moved out of `io/http.py` (which uses it, behaviour unchanged). Every resolved
+  address must be public unless `allow_private`; `HostForbidden` subclasses `PermissionError` so `utils/proxy.py`
+  needs no `server.*` import.
+- `services/browser.py` starts one proxy per request with `HostPolicy.resolve` as `check` and passes it as the
+  context proxy, so rejections are attributed to that request without credentials. A rejected top-level navigation
+  (tracked from main-frame navigation requests, so redirects count) becomes `403 source_forbidden` or
+  `502 source_fetch_failed`; a rejected subresource just fails inside the page. For plain http the rejection arrives
+  as the proxy's own `403`/`502` response and is mapped the same way.
+- The browser is launched with a deny-all proxy, so traffic outside a request context has no route out.
+- The source host is checked before the browser is used, so denied sources never start Chromium.
+- Chromium flags: `--disable-quic`, `--force-webrtc-ip-handling-policy=disable_non_proxied_udp`,
+  `--webrtc-ip-handling-policy=disable_non_proxied_udp`, `--disable-dev-shm-usage`. Loopback URLs go through the
+  context proxy without an explicit `<-loopback>` bypass rule (verified by the spike).
+- Context options: `service_workers='block'`, `accept_downloads=False`. Navigation from a page to `file:` is blocked
+  by Chromium itself (verified by the spike).
 - Defense in depth (documented, not enforced): deny egress to private ranges at the deployment level.
 - todo: pin the validated IP in the httpx transport via `utils/net.py` to close the rebinding gap of `io/http.py`.
 
@@ -133,9 +149,12 @@ Every TCP connection of the browser goes through the pinning proxy; UDP paths ar
 
 ```python
 class BrowserService:
-    async def screenshot(self, url: str, target: Path, options: ScreenshotOptions) -> ScreenshotResult
+    async def screenshot(self, url: str, target: Path, options: ScreenshotOptions) -> Capture  # width, height, url, status
     async def aclose(self) -> None
 ```
+
+- The capture clip carries `scale`: `Page.captureScreenshot` from a second CDP session resets Playwright's device
+  metrics emulation, so the layout runs at the emulated ratio and the clip renders at it; the page is discarded after.
 
 ## Errors
 
@@ -147,29 +166,30 @@ No new codes.
 | DNS failure, connection refused, TLS error on navigation  | `502 source_fetch_failed`  |
 | Main document `4xx`/`5xx`                                 | Screenshot taken, `status` in the result |
 | Navigation and capture exceed 30s                         | `504 processing_timeout`   |
-| Renderer or browser crash, launch failure (sandbox)       | `500 processing_failed`    |
+| Renderer or browser crash (also mid-navigation), launch failure (sandbox) | `500 processing_failed` |
 
 ## Configuration
 
 ```yaml
 browser:
-  sandbox: true            # false only where the runtime blocks user namespaces; logs a warning
+  sandbox: false           # true only where the runtime allows unprivileged user namespaces
 ```
 
 Concurrency, timeout and recycle count are code heuristics like the other services.
 
 ## Spike
 
-`full` tests in the image, gate before the route ships:
+Run as `full` tests in the image (`test/services/test_browser.py`):
 
-1. Playwright launches the headless shell as uid 10001 with `chromium_sandbox=True` under Docker's default seccomp
-   profile; record what the target orchestrator needs.
-2. All page traffic reaches the proxy: subresources, XHR, redirects, WebSocket, loopback URLs; QUIC and WebRTC
-   produce no direct UDP.
-3. A rebinding resolver stub (public first, private on connect) never yields a private connection.
-4. Infinite JS loop and heap bomb pages fail their request; the next request succeeds on the same browser.
-5. Killing the browser mid-request fails that request; the next one relaunches.
-6. No zombie processes after 200 requests and a recycle under `tini`.
+1. Failed as planned: Chromium 159 headless shell launches as uid 10001 under `tini`, but `chromium_sandbox=True`
+   fails under Docker's default seccomp profile; works with `seccomp=unconfined`. Decision: sandbox off by default
+   (see Sandbox).
+2. Passed: subresources, fetch to `127.0.0.1` and `localhost`, WebSocket and redirects all reach the proxy; nothing
+   reaches the fixture server under a denied name.
+3. Passed: a resolver answering public on check and loopback afterwards never yields a connection.
+4. Passed: an infinite loop times out (`504`), a heap bomb crashes its page (`500`); the next request succeeds.
+5. Passed: killing the browser mid-request fails it with `500`, the next request relaunches.
+6. Passed: recycling every 2 contexts leaves one browser, no zombies, and no Chromium process after `aclose()`.
 
 ## Tests
 

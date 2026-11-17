@@ -64,8 +64,9 @@ Both in `server/api/render.py` (shared allowlist and coordinator). Default `outp
 
 ## Contract
 
-`server/types/render.py`: `ThumbnailRequest`, `RenderRequest`, their options models, `ImageFormat`
-(`png`, `jpeg`, `webp`, each entry carries its MIME and extension), `Fit` (`contain`, `cover`), `RenderResult`.
+`server/types/render.py`: `ThumbnailRequest`, `RenderRequest`, their options models, `Fit` (`contain`, `cover`),
+`RenderResult`. `ImageFormat` (`png`, `jpeg`, `webp` with MIME and extension) and `MAX_IMAGE_SIDE` live in
+`server/types/common.py`, shared with `adr/browser.md`.
 
 ### File output
 

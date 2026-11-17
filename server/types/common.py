@@ -8,6 +8,26 @@ class OutputMode(StrEnum):
     JSON = 'json'
 
 
+# longest side of any produced raster, bounds worker and browser memory
+MAX_IMAGE_SIDE = 4096
+
+
+class ImageFormat(StrEnum):
+    """Raster outputs shared by image producing operations"""
+
+    PNG = 'png'
+    JPEG = 'jpeg'
+    WEBP = 'webp'
+
+    @property
+    def mime_type(self) -> str:
+        return f'image/{self.value}'
+
+    @property
+    def extension(self) -> str:
+        return 'jpg' if self is ImageFormat.JPEG else self.value
+
+
 class FormatGroup(StrEnum):
     DOCUMENT = 'document'
     SPREADSHEET = 'spreadsheet'

@@ -7,6 +7,8 @@ from urllib.parse import urlsplit
 # resolves and validates a host, returning the address to connect to (the pin)
 # raise PermissionError to deny (403), any other exception means the host is unreachable (502)
 Check = Callable[[str, int], Awaitable[str]]
+# notified with (host, port, status) whenever a request is answered 403 or 502 instead of being connected
+OnReject = Callable[[str, int, int], None]
 
 HEAD_LIMIT = 16 * 1024
 CONNECT_TIMEOUT = 10
@@ -29,8 +31,9 @@ class PinningProxy:
     upstream response, so a reused client connection can never reach a host that was not checked.
     """
 
-    def __init__(self, check: Check, logger: logging.Logger | None = None):
+    def __init__(self, check: Check, on_reject: OnReject | None = None, logger: logging.Logger | None = None):
         self._check = check
+        self._on_reject = on_reject
         self._logger = logger or logging.getLogger(__name__)
         self._server: asyncio.Server | None = None
         self._tasks: set[asyncio.Task] = set()
@@ -113,16 +116,21 @@ class PinningProxy:
             address = await self._check(host, port)
         except PermissionError as e:
             self._logger.info('proxy denied %s:%s (%s)', host, port, e)
-            raise _Reject(403, 'Forbidden') from None
+            raise self._reject(host, port, 403, 'Forbidden') from None
         except Exception as e:  # noqa: BLE001 the check owns resolution, any failure means unreachable
             self._logger.info('proxy cannot reach %s:%s (%s)', host, port, e)
-            raise _Reject(502, 'Bad Gateway') from None
+            raise self._reject(host, port, 502, 'Bad Gateway') from None
         try:
             async with asyncio.timeout(CONNECT_TIMEOUT):
                 return await asyncio.open_connection(address, port)
         except (OSError, TimeoutError) as e:
             self._logger.info('proxy connect to %s (%s:%s) failed (%s)', address, host, port, e)
-            raise _Reject(502, 'Bad Gateway') from None
+            raise self._reject(host, port, 502, 'Bad Gateway') from None
+
+    def _reject(self, host: str, port: int, status: int, reason: str) -> _Reject:
+        if self._on_reject is not None:
+            self._on_reject(host, port, status)
+        return _Reject(status, reason)
 
 
 def _authority(value: str) -> tuple[str, int]:

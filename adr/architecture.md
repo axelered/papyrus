@@ -210,7 +210,7 @@ http:
   max_redirects: 5
 
 browser:
-  sandbox: true            # see adr/browser.md
+  sandbox: false           # see adr/browser.md
 
 connectors:
   prod:
@@ -273,10 +273,11 @@ server/
   auth.py              bearer dependency
   errors.py            application error catalog (ProblemError subclasses)
   types/               wire contract: request, result and option models, public enums
-    common.py          OpRequest, OutputMode, SourceType, Receipt, FormatGroup, FormatLabel, health responses
+    common.py          OpRequest, OutputMode, SourceType, Receipt, FormatGroup, FormatLabel, ImageFormat, health
+                       responses
     markdown.py        markdown request, options, result, Chunk, Tokenizer, ChunkKind, CodeLanguage
     convert.py         ConvertFormat
-    render.py          thumbnail and render requests, options, RenderResult, ImageFormat, Fit
+    render.py          thumbnail and render requests, options, RenderResult, Fit
     screenshot.py      screenshot request, options, result, WaitUntil
   utils/               generic primitives
     problem.py         ProblemError, generic errors, problem+json rendering and handlers

@@ -49,6 +49,11 @@ class HttpConfig(_Section):
         return tuple(host.lower() for host in value)
 
 
+class BrowserConfig(_Section):
+    # off by default: the Chromium sandbox needs user namespaces, which default seccomp profiles block (adr/browser.md)
+    sandbox: bool = False
+
+
 class ConnectorConfig(_Section):
     protocol: str = Field(min_length=1)
     options: dict[str, Any] = Field(default_factory=dict)
@@ -58,6 +63,7 @@ class Config(_Section):
     workers: WorkersConfig = Field(default_factory=WorkersConfig)
     limits: LimitsConfig = Field(default_factory=LimitsConfig)
     http: HttpConfig = Field(default_factory=HttpConfig)
+    browser: BrowserConfig = Field(default_factory=BrowserConfig)
     connectors: dict[str, ConnectorConfig] = Field(default_factory=dict)
 
     @field_validator('connectors')

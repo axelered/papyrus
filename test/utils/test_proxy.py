@@ -204,3 +204,15 @@ async def test_aclose_ends_open_tunnels(echo: Upstream):
 
     assert await asyncio.wait_for(reader.read(), 5) == b''
     writer.close()
+
+
+async def test_on_reject_reports_denials_and_unreachable_hosts(echo: Upstream):
+    rejects: list[tuple[str, int, int]] = []
+    port = echo.port
+    async with PinningProxy(Checks(), on_reject=lambda *reject: rejects.append(reject)) as running:
+        for host in ('denied.test', 'missing.test', 'site.test'):
+            reader, writer = await _open(running, f'CONNECT {host}:{port} HTTP/1.1\r\n\r\n'.encode())
+            await _status(reader)
+            writer.close()
+
+    assert rejects == [('denied.test', port, 403), ('missing.test', port, 502)]
