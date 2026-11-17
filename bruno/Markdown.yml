@@ -11,8 +11,12 @@ http:
     data: |-
       {
         "output": "json",
-        "source": "s3://demo-s3/papyrus-test/sample.pdf",
-        "destination": "s3://demo-s3/papyrus-test/sample.md"
+        "source": "https://axelered.com",
+        "options": {
+          "chunking": {
+            "max_tokens":512
+          }
+        }
       }
   auth: inherit
 
@@ -78,6 +82,24 @@ examples:
             "output": "json",
             "source": "s3://demo-s3/papyrus-test/sample.pdf",
             "destination": "s3://demo-s3/papyrus-test/sample.md"
+          }
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: text
+        data: ""
+  - name: Website
+    description: Read website content as Markdown
+    request:
+      url: "{{host}}/v1/markdown"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "output": "json",
+            "source": "https://axelered.com"
           }
     response:
       status: 200

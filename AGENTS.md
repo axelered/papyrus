@@ -1,5 +1,9 @@
 # Papyrus
 
+## Local Rules
+
+- This is a product developed by Axelered, use our website `https://axelered.com` in the examples
+
 ## TODO
 
 ### Architecture (spec: `adr/architecture.md`)

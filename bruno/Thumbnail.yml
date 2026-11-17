@@ -10,7 +10,7 @@ http:
     type: json
     data: |-
       {
-        "source": "https://svara.io/sample.pdf"
+        "source": "https://axelered.com/"
       }
   auth: inherit
 
@@ -35,6 +35,26 @@ examples:
             value:
               - C:\Software\_data\pdf\sample.pdf
             contentType: application/pdf
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: text
+        data: ""
+  - name: Remote Image
+    description: Create a thumbnail from a remote image collected over HTTP
+    request:
+      url: "{{host}}/v1/thumbnail"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "source": "https://axelered.com/_og/platform.png",
+            "options": {
+              "fit": "cover"
+            }
+          }
     response:
       status: 200
       statusText: OK
