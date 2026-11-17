@@ -11,7 +11,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # libraries must never download at runtime: grammars and tokenizers are baked in here
 COPY server ./server
 COPY scripts ./scripts
-RUN PAPYRUS_ASSETS_DIR=/app/assets /app/.venv/bin/python -m scripts.prefetch
+# tree-sitter creates its cache dir as 0700, the non-root runtime user must still read it
+RUN PAPYRUS_ASSETS_DIR=/app/assets /app/.venv/bin/python -m scripts.prefetch && chmod -R a+rX /app/assets
 
 
 FROM python:3.14-slim
