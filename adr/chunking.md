@@ -33,7 +33,7 @@ Optional structure-aware, token-bounded chunking of the markdown produced by `PO
 }
 ```
 
-Value sets (`server/services/chunking/`, `StrEnum`, exposed as OpenAPI enums):
+Value sets (`server/types/markdown.py`, `StrEnum`, exposed as OpenAPI enums):
 
 | Enum           | Members                                                                         |
 |----------------|---------------------------------------------------------------------------------|
@@ -42,7 +42,8 @@ Value sets (`server/services/chunking/`, `StrEnum`, exposed as OpenAPI enums):
 | `CodeLanguage` | the curated grammars, values are tree-sitter names (`python`, `csharp`, `bash`) |
 
 - `CodeLanguage` is the single source of truth for the grammars baked into the image; an alias map
-  `dict[str, CodeLanguage]` resolves fence tags and magika labels (`py`, `cs`, `sh`, `shell`, `js`).
+  `dict[str, CodeLanguage]` in `services/chunking.py` resolves fence tags and magika labels (`py`, `cs`, `sh`,
+  `shell`, `js`).
 
 - Absent `chunking` means today's behavior.
 - Chunking requires `output: json`; any other output is `422 validation_error`. With `destination`, the full JSON
@@ -99,13 +100,13 @@ markdown --MarkdownChef--+-- prose  --> RecursiveChunker (Papyrus rules)
 
 ## Build And Runtime
 
-- Docker build runs `python -m server.services.chunking.prefetch`, which reads the enums so build and code cannot
+- Docker build runs `python -m scripts.prefetch`, which reads the enums so build and code cannot
   drift: it downloads `[language.value for language in CodeLanguage]` into a fixed `cache_dir` via
   `tree_sitter_language_pack.download`, deletes the bundle archive, and runs `tiktoken.get_encoding` for every
   tiktoken-backed `Tokenizer` with `TIKTOKEN_CACHE_DIR` set to an image path. The app configures the same paths at
   worker start.
 - Assets live under `PAPYRUS_ASSETS_DIR` (`/app/assets` in the image, gitignored `.assets/` in the repo for local
-  development: run `uv run python -m server.services.chunking.prefetch` once); `assets.configure()` must run before
+  development: run `uv run python -m scripts.prefetch` once); `chunking.configure()` must run before
   tree-sitter or tiktoken load anything, otherwise they fall back to user cache dirs. Prefetch is idempotent and
   fails if a curated grammar is still missing afterwards.
 - Curated `CodeLanguage` members (25, about 62 MB with both encodings): python, javascript, typescript, tsx, java, kotlin, go,

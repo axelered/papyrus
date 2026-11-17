@@ -68,7 +68,8 @@ class Document:
 
 ## Canonical Format Table
 
-`server/formats.py`, two tiers. Explicit formats are reachable as constants (`Formats.PDF.mime_type`), so code never
+`server/services/detect.py` (the public `FormatGroup` and `FormatLabel` enums live in `server/types/common.py`), two
+tiers. Explicit formats are reachable as constants (`Formats.PDF.mime_type`), so code never
 writes a MIME or label literal. Derived formats are looked up internally by magika's `ContentTypeLabel`; their label
 and MIME are open sets and stay `str`.
 

@@ -50,7 +50,8 @@ and returns the result as a file or JSON, or writes it to a configured destinati
 - After `materialize`, coordinators call `detect` to get a typed `Document` (content-based type, normalized extension)
   and route on it; see `adr/mime.md`.
 - Backends without filesystem access (remote sidecars, external APIs) receive streamed file content.
-- `limits.max_file_size` is enforced on upload copy, http fetch, and connector get (`413 source_too_large`).
+- `limits.max_file_size` is enforced on upload copy (`413 payload_too_large`), http fetch and connector get
+  (`413 source_too_large`).
 
 ## Services
 
@@ -74,10 +75,12 @@ Rules:
 - **Pool helper** (`services/pool.py`): wraps `pool.schedule(fn, args, timeout)` with `asyncio.wrap_future`, maps
   `TimeoutError` to `504 processing_timeout`, worker crash to `500 processing_failed`, and cancels the future on
   `CancelledError`.
-- **Worker errors:** worker functions translate library exceptions into `PapyrusError` (raised `from None`) so the
-  parent never unpickles library exception types; anything else surfaces as `processing_failed`.
-- **Registry** (`services/registry.py`): a `Services` dataclass built from `workers` config, closed in a thread on
-  shutdown (pool join is blocking).
+- **Worker errors:** worker functions translate library exceptions into `ProblemError` subclasses (raised
+  `from None`) so the parent never unpickles library exception types; anything else surfaces as `processing_failed`.
+- **Worker arguments and results** are the wire models from `server/types/` (pydantic models pickle), never a parallel
+  dataclass mirror.
+- **Registry** (`factory.py`): a `Services` dataclass built from `workers` config, closed in a thread on shutdown
+  (pool join is blocking).
 - **Sizing:** YAML sets only `workers.processes` (default `os.cpu_count()`). Per-service sizes are derived by
   heuristics in code: markdown = render = `processes`, convert = `max(1, processes // 2)` (soffice RAM).
   todo: make per-service sizes, timeouts and `max_tasks` configurable in YAML.
@@ -106,14 +109,16 @@ One Pydantic request model per operation, sharing common fields:
 
 ### Transports
 
-A request parser dependency (`api/request.py`) dispatches on `Content-Type` and yields the same model:
+`api/request.py` yields the same model for both transports; the generic body parsing (`Content-Type` dispatch,
+caps, size-limited upload copy) lives in `utils/body.py`:
 
 - `application/json`: the body is the model. `file://` sources are rejected (`422`).
 - `multipart/form-data`: the `metadata` field holds the model as a JSON string; file parts are referenced as
   `file://<part-name>`. A missing referenced part or malformed metadata gives `422 validation_error`.
 - Multipart accepts only `metadata` plus file parts (at most 8, unique names); any other form field is rejected so
   options misplaced outside `metadata` never get silently ignored.
-- JSON bodies are capped at 1 MiB; anything other than JSON or multipart gives `415 unsupported_media_type`.
+- JSON bodies are capped at 1 MiB (`413 payload_too_large`); anything other than JSON or multipart gives
+  `415 unsupported_media_type`.
 - Model errors use the wrapped validation shape; `loc` is relative to the request model (no `body` prefix).
 - Both forms are documented in OpenAPI via `openapi_extra`.
 - todo: multiple file parts referenced from metadata by `file://<key>` (the URI scheme already supports it).
@@ -212,9 +217,15 @@ connectors:
 ## Errors
 
 RFC 9457 problem+json with a stable `code` extension. Codes are part of the public contract.
-`PapyrusError` subclasses carry `status` and `code`; FastAPI validation errors are wrapped into the same shape with an
-`errors` list of `{loc, msg, type}` (inputs are never echoed). `PapyrusError` takes a single `detail` argument so it
-pickles across process pools; workers raise them directly.
+
+- `utils/problem.py` is generic: `ProblemError` (carries `status`, `code`, `detail`, `headers()`), the generic
+  subclasses raised by utils (`ValidationFailed`, `UnsupportedMediaType`, `PayloadTooLarge`), `problem()` and the
+  handler installer (problem errors, FastAPI validation, Starlette HTTP errors, unhandled).
+- `errors.py` is the application error catalog: every app-specific `ProblemError` subclass, each commented with when
+  it is raised. App errors may specialize a generic one (`SourceTooLarge(PayloadTooLarge)`) to refine the `code`.
+- FastAPI validation errors are wrapped into the same shape with an `errors` list of `{loc, msg, type}` (inputs are
+  never echoed). `ProblemError` takes a single `detail` argument so it pickles across process pools; workers raise
+  them directly.
 
 | Status | Codes                                                                              |
 |--------|------------------------------------------------------------------------------------|
@@ -223,7 +234,7 @@ pickles across process pools; workers raise them directly.
 | 403    | `source_forbidden`                                                                 |
 | 404    | `source_not_found`, `not_found` (unknown route)                                    |
 | 405    | `method_not_allowed`                                                               |
-| 413    | `source_too_large`                                                                 |
+| 413    | `payload_too_large` (request body, upload), `source_too_large` (http, connector)   |
 | 415    | `unsupported_format` (document), `unsupported_media_type` (request body)           |
 | 422    | `validation_error`, `unsupported_uri`, `unknown_connector`                         |
 | 500    | `processing_failed`, `internal_error` (unhandled, details only in logs)            |
@@ -241,24 +252,34 @@ pickles across process pools; workers raise them directly.
 - **No domain string literals** outside the module that defines the enum; attributes of a value (MIME of a format)
   live on its registry entry, never as separate literals. Allowlists are `frozenset` of enum members.
 - API inputs accept closed enums only; error `code`s stay defined once per `PapyrusError` subclass.
-- `OpRequest.output` is the `OutputMode` enum (`file`, `json`), defined in `api/request.py`.
+- `OpRequest.output` is the `OutputMode` enum (`file`, `json`), defined in `types/common.py`.
 
 ## Code Layout
 
 ```
+scripts/
+  prefetch.py          build-time download of grammars and tokenizers (Docker build, local setup)
 server/
   __init__.py          app = create_app()
-  factory.py           create_app, lifespan, service registry (not app.py: would shadow the server:app attribute)
-  logs.py              JSON log formatter, X-Request-ID middleware
-  config.py            settings models, YAML + ${VAR} loader
+  factory.py           create_app, lifespan, Services registry, config loading (not app.py: would shadow server:app)
+  config.py            config and settings schema only
   auth.py              bearer dependency
-  errors.py            PapyrusError hierarchy, problem+json handlers
-  formats.py           canonical format table (magika label -> MIME, extension, base)
+  errors.py            application error catalog (ProblemError subclasses)
+  types/               wire contract: request, result and option models, public enums
+    common.py          OpRequest, OutputMode, SourceType, Receipt, FormatGroup, FormatLabel, health responses
+    markdown.py        markdown request, options, result, Chunk, Tokenizer, ChunkKind, CodeLanguage
+  utils/               generic primitives
+    problem.py         ProblemError, generic errors, problem+json rendering and handlers
+    body.py            JSON | multipart body reading, caps, size-limited upload copy
+    openapi.py         schema helpers ($ref inlining)
+    yaml.py            YAML loading with ${VAR} expansion
+    logs.py            JSON log formatter, X-Request-ID middleware
+    text.py            text decoding, CommonMark fences
   api/
     admission.py       non-blocking in-flight counter (event loop only, no semaphore needed)
-    request.py         JSON | multipart -> model, op context (admission, workspace, deadline)
+    request.py         op context (admission, workspace, deadline), body -> model, OpenAPI request body
     output.py          file | json | destination responses
-    health.py          /health, /ready
+    health.py          /, /health, /ready
     markdown.py        route + coordinator
     thumbnail.py       route + coordinator
     scan.py            route + coordinator
@@ -270,15 +291,35 @@ server/
     transfer.py        materialize(uri) -> Path, deliver(Path, uri)
   services/
     pool.py            lazy pebble pool helper
-    detect.py          DetectService (magika, inline)
-    chunking/          chunker worker, Tokenizer / ChunkKind / CodeLanguage enums, prefetch module
-    markdown.py        MarkdownService + worker fn
+    detect.py          DetectService (magika, inline), format table and resolution
+    chunking.py        chunker, asset configuration, code language resolution
+    markdown.py        MarkdownService + worker fns
     render.py          RenderService + worker fn
     scan.py            ScanService
 test/                  mirrors server/, shared fixtures in test/fixtures/
 Dockerfile
 ```
 
+### Layering
+
+Imports only point down; a violation is a design bug, not a style nit.
+
+| Layer                    | May import                                   |
+|--------------------------|----------------------------------------------|
+| `types/`                 | stdlib, pydantic                             |
+| `utils/`                 | stdlib, third-party; never `server.*`        |
+| `errors.py`, `config.py` | `utils/`                                     |
+| `io/`, `services/`       | `types/`, `utils/`, `errors.py`, `config.py` |
+| `api/`, `auth.py`        | everything above                             |
+| `factory.py`             | everything (wiring)                          |
+
+- `types/` holds only what crosses the wire, so a client SDK can be generated from (or extracted with) it; one module
+  per operation, shared models in `common.py`. Internal models (`Format`, `Document`) live with their service.
+- `utils/` holds primitives that would work unchanged in another service. Errors they raise are generic
+  `ProblemError` subclasses; utils needing a logger take it as a parameter.
+- A module that mixes a generic primitive with app logic is split: the primitive goes to `utils/`, the app part stays.
+  A helper with one consumer lives in that consumer, not in its own file.
+- Build-time and operational scripts live in `scripts/`, never inside the `server` package.
 - Coordinators stay in route modules until composition warrants a `pipelines/` package (arrives with the DSL).
 
 ## Deployment
