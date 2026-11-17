@@ -88,7 +88,8 @@ PDF, images, Office and OpenDocument files and HTML, and return a file by defaul
 frame of a GIF, TIFF or animated WebP. Office pages are exported one at a time with LibreOffice, so their result has
 no `page_count`.
 
-HTML thumbnails are screenshots of the page as it looks in a desktop browser (1280x800, above the fold), so a URL
+HTML thumbnails are screenshots of the top of the page as it looks in a desktop browser (1280 px wide, as tall as the
+box shape asks for, between 400 and 2160 px), so a URL
 that serves HTML gives a site preview: `{"source": "https://axelered.com"}`. HTML has a single page there. In
 `/v1/render` HTML is still paginated by LibreOffice.
 

@@ -50,8 +50,9 @@ PDF_CONVERSIONS = frozenset(
     }
 )
 
-# HTML thumbnails show the page as on screen, above the fold of a desktop browser (adr/render.md)
-THUMBNAIL_VIEWPORT = ScreenshotOptions(width=1280, height=800)
+# HTML thumbnails show the page as on screen in a desktop browser, the viewport takes the box shape (adr/render.md)
+VIEWPORT_WIDTH = 1280
+VIEWPORT_HEIGHTS = (400, 2160)
 # reserved name that never resolves, so relative references of uploaded HTML fail at the proxy
 DOCUMENT_ORIGIN = 'http://document.invalid'
 
@@ -133,6 +134,13 @@ async def _render[M: ThumbnailRequest | RenderRequest](
         return await respond(request, op, target, spec.format.mime_type, as_json, source_type)
 
 
+def thumbnail_viewport(spec: RenderSpec) -> ScreenshotOptions:
+    """Desktop width, height from the box aspect: the capture fills the box without cropping the sides"""
+    width, height = spec.width or VIEWPORT_WIDTH, spec.height or VIEWPORT_WIDTH
+    low, high = VIEWPORT_HEIGHTS
+    return ScreenshotOptions(width=VIEWPORT_WIDTH, height=min(high, max(low, round(VIEWPORT_WIDTH * height / width))))
+
+
 async def _convert_page(
     convert: ConvertService, render: RenderService, op: Op, document: Document, target: Path, spec: RenderSpec
 ) -> Raster:
@@ -152,6 +160,6 @@ async def _screenshot_html(
     source = op.model.source
     origin = source if urlsplit(source).scheme in HTTP_SCHEMES else f'{DOCUMENT_ORIGIN}/{quote(document.path.name)}'
     shot = op.workspace.new_file(f'{document.path.stem}.png')
-    await browser.screenshot(origin, shot, THUMBNAIL_VIEWPORT, document=document.path)
+    await browser.screenshot(origin, shot, thumbnail_viewport(spec), document=document.path)
     raster = await render.page(shot, target, spec)
     return replace(raster, page_count=1)

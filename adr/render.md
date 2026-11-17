@@ -104,7 +104,7 @@ Both in `server/api/render.py` (shared allowlist and coordinator). Default `outp
 | `png`, `jpeg`, `webp`, `gif`, `bmp`, `tiff`, `avif`                | Pillow                                 |
 | `docx`, `pptx`, `xlsx`, `doc`, `ppt`, `xls`, `odt`, `odp`, `ods`, `rtf` | `convert.convert(source, pdf, ConvertFormat.PDF, page=<page>)`, then pdfium page 1 |
 | `html` in `/v1/render`                                             | as office, through LibreOffice         |
-| `html` in `/v1/thumbnail`                                          | browser screenshot of the 1280x800 viewport to a workspace PNG, then the render worker as an image |
+| `html` in `/v1/thumbnail`                                          | browser screenshot of a box shaped viewport to a workspace PNG, then the render worker as an image |
 
 - Allowlist is a `frozenset[FormatLabel]` plus a `PDF_CONVERSIONS` set in `api/render.py`; anything else is
   `415 unsupported_format` before a worker runs. Text, markdown, code and other derived formats are rejected.
@@ -122,8 +122,11 @@ Users expect a thumbnail of a web page to look like the page on screen, so `/v1/
 paginating it. The coordinator composes the services (the render pool cannot reach the API process browser):
 
 1. `page > 1` gives `422 page_out_of_range` before the browser runs: HTML has exactly one page.
-2. `await browser.screenshot(origin, png, THUMBNAIL_VIEWPORT, document=path)`: the materialized HTML answers the main
-   navigation of `origin` (see `adr/browser.md`, Documents). `THUMBNAIL_VIEWPORT` is fixed: 1280x800, scale 1, `load`,
+2. `await browser.screenshot(origin, png, thumbnail_viewport(spec), document=path)`: the materialized HTML answers the
+   main navigation of `origin` (see `adr/browser.md`, Documents). The viewport is 1280 wide (desktop layout) and
+   `1280 * box_height / box_width` tall, clamped to 400..2160 (the screenshot height limit), so the capture has the box
+   shape: a square box shows 1280x1280 of the page top, `contain` fills it and `cover` crops nothing unless the clamp
+   applies. Scale 1, `load`,
    PNG (lossless, encoded once more by the render worker).
 3. The PNG goes through the render worker like any image: box, `fit`, no upscaling, format. `page_count` is `1`.
 
