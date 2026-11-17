@@ -7,7 +7,7 @@ from dataclasses import dataclass
 Resolver = Callable[[str, int], Awaitable[list[str]]]
 
 
-class HostForbidden(Exception):
+class HostForbidden(PermissionError):
     """The host is not allowed by the policy or resolves to a non-public address"""
 
 
