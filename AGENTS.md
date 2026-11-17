@@ -19,11 +19,16 @@
 - [!] External OCR API service
 - [!] Embedding-based semantic chunking strategy (chonkie `SemanticChunker`)
 
+### Development and CI (spec: `adr/development.md`)
+
+- [ ] `dev` Docker stage, dekit tasks for dev/prod containers and tests, `full` test mark
+- [ ] GitHub Actions check job building the image and running the full suite inside it
+- [!] Publish the image to GHCR
+
 ### Conversion (spec: `adr/convert.md`)
 
 - [x] LibreOfficeKit conversion engine in a pebble pool, spike gate passed
 - [x] Wire `ConvertService` into the service registry and route legacy formats (doc, ppt, rtf, odt, ods, odp) to markdown
-- [ ] CI job running the convert tests inside the image
 - [!] Public `POST /v1/convert` endpoint (any supported format to pdf or OOXML)
 - [!] Office to pdf conversion for thumbnails
 

@@ -80,7 +80,8 @@ binding inside a pebble pool worker.
 - `ConvertService` is registered in `Services` (`factory.py`) with profiles in `<limits.tmp_dir>/lo-profiles`; the
   pool starts on the first legacy request, so deployments that never convert pay no RAM.
 - Without LibreOffice (host development) legacy requests fail with `500 processing_failed`; API tests replace the
-  service with a fake writing OOXML samples, end to end tests skip outside the image.
+  service with a fake writing OOXML samples, end to end tests carry the `full` mark and run only in the image
+  (`adr/development.md`).
 - todo: office -> `pdf` for the thumbnail service.
 
 ## Security
@@ -116,7 +117,7 @@ Set in the worker environment before `lok_init`:
 
 ## Spike Gate
 
-Passed. `test/services/test_convert.py` covers it and skips outside the image (no LibreOffice on the host):
+Passed. `test/services/test_convert.py` covers it as `full` tests, run in the image (no LibreOffice on the host):
 
 1. `ctypes` loads LOK from Debian trixie and converts `doc`, `ppt`, `xls`, `rtf`, `odt`; OOXML keeps `Heading1`.
    Legacy fixtures are produced by the engine itself, encrypted ones through the `,Password=...PASSWORDEND` save
@@ -126,9 +127,7 @@ Passed. `test/services/test_convert.py` covers it and skips outside the image (n
 4. A timed out conversion kills the worker, the next worker converts the same file and the stale profile is pruned.
 5. Remote linked images are not fetched; `file://` sections are not embedded.
 
-Run inside the image: build it, add pytest (`uv pip install --python /app/.venv/bin/python pytest`), mount
-`server`, `test`, `scripts` and `pyproject.toml`, run `python -m pytest test/services/test_convert.py`.
-todo: a CI job that runs the convert tests in the image.
+Run with the dekit `test` task locally; CI runs them on every change (`adr/development.md`).
 
 ## Resources
 
