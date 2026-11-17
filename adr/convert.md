@@ -54,8 +54,10 @@ binding inside a pebble pool worker.
 
 - `ConvertService` (pool kind), worker `convert_document(source, target, format, profiles)`, one `Office` per worker
   created on first task.
-- Interface: `await convert.convert(source, target, ConvertFormat)`; `ConvertFormat` (`server/types/convert.py`) is
-  `DOCX`, `XLSX`, `PPTX`, `PDF`.
+- Interface: `await convert.convert(source, target, ConvertFormat, page=None)`; `ConvertFormat`
+  (`server/types/convert.py`) is `DOCX`, `XLSX`, `PPTX`, `PDF`. `page` (PDF target only) exports that single page:
+  the service builds the PDF filter option `{"PageRange":{"type":"string","value":"<page>"}}` and passes it as
+  `save_options`, so coordinators never write LibreOffice syntax.
 - Sizing heuristics: `processes = max(1, workers.processes // 2)` (LibreOffice RAM), timeout 120s, `max_tasks` 50
   (recycles the instance against leaks, LOK init takes about 0.3s).
 - Profiles: each worker uses `<limits.tmp_dir>/lo-profiles/<pid>`; a starting worker removes directories of dead

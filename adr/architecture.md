@@ -79,7 +79,8 @@ Rules:
 - **Worker errors:** worker functions translate library exceptions into `ProblemError` subclasses (raised
   `from None`) so the parent never unpickles library exception types; anything else surfaces as `processing_failed`.
 - **Worker arguments and results** are the wire models from `server/types/` (pydantic models pickle), never a parallel
-  dataclass mirror.
+  dataclass mirror. Internal values that are not wire models (`RenderSpec`, `Raster`, `Capture`) are frozen
+  dataclasses next to their service; the coordinator builds the wire result from them.
 - **Registry** (`factory.py`): a `Services` dataclass built from `workers` config, closed in a thread on shutdown
   (pool join is blocking).
 - **Sizing:** YAML sets only `workers.processes` (default `os.cpu_count()`). Per-service sizes are derived by

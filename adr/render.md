@@ -22,7 +22,8 @@ input through `adr/convert.md`.
 | Office, HTML | `ConvertService` to `pdf` with the `PageRange` export option, then pdfium (LibreOffice already in the image) |
 | Service   | `RenderService`, pool kind, processes = `workers.processes`, timeout 60s, `max_tasks` 200 |
 
-- pypdfium2 and Pillow are main dependencies, imported only inside the worker.
+- pypdfium2 and Pillow are explicit main dependencies (already locked through markitdown), imported only inside
+  the worker. Pillow's wheel decodes webp, avif and tiff natively.
 
 ## Routes
 
@@ -51,6 +52,8 @@ Both in `server/api/render.py` (shared allowlist and coordinator). Default `outp
 - `width` or `height` alone: the other side follows the aspect ratio. Both: contain within the box.
 - A `dpi` render larger than 4096 px on a side is clamped to 4096 (keeping aspect), not rejected: the client cannot
   know the page size in advance.
+- Raster images ignore `dpi` and render at natural size: a pixel image has no physical size and embedded DPI metadata
+  is unreliable. The default request therefore works for every input; `width`/`height` still apply.
 
 ### Sizing Rules
 
@@ -58,6 +61,7 @@ Both in `server/api/render.py` (shared allowlist and coordinator). Default `outp
   `max(w / pw, h / ph)` then center crop. Page rotation is applied by pdfium.
 - Raster images are never upscaled: a box larger than the image yields the natural size (cover still crops to the
   box aspect).
+- Every output is clamped to 4096 px per side (aspect kept), including images rendered at natural size.
 - Encoding quality is fixed in code (jpeg and webp about 85), no option. todo: `quality` option on demand.
 - PDF pages render on white with annotations and forms drawn. Images keep alpha for `png` and `webp`, are flattened
   on white for `jpeg`.
@@ -94,18 +98,51 @@ Both in `server/api/render.py` (shared allowlist and coordinator). Default `outp
 | Detected label                                                     | Path                                   |
 |--------------------------------------------------------------------|----------------------------------------|
 | `pdf`                                                              | pdfium                                 |
-| `png`, `jpeg`, `webp`, `gif`, `bmp`, `tiff`                        | Pillow                                 |
-| `docx`, `pptx`, `xlsx`, `doc`, `ppt`, `xls`, `odt`, `odp`, `ods`, `rtf`, `html` | convert to `pdf` with `PageRange=<page>`, then pdfium page 1 |
+| `png`, `jpeg`, `webp`, `gif`, `bmp`, `tiff`, `avif`                | Pillow                                 |
+| `docx`, `pptx`, `xlsx`, `doc`, `ppt`, `xls`, `odt`, `odp`, `ods`, `rtf`, `html` | `convert.convert(source, pdf, ConvertFormat.PDF, page=<page>)`, then pdfium page 1 |
 
 - Allowlist is a `frozenset[FormatLabel]` plus a `PDF_CONVERSIONS` set in `api/render.py`; anything else is
   `415 unsupported_format` before a worker runs. Text, markdown, code and other derived formats are rejected.
-- The coordinator builds an internal `RenderSpec` (page, scale or box, fit, format) from either route's options;
-  one worker `render_page(source, target, spec) -> RenderResult` serves both routes.
+- The coordinator builds an internal `RenderSpec` from either route's options and calls
+  `await render.page(path, target, spec) -> Raster`; one worker `render_page` serves both routes.
 - Multi-frame images (`tiff`, `gif`, animated `webp`): `page` selects the frame (`Image.seek`), so `page` means the
   same for every input.
 - Spreadsheets render as LibreOffice paginates them (wide sheets split across pages); accepted quality caveat.
 - HTML goes through LibreOffice: no JS, basic CSS, remote images never load (`LOK_HOST_ALLOWLIST`, by design).
-  todo: move HTML to the Chromium engine of `adr/browser.md` (functional integration, later).
+  todo: move HTML to the Chromium engine of `adr/browser.md` (functional integration, later); uploaded HTML must then
+  load without a `file://` origin (`set_content` or a routed origin), since a `file://` page can embed other local
+  files into the rendered image.
+
+### Execution
+
+All decoding, rasterizing, resizing and encoding run in the `RenderService` pool worker; the API process only
+materializes, detects, routes, builds the spec and responds. Office and HTML input first passes through the convert
+pool, which writes a one-page PDF into the workspace.
+
+- Pool, not threads or inline: pypdfium2 serializes all calls behind one global lock, the work is CPU bound, hostile
+  files can crash pdfium or image codecs (one worker dies, `500`), and pebble bounds time (60s) and leaks
+  (`max_tasks`). Images take the same path for the same isolation.
+- Only the worker opens the document, so the spec carries intent and the worker computes the scale (PDF) or target
+  size (image) with one pure sizing function shared by both routes:
+
+```python
+@dataclass(frozen=True)
+class RenderSpec:              # services/render.py, internal
+    page: int
+    width: int | None          # box, or a single side
+    height: int | None
+    dpi: int | None            # render route only, ignored for raster images
+    fit: Fit                   # thumbnail: contain | cover; render: contain
+    format: ImageFormat
+
+
+@dataclass(frozen=True)
+class Raster:                  # worker result; the coordinator adds data and source_type for RenderResult
+    width: int
+    height: int
+    page: int
+    page_count: int | None     # None after a single-page office or HTML export
+```
 
 ### Image Handling
 
@@ -113,6 +150,7 @@ Both in `server/api/render.py` (shared allowlist and coordinator). Default `outp
 - CMYK, palette and other modes are converted to RGB or RGBA before encoding.
 - JPEG decoding uses `draft()` to decode near the target size; downscaling uses `LANCZOS`, cover uses `ImageOps.fit`.
 - Pillow `MAX_IMAGE_PIXELS` stays enabled; the bomb warning is promoted to an error.
+- `avif` is decoded by Pillow's bundled libavif; it is an input format only (see Out of Scope).
 
 ## Errors
 
@@ -137,15 +175,17 @@ Part of the implementation, `full` tests in the image:
 ## Tests
 
 - Fixtures generated in `test/fixtures/samples.py`: multi-page PDF, rotated page, png with alpha, CMYK jpeg, jpeg
-  with EXIF orientation, multi-frame tiff, oversized image header for the bomb guard.
-- Covered: sizing math for every option combination, `contain` and `cover`, no upscaling, `dpi` clamp, frame
-  selection, out of range, format and MIME of each `ImageFormat`, JSON and file outputs.
+  with EXIF orientation, multi-frame tiff, avif, oversized image header for the bomb guard.
+- Covered: the pure sizing function for every option combination (`contain`, `cover`, no upscaling, `dpi` ignored
+  for images, 4096 clamp), frame selection, out of range, JSON and file outputs.
 - Office and HTML end to end tests carry the `full` mark; API tests replace `ConvertService` with a fake writing a
   sample PDF.
 - `mime` label pins gain one fixture per image format.
 
 ## Out of Scope
 
-- Multi-page output, `quality` option, `heic`/`avif` (`pillow-heif`), `svg` (own rasterizer and external reference
-  surface), text and code rendering.
+- Multi-page output, `quality` option, `heic` input (needs `pillow-heif`), `svg` (own rasterizer and external
+  reference surface), text and code rendering.
+- `avif` output: `ImageFormat` is shared with `/v1/screenshot`, whose CDP capture cannot encode it, and encoding is
+  slow for large images.
 - Website screenshots and JS-capable HTML: `adr/browser.md`.

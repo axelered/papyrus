@@ -113,11 +113,13 @@ MIME, gives `outlook` no extension, and groups `csv` as code). Formats magika ca
 | `gif`      | `image/gif`                                                                 | `gif`   | image        |        |
 | `bmp`      | `image/bmp`                                                                 | `bmp`   | image        |        |
 | `tiff`     | `image/tiff`                                                                | `tiff`  | image        |        |
+| `avif`     | `image/avif`                                                                | `avif`  | image        |        |
 | `unknown`  | `application/octet-stream`                                                  | `bin`   | unknown      |        |
 
 - Each format also lists the extensions that map to it (e.g. `htm`, `markdown`, `docm`, `jpeg`, `tif`) for the
   refinement rule.
-- Image formats are explicit so the render allowlist (`adr/render.md`) is a `frozenset[FormatLabel]`.
+- Image formats are explicit so the render allowlist (`adr/render.md`) is a `frozenset[FormatLabel]`. Markdown still
+  rejects them (not text); only the `source_type` reported in its `415` detail changes from `unknown` to `image`.
 
 ### Derived Formats
 
@@ -133,7 +135,7 @@ MIME, gives `outlook` no extension, and groups `csv` as code). Formats magika ca
 - Extension index: derived text formats by magika extensions, then explicit formats override.
 - A test pins magika's label for one fixture per format, so a magika upgrade that changes labels fails CI instead
   of silently rerouting. Fixtures are generated in `test/fixtures/samples.py` (pdf, docx, xlsx, pptx, zip, html,
-  csv, json, jsonl, markdown, python, typescript, png, jpeg, webp, gif, bmp, tiff). Legacy binaries (doc, ppt, xls, odp, ods) are produced by
+  csv, json, jsonl, markdown, python, typescript, png, jpeg, webp, gif, bmp, tiff, avif). Legacy binaries (doc, ppt, xls, odp, ods) are produced by
   LibreOffice in `test/fixtures/legacy.py` and their labels are pinned inside the image
   (`test/api/test_markdown_convert.py`). todo: pin `msg` once a real sample file is checked in.
 
