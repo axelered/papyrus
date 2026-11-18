@@ -207,6 +207,9 @@ class DetectService(Service):
         self._magika: Any = None
         self._lock = threading.Lock()
 
+    async def warm(self) -> None:
+        await asyncio.to_thread(self._model)
+
     async def detect(self, path: Path) -> Document:
         try:
             label = await asyncio.to_thread(self._identify, path)

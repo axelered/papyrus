@@ -77,7 +77,17 @@ and failures match steady state.
 - `server/utils/pool.py` (moved from `server/services/pool.py`, a utility without domain knowledge):
   `ProcessPool(name, processes, timeout, max_tasks=0, initializer=None)`. `async start()` starts the pebble pool
   and returns once every worker has run its initializer, `async aclose()` stops it and joins in a thread,
-  `__aenter__`/`__aexit__` call both. `run()` still starts an unstarted pool lazily.
+  `__aenter__` returns the pool and `__aexit__` closes it. `run()` still starts an unstarted pool lazily, and
+  the initializer then runs in lazy workers too.
+- pebble 5.2.3 behaviour (spike in the image): every worker spawns on the first `schedule`, never at
+  construction; a raising pebble initializer fails pending tasks with `BrokenProcessPool` and leaves the pool
+  dead for good; no-op probe tasks until every pid answers need hundreds of rounds and count against `max_tasks`.
+- Readiness: the pebble initializer is the pool's `_initialize` wrapper. It runs the service initializer, never
+  raises (logs and sets a shared `Event` instead), and releases a shared `Semaphore`; both come from the default
+  multiprocessing context (forkserver) and pass to workers as `initargs`. `start()` schedules one no-op to spawn
+  the workers, then polls the semaphore without blocking until `processes` releases, raising `PoolFailed` once
+  the event is set. A recycled worker whose initializer fails stays up and its tasks retry the lazy setup, so
+  failures after boot surface per request as before.
 - Layering (`utils/` never imports `server.errors`): the pool raises its own `PoolTimeout(TimeoutError)` and
   `PoolFailed(RuntimeError)` (worker died, unexpected worker exception, logged as today) and lets `ProblemError`
   from `server/utils/problem.py` through. `services/base.py` `pool_errors()`, a context manager used once around
@@ -100,17 +110,19 @@ and failures match steady state.
   setup the task functions use, so lazy and warm paths share code. pebble reruns them for every replaced worker
   (`max_tasks` recycle, timeout kill), off the request path while the other workers serve.
 - `ConvertService.aclose()` also removes the profiles root.
-- Lifespan (`factory.py`): one `AsyncExitStack` enters `HttpFetcher` and `Services`; `Services` enters each service
-  into its own stack. Teardown is reverse order and exception safe; `Services.aclose` and `_close_pools` go away.
-- `Services.warm()` runs every `warm()` with `asyncio.gather` under one `asyncio.timeout(120)` and logs on
+- Lifespan (`factory.py`): one `AsyncExitStack` registers `HttpFetcher.aclose` and enters `Services`; `Services`
+  enters each service into its own stack. Teardown is reverse order and exception safe.
+- `Services.warm()` runs every `warm()` in an `asyncio.TaskGroup` (the first failure cancels the others) under one
+  `asyncio.timeout(120)` and logs on
   `papyrus.startup`: `warming <names>`, `<name> warm in <s>s` per service, `services warm in <s>s`. Off logs
   `warmup off, services start on first use`; the topology line drops "started on first use".
 - Failure: any `warm()` error (logged as `<name> warmup failed`) or the timeout (naming the unfinished services)
   fails startup, the process exits non-zero and the orchestrator keeps the previous version.
-- todo: spike pebble before building `start()`: whether all workers spawn on the first `schedule`, whether an
-  initializer exception surfaces or loops respawning, and how to know every worker is initialized (a no-op task
-  returning `os.getpid()` repeated until `processes` distinct pids answer, bounded by the warmup timeout).
-- Tests: services built directly stay lazy; fixtures switch `close()` to `aclose()` or `async with`.
+- Browser warmup costs one context of the `recycle_after` budget.
+- Tests: services built directly stay lazy; the app fixtures set `warmup: false`, a `full` test boots every real
+  service warm.
+- Result in the image, `processes: 2`: detect 0.18s, browser 0.78s, render 1.19s, convert 1.24s, markdown 2.92s,
+  startup 2.92s longer; first requests no longer pay the cold column of the baseline.
 
 ## Remaining cold costs
 

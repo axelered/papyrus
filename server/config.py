@@ -25,6 +25,7 @@ class _Section(BaseModel):
 class WorkersConfig(_Section):
     processes: PositiveInt = Field(default_factory=lambda: os.cpu_count() or 1)
     max_queue: PositiveInt = 64
+    warmup: bool = True
 
     @field_validator('processes', mode='before')
     @classmethod

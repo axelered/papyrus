@@ -1,6 +1,8 @@
 import asyncio
 import time
 from collections.abc import AsyncIterator
+from functools import partial
+from pathlib import Path
 
 import pytest
 
@@ -24,6 +26,22 @@ async def test_starts_lazily_and_runs_tasks():
         assert await lazy.run(workers.add, 2, 3) == 5
         assert lazy.started
     assert not lazy.started
+
+
+async def test_start_waits_for_every_initialized_worker(tmp_path: Path):
+    async with ProcessPool('warm', processes=2, timeout=5, initializer=partial(workers.mark, str(tmp_path))) as warm:
+        await warm.start()
+
+        assert warm.started
+        assert len(list(tmp_path.iterdir())) == 2
+
+
+async def test_start_fails_on_initializer_error_and_tasks_still_run():
+    async with ProcessPool('broken', processes=1, timeout=5, initializer=workers.fail_init) as broken:
+        with pytest.raises(PoolFailed, match='initialization failed'):
+            await broken.start()
+
+        assert await broken.run(workers.add, 1, 2) == 3
 
 
 async def test_preserves_papyrus_errors(pool: ProcessPool):

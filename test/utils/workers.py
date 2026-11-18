@@ -1,5 +1,6 @@
 import os
 import time
+from pathlib import Path
 
 from server.errors import UnsupportedFormat
 
@@ -26,3 +27,12 @@ def raise_generic() -> None:
 
 def crash() -> None:
     os._exit(3)
+
+
+def mark(directory: str) -> None:
+    """Initializer: one file per initialized worker"""
+    (Path(directory) / str(os.getpid())).touch()
+
+
+def fail_init() -> None:
+    raise RuntimeError('init failed')

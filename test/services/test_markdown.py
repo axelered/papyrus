@@ -47,3 +47,11 @@ async def test_fences_code_source(service: MarkdownService, make_document: Docum
     await service.fence_code(make_document('loader.py', b'# setup\r\nimport os\r\n'), target, 'python')
 
     assert target.read_bytes() == b'```python\n# setup\nimport os\n```\n'
+
+
+async def test_warm_starts_initialized_workers(make_document: DocumentFactory, tmp_path: Path):
+    async with MarkdownService(processes=1) as warm:
+        await warm.warm()
+
+        assert warm._pool.started
+        assert await warm.convert(make_document('report.html', HTML), tmp_path / 'out.md') == 'Quarterly'

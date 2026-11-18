@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import multiprocessing
 from collections.abc import Callable
 from typing import Any, Self
 
@@ -8,6 +9,9 @@ import pebble
 from server.utils.problem import ProblemError
 
 logger = logging.getLogger('papyrus.pool')
+
+# how often `start()` checks for initialized workers
+READY_POLL = 0.05
 
 
 class PoolTimeout(TimeoutError):
@@ -19,18 +23,47 @@ class PoolFailed(RuntimeError):
 
 
 class ProcessPool:
-    """Lazily started pebble pool: a timed out or cancelled task kills its worker, which pebble then replaces"""
+    """pebble pool started by `start()` or lazily by the first task
 
-    def __init__(self, name: str, processes: int, timeout: float, max_tasks: int = 0):
+    A timed out or cancelled task kills its worker, which pebble then replaces. `initializer` (top-level, no
+    arguments; use `functools.partial`) runs in every new worker before its first task.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        processes: int,
+        timeout: float,
+        max_tasks: int = 0,
+        initializer: Callable[[], None] | None = None,
+    ):
         self.name = name
         self.processes = processes
         self.timeout = timeout
         self.max_tasks = max_tasks
+        self.initializer = initializer
         self._pool: pebble.ProcessPool | None = None
+        self._ready: Any = None
+        self._failed: Any = None
 
     @property
     def started(self) -> bool:
         return self._pool is not None
+
+    async def start(self) -> None:
+        """Starts every worker and returns once each has run the initializer; PoolFailed if one failed"""
+        # pebble spawns all workers on the first task
+        await self.run(_noop)
+        initialized = 0
+        while initialized < self.processes:
+            if self._failed.is_set():
+                break
+            if self._ready.acquire(block=False):
+                initialized += 1
+            else:
+                await asyncio.sleep(READY_POLL)
+        if self._failed.is_set():
+            raise PoolFailed(f'{self.name} worker initialization failed, see the worker log')
 
     async def run[T](self, fn: Callable[..., T], *args: Any) -> T:
         """Worker functions must be top-level and should raise ProblemError, other errors become PoolFailed"""
@@ -67,5 +100,30 @@ class ProcessPool:
     def _ensure(self) -> pebble.ProcessPool:
         if self._pool is None:
             logger.info('starting %s pool with %s processes', self.name, self.processes)
-            self._pool = pebble.ProcessPool(max_workers=self.processes, max_tasks=self.max_tasks)
+            context = multiprocessing.get_context()
+            self._ready, self._failed = context.Semaphore(0), context.Event()
+            self._pool = pebble.ProcessPool(
+                max_workers=self.processes,
+                max_tasks=self.max_tasks,
+                initializer=_initialize,
+                initargs=(self.name, self.initializer, self._ready, self._failed),
+                context=context,
+            )
         return self._pool
+
+
+def _initialize(name: str, initializer: Callable[[], None] | None, ready: Any, failed: Any) -> None:
+    """Never raises: a raising pebble initializer breaks the whole pool, so a recycled worker that fails here
+    stays up and its tasks retry their own lazy setup"""
+    try:
+        if initializer is not None:
+            initializer()
+    except Exception:
+        logger.exception('%s worker initialization failed', name)
+        failed.set()
+    finally:
+        ready.release()
+
+
+def _noop() -> None:
+    pass

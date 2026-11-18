@@ -9,6 +9,9 @@ from server.utils.pool import PoolFailed, PoolTimeout
 class Service:
     """Lifecycle shared by every service, entered by the registry and closed on shutdown"""
 
+    async def warm(self) -> None:
+        """Starts the backend ahead of the first request, at boot with `workers.warmup`; default no-op"""
+
     async def aclose(self) -> None:
         """Releases pools, browsers and files; default no-op"""
 

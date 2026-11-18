@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import json
 import os
 import shutil
@@ -29,6 +30,11 @@ REGISTRY = (
 )
 
 _office: lok.Office | None = None
+
+
+def init_worker(profiles: str) -> None:
+    """Pool initializer: LibreOffice started before the first task"""
+    _ensure_office(Path(profiles))
 
 
 def convert_document(
@@ -99,7 +105,16 @@ def _alive(pid: int) -> bool:
 class ConvertService(Service):
     def __init__(self, processes: int, profiles: Path, timeout: float = TIMEOUT, max_tasks: int = MAX_TASKS):
         self._profiles = profiles
-        self._pool = ProcessPool('convert', processes, timeout=timeout, max_tasks=max_tasks)
+        self._pool = ProcessPool(
+            'convert',
+            processes,
+            timeout=timeout,
+            max_tasks=max_tasks,
+            initializer=functools.partial(init_worker, str(profiles)),
+        )
+
+    async def warm(self) -> None:
+        await self._pool.start()
 
     async def convert(self, source: Path, target: Path, format: ConvertFormat, page: int | None = None) -> None:
         """`page` exports only that page and is valid for PDF targets only"""

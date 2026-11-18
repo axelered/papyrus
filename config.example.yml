@@ -21,6 +21,9 @@ workers:
   processes: auto
   # How many requests a container handles at once. Extra requests get a 503 and should retry later.
   max_queue: 64
+  # Start every worker process and the browser at startup, so the first requests don't wait for them.
+  # Startup takes a few seconds longer and fails if a component can't start. Turn off for local development.
+  warmup: true
 
 limits:
   # Largest file accepted, whether uploaded or downloaded from a source.

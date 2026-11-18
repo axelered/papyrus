@@ -124,6 +124,10 @@ class BrowserService(Service):
             finally:
                 await self._release(instance)
 
+    async def warm(self) -> None:
+        """Launches Chromium; costs one context of the recycle budget"""
+        await self._release(await self._acquire())
+
     async def aclose(self) -> None:
         async with self._lock:
             instances = [*self._retired, *([self._current] if self._current else [])]

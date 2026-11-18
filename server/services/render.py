@@ -84,6 +84,12 @@ def plan(width: float, height: float, spec: RenderSpec, vector: bool) -> Plan:
     return Plan(scale, size, crop)
 
 
+def init_worker() -> None:
+    """Pool initializer: pdfium and Pillow loaded before the first task"""
+    import pypdfium2  # noqa: F401
+    from PIL import Image  # noqa: F401
+
+
 def render_page(source: str, target: str, spec: RenderSpec) -> Raster:
     """Pool worker: rasterizes one PDF page or image frame and encodes it to `target`"""
     try:
@@ -183,7 +189,10 @@ def _encode(image: 'Image', target: Path, format: ImageFormat) -> None:
 
 class RenderService(Service):
     def __init__(self, processes: int, timeout: float = TIMEOUT, max_tasks: int = MAX_TASKS):
-        self._pool = ProcessPool('render', processes, timeout=timeout, max_tasks=max_tasks)
+        self._pool = ProcessPool('render', processes, timeout=timeout, max_tasks=max_tasks, initializer=init_worker)
+
+    async def warm(self) -> None:
+        await self._pool.start()
 
     async def page(self, source: Path, target: Path, spec: RenderSpec) -> Raster:
         """`source` is a PDF (by its normalized extension) or an image Pillow can decode"""

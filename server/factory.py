@@ -1,8 +1,10 @@
+import asyncio
 import logging
 import os
+import time
 from collections.abc import AsyncIterator, Mapping
 from contextlib import AsyncExitStack, asynccontextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Self
 
@@ -27,6 +29,8 @@ from server.utils.timing import TimingMiddleware
 from server.utils.yaml import load_yaml
 
 LOGGER_NAMESPACE = 'papyrus'
+# bounds a hung LibreOffice or Chromium launch at boot, same as the worker task timeout
+WARMUP_TIMEOUT = 120
 
 logger = logging.getLogger(f'{LOGGER_NAMESPACE}.startup')
 
@@ -78,8 +82,36 @@ class Services:
     async def __aexit__(self, *_: object) -> None:
         await self._stack.aclose()
 
+    async def warm(self, timeout: float = WARMUP_TIMEOUT) -> None:
+        """Warms every service concurrently; the first failure cancels the others and fails startup"""
+        services = self._named()
+        pending = set(services)
+        logger.info('warming %s', ', '.join(services))
+        started = time.monotonic()
+
+        async def warm_one(name: str, service: Service) -> None:
+            began = time.monotonic()
+            try:
+                await service.warm()
+            except Exception:
+                logger.exception('%s warmup failed', name)
+                raise
+            pending.discard(name)
+            logger.info('%s warm in %.2fs', name, time.monotonic() - began)
+
+        try:
+            async with asyncio.timeout(timeout), asyncio.TaskGroup() as group:
+                for name, service in services.items():
+                    group.create_task(warm_one(name, service))
+        except TimeoutError:
+            raise TimeoutError(f'warmup exceeded {timeout:g}s, waiting on {", ".join(sorted(pending))}') from None
+        logger.info('services warm in %.2fs', time.monotonic() - started)
+
     def _all(self) -> tuple[Service, ...]:
-        return (self.detect, self.markdown, self.convert, self.render, self.browser)
+        return tuple(self._named().values())
+
+    def _named(self) -> dict[str, Service]:
+        return {f.name: getattr(self, f.name) for f in fields(self) if f.init}
 
 
 def load_config(path: Path, env: Mapping[str, str] | None = None) -> Config:
@@ -107,12 +139,13 @@ def log_startup(settings: Settings, config: Config, topology: Topology) -> None:
         limits.tmp_dir,
     )
     logger.info(
-        'pools (started on first use) markdown=%s convert=%s render=%s processes, browser=%s pages sandbox=%s',
+        'pools markdown=%s convert=%s render=%s processes, browser=%s pages sandbox=%s warmup=%s',
         topology.markdown,
         topology.convert,
         topology.render,
         topology.browser,
         _on(config.browser.sandbox),
+        _on(config.workers.warmup),
     )
     hosts = ','.join(http.allowed_hosts) or 'any'
     connectors = ','.join(f'{name}:{c.protocol}' for name, c in config.connectors.items()) or 'none'
@@ -152,6 +185,10 @@ def create_app(settings: Settings | None = None, config: Config | None = None) -
             app.state.transfer = Transfer(Connectors(resolved_config.connectors), http, max_file_size)
             services = Services.create(resolved_config, topology)
             app.state.services = await stack.enter_async_context(services)
+            if resolved_config.workers.warmup:
+                await services.warm()
+            else:
+                logger.info('warmup off, services start on first use')
             yield
 
     app = FastAPI(title='Axelered Papyrus', lifespan=lifespan)

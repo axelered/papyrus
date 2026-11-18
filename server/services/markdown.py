@@ -18,6 +18,15 @@ CHUNKS = TypeAdapter(list[Chunk])
 _converter: Any = None
 
 
+def init_worker() -> None:
+    """Pool initializer: markitdown and the chunking libraries loaded before the first task"""
+    from server.services import chunking
+
+    _ensure_converter()
+    chunking.configure()
+    import chonkie  # noqa: F401
+
+
 def convert_to_markdown(
     source: str, target: str, chunking: ChunkingOptions | None = None, chunks_target: str | None = None
 ) -> str | None:
@@ -26,13 +35,10 @@ def convert_to_markdown(
     markitdown is imported here so only worker processes pay for it, and its errors are translated to ProblemError
     so the parent never has to unpickle library exception types.
     """
-    global _converter
-    from markitdown import FileConversionException, MarkItDown, UnsupportedFormatException
+    from markitdown import FileConversionException, UnsupportedFormatException
 
-    if _converter is None:
-        _converter = MarkItDown(enable_plugins=False)
     try:
-        result = _converter.convert_local(source)
+        result = _ensure_converter().convert_local(source)
     except UnsupportedFormatException:
         raise UnsupportedFormat('file format is not supported for markdown extraction') from None
     except FileConversionException:
@@ -54,6 +60,15 @@ def fence_code(
     _write(fence(text.replace('\r\n', '\n'), language), target, chunking, chunks_target)
 
 
+def _ensure_converter() -> Any:
+    global _converter
+    if _converter is None:
+        from markitdown import MarkItDown
+
+        _converter = MarkItDown(enable_plugins=False)
+    return _converter
+
+
 def _write(markdown: str, target: str, chunking: ChunkingOptions | None, chunks_target: str | None) -> None:
     Path(target).write_text(markdown, encoding='utf-8', newline='')
     if chunking is None or chunks_target is None:
@@ -71,7 +86,10 @@ def _write(markdown: str, target: str, chunking: ChunkingOptions | None, chunks_
 
 class MarkdownService(Service):
     def __init__(self, processes: int):
-        self._pool = ProcessPool('markdown', processes, timeout=TIMEOUT, max_tasks=MAX_TASKS)
+        self._pool = ProcessPool('markdown', processes, timeout=TIMEOUT, max_tasks=MAX_TASKS, initializer=init_worker)
+
+    async def warm(self) -> None:
+        await self._pool.start()
 
     async def convert(
         self, source: Path, target: Path, chunking: ChunkingOptions | None = None, chunks_target: Path | None = None

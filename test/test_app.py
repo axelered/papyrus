@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import subprocess
@@ -6,8 +7,9 @@ import sys
 import pytest
 from fastapi.testclient import TestClient
 
-from server.config import Config, ConfigError, Settings
-from server.factory import create_app, load_config
+from server.config import Config, ConfigError, Settings, WorkersConfig
+from server.factory import Services, create_app, load_config
+from server.services.base import Service
 
 
 def test_startup_fails_without_api_key(tmp_path):
@@ -18,7 +20,7 @@ def test_startup_fails_without_api_key(tmp_path):
 
 
 def test_startup_loads_config_from_settings_path(write_config):
-    path = write_config('workers: { max_queue: 3 }')
+    path = write_config('workers: { max_queue: 3, warmup: false }')
     app = create_app(settings=Settings(api_key='k', config=path))
 
     with TestClient(app):
@@ -48,7 +50,9 @@ def test_entrypoint_configures_logging_and_defers_settings():
 
 
 def test_startup_logs_topology_without_secrets(write_config, caplog: pytest.LogCaptureFixture):
-    path = write_config('workers: { processes: 4, max_queue: 3 }\nconnectors: { prod: { protocol: memory } }')
+    path = write_config(
+        'workers: { processes: 4, max_queue: 3, warmup: false }\nconnectors: { prod: { protocol: memory } }'
+    )
     app = create_app(settings=Settings(api_key='secret-key', config=path))
     caplog.set_level(logging.INFO, logger='papyrus.startup')
     with TestClient(app):
@@ -56,6 +60,8 @@ def test_startup_logs_topology_without_secrets(write_config, caplog: pytest.LogC
 
     assert 'max_queue=3' in caplog.text
     assert 'markdown=4 convert=2 render=4 processes, browser=2 pages' in caplog.text
+    assert 'warmup=off' in caplog.text
+    assert 'warmup off, services start on first use' in caplog.text
     assert 'connectors=prod:memory' in caplog.text
     assert 'auth=on (1 keys)' in caplog.text
     assert 'secret-key' not in caplog.text
@@ -96,3 +102,91 @@ def test_load_config_validates_expanded_yaml(write_config):
 def test_load_config_wraps_yaml_failures(write_config, content: str):
     with pytest.raises(ConfigError):
         load_config(write_config(content), env={})
+
+
+# - - - Warmup (adr/performance.md, Warm services)
+
+
+class FakeService(Service):
+    def __init__(self, delay: float = 0, error: Exception | None = None):
+        self.delay, self.error = delay, error
+        self.warmed = self.closed = False
+
+    async def warm(self) -> None:
+        await asyncio.sleep(self.delay)
+        if self.error is not None:
+            raise self.error
+        self.warmed = True
+
+    async def aclose(self) -> None:
+        self.closed = True
+
+
+def _fakes(**overrides: FakeService) -> Services:
+    names = ('detect', 'markdown', 'convert', 'render', 'browser')
+    return Services(**{name: overrides.get(name, FakeService()) for name in names})  # type: ignore[arg-type]
+
+
+@pytest.mark.anyio
+async def test_warm_warms_every_service_and_logs(caplog: pytest.LogCaptureFixture):
+    services = _fakes()
+    caplog.set_level(logging.INFO, logger='papyrus.startup')
+
+    await services.warm()
+
+    assert all(service.warmed for service in services._all())
+    assert 'warming detect, markdown, convert, render, browser' in caplog.text
+    assert 'browser warm in' in caplog.text
+    assert 'services warm in' in caplog.text
+
+
+@pytest.mark.anyio
+async def test_warm_failure_cancels_the_rest_and_raises(caplog: pytest.LogCaptureFixture):
+    slow = FakeService(delay=30)
+    services = _fakes(convert=FakeService(error=RuntimeError('no office')), browser=slow)
+
+    with pytest.raises(ExceptionGroup) as raised:
+        await services.warm()
+
+    assert raised.group_contains(RuntimeError, match='no office')
+    assert not slow.warmed
+    assert 'convert warmup failed' in caplog.text
+
+
+@pytest.mark.anyio
+async def test_warm_timeout_names_pending_services():
+    services = _fakes(render=FakeService(delay=30), browser=FakeService(delay=30))
+
+    with pytest.raises(TimeoutError, match='waiting on browser, render'):
+        await services.warm(timeout=0.2)
+
+
+def test_failed_warmup_fails_startup_and_closes_services(
+    settings: Settings, config: Config, monkeypatch: pytest.MonkeyPatch
+):
+    services = _fakes(markdown=FakeService(error=RuntimeError('boom')))
+    monkeypatch.setattr(Services, 'create', classmethod(lambda cls, *_: services))
+    app = create_app(settings=settings, config=config.model_copy(update={'workers': WorkersConfig(warmup=True)}))
+
+    with pytest.raises(ExceptionGroup), TestClient(app):
+        pass
+
+    assert all(service.closed for service in services._all())
+
+
+@pytest.mark.full
+def test_startup_warms_real_services(settings: Settings, config: Config, caplog: pytest.LogCaptureFixture):
+    caplog.set_level(logging.INFO, logger='papyrus.startup')
+    app = create_app(
+        settings=settings, config=config.model_copy(update={'workers': WorkersConfig(processes=1, warmup=True)})
+    )
+
+    with TestClient(app):
+        services = app.state.services
+        assert services.markdown._pool.started
+        assert services.convert._pool.started
+        assert services.render._pool.started
+        assert services.detect._magika is not None
+        assert services.browser._current is not None
+
+    assert 'services warm in' in caplog.text

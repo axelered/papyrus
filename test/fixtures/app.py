@@ -25,7 +25,7 @@ def work_dir(tmp_path: Path) -> Path:
 @pytest.fixture
 def config(work_dir: Path) -> Config:
     return Config(
-        workers=WorkersConfig(processes=1),
+        workers=WorkersConfig(processes=1, warmup=False),
         limits=LimitsConfig(tmp_dir=work_dir),
         connectors=MEMORY_CONNECTORS,
     )
