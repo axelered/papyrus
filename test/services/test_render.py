@@ -1,4 +1,4 @@
-from collections.abc import Iterator
+from collections.abc import AsyncIterator
 from pathlib import Path
 
 import pytest
@@ -67,10 +67,9 @@ def test_plan_keeps_scale_for_pdfium():
 
 
 @pytest.fixture(scope='module')
-def service() -> Iterator[RenderService]:
-    service = RenderService(processes=1)
-    yield service
-    service.close()
+async def service() -> AsyncIterator[RenderService]:
+    async with RenderService(processes=1) as service:
+        yield service
 
 
 async def _render(service: RenderService, source: Path, tmp_path: Path, spec: RenderSpec) -> tuple[Image.Image, object]:

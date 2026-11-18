@@ -1,31 +1,28 @@
 import asyncio
 import time
-from collections.abc import Iterator
+from collections.abc import AsyncIterator
 
 import pytest
 
 from server.errors import ProcessingFailed, ProcessingTimeout, UnsupportedFormat
-from server.services.pool import ProcessPool
-from test.services import workers
+from server.services.base import pool_errors
+from server.utils.pool import PoolFailed, PoolTimeout, ProcessPool
+from test.utils import workers
 
 pytestmark = pytest.mark.anyio
 
 
 @pytest.fixture(scope='module')
-def pool() -> Iterator[ProcessPool]:
-    pool = ProcessPool('test', processes=1, timeout=3)
-    yield pool
-    pool.close()
+async def pool() -> AsyncIterator[ProcessPool]:
+    async with ProcessPool('test', processes=1, timeout=3) as pool:
+        yield pool
 
 
 async def test_starts_lazily_and_runs_tasks():
-    lazy = ProcessPool('lazy', processes=1, timeout=5)
-    try:
+    async with ProcessPool('lazy', processes=1, timeout=5) as lazy:
         assert not lazy.started
         assert await lazy.run(workers.add, 2, 3) == 5
         assert lazy.started
-    finally:
-        lazy.close()
     assert not lazy.started
 
 
@@ -35,26 +32,23 @@ async def test_preserves_papyrus_errors(pool: ProcessPool):
 
 
 async def test_wraps_generic_errors(pool: ProcessPool):
-    with pytest.raises(ProcessingFailed, match='KeyError'):
+    with pytest.raises(PoolFailed, match='KeyError'):
         await pool.run(workers.raise_generic)
 
 
-async def test_worker_crash_is_processing_failure(pool: ProcessPool):
-    with pytest.raises(ProcessingFailed, match='died'):
+async def test_worker_crash_is_pool_failure(pool: ProcessPool):
+    with pytest.raises(PoolFailed, match='died'):
         await pool.run(workers.crash)
 
     assert await pool.run(workers.add, 1, 1) == 2
 
 
 async def test_timeout_kills_worker_and_pool_recovers():
-    short = ProcessPool('short', processes=1, timeout=0.5)
-    try:
+    async with ProcessPool('short', processes=1, timeout=0.5) as short:
         before = await short.run(workers.pid)
-        with pytest.raises(ProcessingTimeout):
+        with pytest.raises(PoolTimeout):
             await short.run(workers.sleep, 30)
         assert await short.run(workers.pid) != before
-    finally:
-        short.close()
 
 
 async def test_cancellation_terminates_running_task(pool: ProcessPool):
@@ -69,8 +63,15 @@ async def test_cancellation_terminates_running_task(pool: ProcessPool):
     assert time.monotonic() - started < 10
 
 
-def test_close_is_idempotent():
+async def test_aclose_is_idempotent():
     pool = ProcessPool('idle', processes=1, timeout=1)
 
-    pool.close()
-    pool.close()
+    await pool.aclose()
+    await pool.aclose()
+
+
+def test_pool_errors_map_to_problems():
+    with pytest.raises(ProcessingTimeout, match='slow'), pool_errors():
+        raise PoolTimeout('slow')
+    with pytest.raises(ProcessingFailed, match='died'), pool_errors():
+        raise PoolFailed('died')

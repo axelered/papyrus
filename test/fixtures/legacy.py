@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from server.services.convert import convert_document
-from server.services.pool import ProcessPool
+from server.utils.pool import ProcessPool
 from test.fixtures import samples
 
 PASSWORD_OPTIONS = ',Password=secretPASSWORDEND'
@@ -35,5 +35,5 @@ async def _produce(root: Path) -> dict[str, Path]:
             await pool.run(convert_document, str(source), str(target), format, str(root / 'profiles'), options)
             paths[key] = target
     finally:
-        pool.close()
+        await pool.aclose()
     return paths

@@ -4,8 +4,9 @@ from typing import Any
 from pydantic import TypeAdapter
 
 from server.errors import ProcessingFailed, UnsupportedFormat
-from server.services.pool import ProcessPool
+from server.services.base import Service, pool_errors
 from server.types.markdown import Chunk, ChunkingOptions
+from server.utils.pool import ProcessPool
 from server.utils.problem import ProblemError
 from server.utils.text import decode_text, fence
 
@@ -68,14 +69,17 @@ def _write(markdown: str, target: str, chunking: ChunkingOptions | None, chunks_
     Path(chunks_target).write_bytes(CHUNKS.dump_json(chunks))
 
 
-class MarkdownService:
+class MarkdownService(Service):
     def __init__(self, processes: int):
         self._pool = ProcessPool('markdown', processes, timeout=TIMEOUT, max_tasks=MAX_TASKS)
 
     async def convert(
         self, source: Path, target: Path, chunking: ChunkingOptions | None = None, chunks_target: Path | None = None
     ) -> str | None:
-        return await self._pool.run(convert_to_markdown, str(source), str(target), chunking, _optional(chunks_target))
+        with pool_errors():
+            return await self._pool.run(
+                convert_to_markdown, str(source), str(target), chunking, _optional(chunks_target)
+            )
 
     async def fence_code(
         self,
@@ -85,10 +89,11 @@ class MarkdownService:
         chunking: ChunkingOptions | None = None,
         chunks_target: Path | None = None,
     ) -> None:
-        await self._pool.run(fence_code, str(source), str(target), language, chunking, _optional(chunks_target))
+        with pool_errors():
+            await self._pool.run(fence_code, str(source), str(target), language, chunking, _optional(chunks_target))
 
-    def close(self) -> None:
-        self._pool.close()
+    async def aclose(self) -> None:
+        await self._pool.aclose()
 
 
 def _optional(path: Path | None) -> str | None:

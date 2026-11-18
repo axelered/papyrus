@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import shutil
@@ -5,8 +6,9 @@ from pathlib import Path
 
 from server.errors import PageOutOfRange, ProcessingFailed, UnsupportedFormat
 from server.services import lok
-from server.services.pool import ProcessPool
+from server.services.base import Service, pool_errors
 from server.types.convert import ConvertFormat
+from server.utils.pool import ProcessPool
 
 TIMEOUT = 120
 MAX_TASKS = 50
@@ -94,7 +96,7 @@ def _alive(pid: int) -> bool:
     return True
 
 
-class ConvertService:
+class ConvertService(Service):
     def __init__(self, processes: int, profiles: Path, timeout: float = TIMEOUT, max_tasks: int = MAX_TASKS):
         self._profiles = profiles
         self._pool = ProcessPool('convert', processes, timeout=timeout, max_tasks=max_tasks)
@@ -103,8 +105,11 @@ class ConvertService:
         """`page` exports only that page and is valid for PDF targets only"""
         if page is not None and format != ConvertFormat.PDF:
             raise ValueError('page requires a pdf target')
-        await self._pool.run(convert_document, str(source), str(target), format.value, str(self._profiles), '', page)
+        with pool_errors():
+            await self._pool.run(
+                convert_document, str(source), str(target), format.value, str(self._profiles), '', page
+            )
 
-    def close(self) -> None:
-        self._pool.close()
-        shutil.rmtree(self._profiles, ignore_errors=True)
+    async def aclose(self) -> None:
+        await self._pool.aclose()
+        await asyncio.to_thread(shutil.rmtree, self._profiles, ignore_errors=True)

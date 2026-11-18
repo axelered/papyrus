@@ -1,7 +1,7 @@
 import threading
 import time
 import zipfile
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -20,10 +20,9 @@ pytestmark = [
 
 
 @pytest.fixture(scope='module')
-def service(tmp_path_factory: pytest.TempPathFactory) -> Iterator[ConvertService]:
-    service = ConvertService(processes=1, profiles=tmp_path_factory.mktemp('work') / 'profiles')
-    yield service
-    service.close()
+async def service(tmp_path_factory: pytest.TempPathFactory) -> AsyncIterator[ConvertService]:
+    async with ConvertService(processes=1, profiles=tmp_path_factory.mktemp('work') / 'profiles') as service:
+        yield service
 
 
 @pytest.fixture
@@ -176,7 +175,7 @@ async def test_recycles_libreoffice_in_fresh_workers(make_document: DocumentFact
         for index in range(2):
             await service.convert(source, tmp_path / f'out{index}.docx', ConvertFormat.DOCX)
     finally:
-        service.close()
+        await service.aclose()
 
     assert (tmp_path / 'out1.docx').is_file()
     assert not (tmp_path / 'profiles').exists()
@@ -197,7 +196,7 @@ async def test_timeout_kills_worker_and_next_worker_converts(make_document: Docu
         assert len(list(profiles.iterdir())) == 1
         assert list(source.parent.glob('.~lock*')) == []
     finally:
-        service.close()
+        await service.aclose()
 
 
 # - - - Single page PDF export (adr/render.md)

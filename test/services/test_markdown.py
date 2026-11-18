@@ -1,4 +1,4 @@
-from collections.abc import Iterator
+from collections.abc import AsyncIterator
 from pathlib import Path
 
 import pytest
@@ -11,10 +11,9 @@ pytestmark = pytest.mark.anyio
 
 
 @pytest.fixture(scope='module')
-def service() -> Iterator[MarkdownService]:
-    service = MarkdownService(processes=1)
-    yield service
-    service.close()
+async def service() -> AsyncIterator[MarkdownService]:
+    async with MarkdownService(processes=1) as service:
+        yield service
 
 
 async def test_converts_html_with_title(service: MarkdownService, make_document: DocumentFactory, tmp_path: Path):

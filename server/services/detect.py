@@ -11,6 +11,7 @@ from magika import Magika
 from magika.types import ContentTypeInfo
 
 from server.errors import ProcessingFailed
+from server.services.base import Service
 from server.types.common import FormatGroup, FormatLabel
 
 logger = logging.getLogger('papyrus.detect')
@@ -199,7 +200,7 @@ def normalize_extension(path: Path, value: Format) -> Path:
     return path.rename(path.with_name(f'{path.stem or path.name}.{value.extension}'))
 
 
-class DetectService:
+class DetectService(Service):
     """Inline service: magika runs in the API process, onnxruntime releases the GIL while predicting"""
 
     def __init__(self) -> None:

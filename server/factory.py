@@ -1,9 +1,8 @@
-import asyncio
 import logging
 import os
 from collections.abc import AsyncIterator, Mapping
-from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from contextlib import AsyncExitStack, asynccontextmanager
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Self
 
@@ -16,6 +15,7 @@ from server.config import Config, ConfigError, Settings
 from server.io.connectors import Connectors
 from server.io.http import HttpFetcher
 from server.io.transfer import Transfer
+from server.services.base import Service
 from server.services.browser import BrowserService
 from server.services.convert import ConvertService
 from server.services.detect import DetectService
@@ -51,11 +51,14 @@ class Topology:
 
 @dataclass
 class Services:
+    """Enters every service on startup and closes them in reverse order on shutdown"""
+
     detect: DetectService
     markdown: MarkdownService
     convert: ConvertService
     render: RenderService
     browser: BrowserService
+    _stack: AsyncExitStack = field(default_factory=AsyncExitStack, init=False, repr=False)
 
     @classmethod
     def create(cls, config: Config, topology: Topology) -> Self:
@@ -67,15 +70,16 @@ class Services:
             browser=BrowserService(config.http, config.browser, concurrency=topology.browser),
         )
 
-    async def aclose(self) -> None:
-        await self.browser.aclose()
-        # pool joins block
-        await asyncio.to_thread(self._close_pools)
+    async def __aenter__(self) -> Self:
+        for service in self._all():
+            await self._stack.enter_async_context(service)
+        return self
 
-    def _close_pools(self) -> None:
-        self.markdown.close()
-        self.convert.close()
-        self.render.close()
+    async def __aexit__(self, *_: object) -> None:
+        await self._stack.aclose()
+
+    def _all(self) -> tuple[Service, ...]:
+        return (self.detect, self.markdown, self.convert, self.render, self.browser)
 
 
 def load_config(path: Path, env: Mapping[str, str] | None = None) -> Config:
@@ -139,17 +143,16 @@ def create_app(settings: Settings | None = None, config: Config | None = None) -
         app.state.settings = resolved_settings
         app.state.config = resolved_config
         app.state.admission = Admission(resolved_config.workers.max_queue)
-        max_file_size = int(resolved_config.limits.max_file_size)
-        http = HttpFetcher(resolved_config.http, max_file_size)
-        app.state.transfer = Transfer(Connectors(resolved_config.connectors), http, max_file_size)
         topology = Topology.of(resolved_config)
         log_startup(resolved_settings, resolved_config, topology)
-        app.state.services = services = Services.create(resolved_config, topology)
-        try:
+        async with AsyncExitStack() as stack:
+            max_file_size = int(resolved_config.limits.max_file_size)
+            http = HttpFetcher(resolved_config.http, max_file_size)
+            stack.push_async_callback(http.aclose)
+            app.state.transfer = Transfer(Connectors(resolved_config.connectors), http, max_file_size)
+            services = Services.create(resolved_config, topology)
+            app.state.services = await stack.enter_async_context(services)
             yield
-        finally:
-            await http.aclose()
-            await services.aclose()
 
     app = FastAPI(title='Axelered Papyrus', lifespan=lifespan)
     # added first so it runs inside RequestIdMiddleware and the timing log line carries the request id

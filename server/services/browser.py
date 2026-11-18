@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 
 from server.config import BrowserConfig, HttpConfig
 from server.errors import ProcessingFailed, ProcessingTimeout, SourceFetchFailed, SourceForbidden, UnsupportedUri
+from server.services.base import Service
 from server.types.common import MAX_IMAGE_SIDE, ImageFormat
 from server.types.screenshot import ScreenshotOptions
 from server.utils.net import HostPolicy, Resolver, resolve_host
@@ -76,7 +77,7 @@ async def _deny_all(host: str, _: int) -> str:
     raise PermissionError(f'{host} is outside any request context')
 
 
-class BrowserService:
+class BrowserService(Service):
     """One lazily launched headless Chromium, a fresh context and pinning proxy per request (adr/browser.md)"""
 
     def __init__(

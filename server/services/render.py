@@ -5,9 +5,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from server.errors import ImageTooLarge, PageOutOfRange, ProcessingFailed, UnsupportedFormat
-from server.services.pool import ProcessPool
+from server.services.base import Service, pool_errors
 from server.types.common import MAX_IMAGE_SIDE, ImageFormat
 from server.types.render import Fit
+from server.utils.pool import ProcessPool
 from server.utils.problem import ProblemError
 
 if TYPE_CHECKING:
@@ -180,13 +181,14 @@ def _encode(image: 'Image', target: Path, format: ImageFormat) -> None:
     image.save(target, format=format.value.upper(), **options)
 
 
-class RenderService:
+class RenderService(Service):
     def __init__(self, processes: int, timeout: float = TIMEOUT, max_tasks: int = MAX_TASKS):
         self._pool = ProcessPool('render', processes, timeout=timeout, max_tasks=max_tasks)
 
     async def page(self, source: Path, target: Path, spec: RenderSpec) -> Raster:
         """`source` is a PDF (by its normalized extension) or an image Pillow can decode"""
-        return await self._pool.run(render_page, str(source), str(target), spec)
+        with pool_errors():
+            return await self._pool.run(render_page, str(source), str(target), spec)
 
-    def close(self) -> None:
-        self._pool.close()
+    async def aclose(self) -> None:
+        await self._pool.aclose()
