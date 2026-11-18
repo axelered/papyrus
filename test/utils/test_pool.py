@@ -38,7 +38,7 @@ async def test_start_waits_for_every_initialized_worker(tmp_path: Path):
 
 async def test_start_fails_on_initializer_error_and_tasks_still_run():
     async with ProcessPool('broken', processes=1, timeout=5, initializer=workers.fail_init) as broken:
-        with pytest.raises(PoolFailed, match='initialization failed'):
+        with pytest.raises(PoolFailed, match=r'initialization failed \(RuntimeError: init failed\)'):
             await broken.start()
 
         assert await broken.run(workers.add, 1, 2) == 3

@@ -83,10 +83,11 @@ and failures match steady state.
   construction; a raising pebble initializer fails pending tasks with `BrokenProcessPool` and leaves the pool
   dead for good; no-op probe tasks until every pid answers need hundreds of rounds and count against `max_tasks`.
 - Readiness: the pebble initializer is the pool's `_initialize` wrapper. It runs the service initializer, never
-  raises (logs and sets a shared `Event` instead), and releases a shared `Semaphore`; both come from the default
-  multiprocessing context (forkserver) and pass to workers as `initargs`. `start()` schedules one no-op to spawn
-  the workers, then polls the semaphore without blocking until `processes` releases, raising `PoolFailed` once
-  the event is set. A recycled worker whose initializer fails stays up and its tasks retry the lazy setup, so
+  raises (logs and stores the first `<type>: <message>` in a shared `Array('c', 512)` instead), and releases a
+  shared `Semaphore`; both come from the default multiprocessing context (forkserver) and pass to workers as
+  `initargs`. `start()` schedules one no-op to spawn the workers, then polls the semaphore without blocking until
+  `processes` releases, raising `PoolFailed('<name> worker initialization failed (<error>)')` once an error is
+  stored, so the cause reaches the formatted parent log. A recycled worker whose initializer fails stays up and its tasks retry the lazy setup, so
   failures after boot surface per request as before.
 - Layering (`utils/` never imports `server.errors`): the pool raises its own `PoolTimeout(TimeoutError)` and
   `PoolFailed(RuntimeError)` (worker died, unexpected worker exception, logged as today) and lets `ProblemError`
@@ -119,6 +120,10 @@ and failures match steady state.
 - Failure: any `warm()` error (logged as `<name> warmup failed`) or the timeout (naming the unfinished services)
   fails startup, the process exits non-zero and the orchestrator keeps the previous version.
 - Browser warmup costs one context of the `recycle_after` budget.
+- Logging is not configured in pool workers: their records (initializer failures included) reach the last resort
+  stderr handler as plain text, ignoring `PAPYRUS_LOG_FORMAT`. todo: configure logging in pool workers.
+- An initializer that crashes or hangs the worker (segfault, deadlock) stores no error; startup then fails at the
+  warmup timeout, naming the service.
 - Tests: services built directly stay lazy; the app fixtures set `warmup: false`, a `full` test boots every real
   service warm.
 - Result in the image, `processes: 2`: detect 0.18s, browser 0.78s, render 1.19s, convert 1.24s, markdown 2.92s,
