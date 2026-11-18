@@ -67,6 +67,51 @@ browser.capture 92, browser.close 9, screenshot 1836, render 1698, total 4136
   `server.factory` in `sys.modules`.
 - Result: about 1.2s less per cold render, markdown and convert worker.
 
+### Warm services
+
+Moves every cold cost (worker imports, LibreOffice init, Magika model, Chromium launch) to startup, so boot memory
+and failures match steady state.
+
+- Config: `workers.warmup: bool = true`. `false` keeps everything lazy, for local development and `--reload`.
+  todo: per-service warmup with the per-service sizing in YAML.
+- `server/utils/pool.py` (moved from `server/services/pool.py`, a utility without domain knowledge):
+  `ProcessPool(name, processes, timeout, max_tasks=0, initializer=None)`. `async start()` starts the pebble pool
+  and returns once every worker has run its initializer, `async aclose()` stops it and joins in a thread,
+  `__aenter__`/`__aexit__` call both. `run()` still starts an unstarted pool lazily.
+- Layering (`utils/` never imports `server.errors`): the pool raises its own `PoolTimeout(TimeoutError)` and
+  `PoolFailed(RuntimeError)` (worker died, unexpected worker exception, logged as today) and lets `ProblemError`
+  from `server/utils/problem.py` through. `services/base.py` `pool_errors()`, a context manager used once around
+  each service's `run`, maps them to `504 processing_timeout` and `500 processing_failed`.
+- `server/services/base.py`: `Service` with no-op `async warm()` and `async aclose()`, `__aenter__` returns self,
+  `__aexit__` calls `aclose()`. Services override only `warm` and `aclose`. `__aenter__` does not warm: the
+  registry owns the switch and warms services concurrently.
+- Services keep their pool by composition (no `PoolService`): the pool's generic `run` stays private and the
+  browser has no pool.
+
+| Service | `warm()` | Worker initializer |
+|---|---|---|
+| markdown | `await self._pool.start()` | `init_worker()`: imports markitdown and chonkie, builds the module `_converter` |
+| convert | `await self._pool.start()` | `init_worker(profiles)`: `_ensure_office`, LibreOffice up (about 330 MB per worker at boot) |
+| render | `await self._pool.start()` | `init_worker()`: imports pypdfium2 and Pillow |
+| detect | loads `Magika()` in a thread | none |
+| browser | launches Chromium through `_acquire`/`_release` | none |
+
+- Initializers are top-level module functions (pickled into workers, never bound methods) that call the same lazy
+  setup the task functions use, so lazy and warm paths share code. pebble reruns them for every replaced worker
+  (`max_tasks` recycle, timeout kill), off the request path while the other workers serve.
+- `ConvertService.aclose()` also removes the profiles root.
+- Lifespan (`factory.py`): one `AsyncExitStack` enters `HttpFetcher` and `Services`; `Services` enters each service
+  into its own stack. Teardown is reverse order and exception safe; `Services.aclose` and `_close_pools` go away.
+- `Services.warm()` runs every `warm()` with `asyncio.gather` under one `asyncio.timeout(120)` and logs on
+  `papyrus.startup`: `warming <names>`, `<name> warm in <s>s` per service, `services warm in <s>s`. Off logs
+  `warmup off, services start on first use`; the topology line drops "started on first use".
+- Failure: any `warm()` error (logged as `<name> warmup failed`) or the timeout (naming the unfinished services)
+  fails startup, the process exits non-zero and the orchestrator keeps the previous version.
+- todo: spike pebble before building `start()`: whether all workers spawn on the first `schedule`, whether an
+  initializer exception surfaces or loops respawning, and how to know every worker is initialized (a no-op task
+  returning `os.getpid()` repeated until `processes` distinct pids answer, bounded by the warmup timeout).
+- Tests: services built directly stay lazy; fixtures switch `close()` to `aclose()` or `async with`.
+
 ## Remaining cold costs
 
 Incremental imports of a cold worker in the image after the fix:
@@ -81,8 +126,6 @@ Incremental imports of a cold worker in the image after the fix:
 
 ## Follow-ups
 
-- todo: warm pools at startup with a pebble `initializer` importing the worker module and its heavy libraries;
-  moves the remaining cold cost (0.3s render, 1.5s+ markdown) out of requests, gives up lazy pools.
 - todo: website thumbnails pre-fetch the HTML with httpx and the browser fetches it again (~0.6s); let Chromium
   navigate the URL directly as `/v1/screenshot` does, detection from the response content type.
 - todo: the catch-all `context.route` sends every subresource through Python and disables the HTTP cache; route
@@ -90,4 +133,4 @@ Incremental imports of a cold worker in the image after the fix:
 - todo: HTML thumbnails capture a lossless PNG up to 1280x2160 and the render worker re-decodes it; capture webp
   or downscale through the CDP clip scale.
 - todo: worker types without pydantic (`ImageFormat`, `MAX_IMAGE_SIDE`, `Fit`) save about 0.25s per cold worker;
-  only worth it if pools are not warmed.
+  only worth it with `workers.warmup: false`.

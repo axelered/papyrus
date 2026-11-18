@@ -61,7 +61,7 @@
 
 - [x] `Server-Timing` stages behind `PAPYRUS_TIMING` and the `scripts/bench.py` cold/hot pool benchmark
 - [x] Pool workers import their module without building the app or importing FastAPI
-- [ ] Warm process pools at startup with a pebble `initializer` importing the worker module and heavy libraries
+- [ ] Warm services at startup behind `workers.warmup`: `Service` base, `utils/pool.py` with initializer, `AsyncExitStack` lifespan
 - [ ] Website thumbnails: drop the httpx pre-fetch and route only the document navigation through Python
 
 ## Future Issues

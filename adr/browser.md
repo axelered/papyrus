@@ -10,7 +10,8 @@ HTML rendering later. Extends the service kinds of `adr/architecture.md`; image 
   connection is resolved, checked and pinned by Papyrus, closing the DNS rebinding gap for the browser.
 - One long-lived browser per container, isolated contexts per request, no process spawned per request.
 - A hostile page fails its own request (renderer crash, timeout) and never takes down the container.
-- No TCP debug port, no runtime downloads, lazy start: deployments that never screenshot pay nothing.
+- No TCP debug port, no runtime downloads. Chromium launches at boot with `workers.warmup`, lazily without it
+  (`adr/performance.md`, Warm services).
 - HTML thumbnails (`adr/render.md`, HTML Thumbnails) screenshot materialized HTML through the Documents mechanism.
 - todo: HTML in `/v1/render` through Chromium (`pdf()` print to PDF, then pdfium); uploaded HTML for
   `/v1/screenshot`.

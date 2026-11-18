@@ -69,20 +69,21 @@ backend and hides its kind from coordinators. Services compose in coordinators
 
 Rules:
 
-- **Lazy start:** a backend (pool, daemons) is created on the first call. Unused services cost nothing.
-- **Registry:** services are constructed in the FastAPI lifespan, exposed via a dependency, and closed on shutdown
-  (`aclose()` terminates pools and daemons).
+- **Warm start:** with `workers.warmup` (default on) every backend starts at boot and a failure fails startup;
+  off, a backend is created on the first call (`adr/performance.md`, Warm services).
+- **Registry:** services extend `services/base.py` `Service` (`warm()`, `aclose()`, async context manager), are
+  constructed in the FastAPI lifespan, exposed via a dependency, and closed on shutdown through an `AsyncExitStack`.
 - **Heavy imports** (markitdown, pypdfium2, Pillow) happen only inside worker functions so the API process stays light.
-- **Pool helper** (`services/pool.py`): wraps `pool.schedule(fn, args, timeout)` with `asyncio.wrap_future`, maps
-  `TimeoutError` to `504 processing_timeout`, worker crash to `500 processing_failed`, and cancels the future on
-  `CancelledError`.
+- **Pool helper** (`utils/pool.py`): wraps `pool.schedule(fn, args, timeout)` with `asyncio.wrap_future`, raises
+  `PoolTimeout` and `PoolFailed` (worker crash), and cancels the future on `CancelledError`; `services/base.py`
+  `pool_errors()` maps them to `504 processing_timeout` and `500 processing_failed`.
 - **Worker errors:** worker functions translate library exceptions into `ProblemError` subclasses (raised
   `from None`) so the parent never unpickles library exception types; anything else surfaces as `processing_failed`.
 - **Worker arguments and results** are the wire models from `server/types/` (pydantic models pickle), never a parallel
   dataclass mirror. Internal values that are not wire models (`RenderSpec`, `Raster`, `Capture`) are frozen
   dataclasses next to their service; the coordinator builds the wire result from them.
-- **Registry** (`factory.py`): a `Services` dataclass built from `workers` config, closed in a thread on shutdown
-  (pool join is blocking).
+- **Registry** (`factory.py`): a `Services` dataclass built from `workers` config that enters, warms and closes
+  every service.
 - **Sizing:** YAML sets only `workers.processes` (default `os.cpu_count()`). Per-service sizes are derived by
   heuristics in code: markdown = render = `processes`, convert = `max(1, processes // 2)` (LibreOffice RAM).
   todo: make per-service sizes, timeouts and `max_tasks` configurable in YAML.
@@ -290,6 +291,7 @@ server/
     text.py            text decoding, CommonMark fences
     net.py             host resolution and public address policy
     proxy.py           pinning forward proxy (CONNECT and http)
+    pool.py            pebble pool helper: start, run, aclose, own timeout and failure errors
   api/
     admission.py       non-blocking in-flight counter (event loop only, no semaphore needed)
     request.py         op context (admission, workspace, deadline), body -> model, OpenAPI request body
@@ -306,7 +308,7 @@ server/
     connectors.py      fsspec filesystem registry
     transfer.py        materialize(uri) -> Path, deliver(Path, uri)
   services/
-    pool.py            lazy pebble pool helper
+    base.py            Service base (warm(), aclose(), async context manager), pool_errors()
     detect.py          DetectService (magika, inline), format table and resolution
     chunking.py        chunker, asset configuration, code language resolution
     markdown.py        MarkdownService + worker fns

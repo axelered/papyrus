@@ -62,7 +62,7 @@ binding inside a pebble pool worker.
 - Sizing heuristics: `processes = max(1, workers.processes // 2)` (LibreOffice RAM), timeout 120s, `max_tasks` 50
   (recycles the instance against leaks, LOK init takes about 0.3s).
 - Profiles: each worker uses `<limits.tmp_dir>/lo-profiles/<pid>`; a starting worker removes directories of dead
-  pids, `close()` removes the root. Profiles are never shared (LibreOffice locks them).
+  pids, `aclose()` removes the root. Profiles are never shared (LibreOffice locks them).
 - The profile `user/registrymodifications.xcu` disables document lock files (`UseDocumentOOoLockFile`,
   `UseDocumentSystemFileLocking`): a worker killed mid-load otherwise leaves `.~lock.<name>#` next to the source and
   every later load of that file fails.
