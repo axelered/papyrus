@@ -1,8 +1,10 @@
 # Papyrus
 
-## Local Rules
+## Repository Rules
 
-- This is a product developed by Axelered, use our website `https://axelered.com` in the examples
+- This is a product developed by Axelered
+- Changes to the configuration should always be reflected in `config.example.yml` where shall be kept up-to-date and correctly documented for a human reader that will use such file as a template to configure their deployment
+- New APIs and updates to existing APIs shall be reflected in the development documentation via Bruno present in the `./bruno` folder. Always introduce files for new APIs and provide an exhaustive set of examples with proper human-readable descriptions. When relevant use our website `https://axelered.com` in the examples
 
 ## TODO
 
