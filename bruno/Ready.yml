@@ -14,3 +14,40 @@ settings:
   followRedirects: true
   maxRedirects: 5
   forwardAuthorizationHeader: false
+
+examples:
+  - name: Ready
+    description: The replica accepts requests
+    request:
+      url: "{{host}}/ready"
+      method: GET
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: json
+        data: |-
+          {
+            "status": "ok"
+          }
+  - name: Not Ready
+    description: Admission is exhausted, the load balancer should drain the replica until it recovers
+    request:
+      url: "{{host}}/ready"
+      method: GET
+    response:
+      status: 503
+      statusText: Service Unavailable
+      headers:
+        - name: content-type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "about:blank",
+            "title": "Service Unavailable",
+            "status": 503,
+            "code": "not_ready",
+            "detail": "64 requests in flight"
+          }

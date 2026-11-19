@@ -159,7 +159,8 @@ The problem+json shape of `adr/architecture.md` is unchanged except for camelCas
 - Multipart: `metadata` is a `$ref` to the request model with `encoding: {metadata: {contentType: application/json}}`,
   plus the binary `file` part.
 - `Result.content` documents `contentEncoding: base64` for binary results via the field description and `Encoding`.
-- `openapi.json` is never committed; `scripts/openapi.py` builds the app and writes the spec to a given path.
+- `openapi.json` is never committed; `scripts/openapi.py` builds the app and prints the spec (or writes it to a path)
+  for the docs bundle.
 
 ## Validation
 

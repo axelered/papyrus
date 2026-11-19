@@ -23,7 +23,7 @@ settings:
 
 examples:
   - name: Simple File
-    description: Thumbnail of a local file upload
+    description: Thumbnail of a local file upload; the default output is a 256x256 webp file named `<stem>.webp`
     request:
       url: "{{host}}/v1/thumbnail"
       method: POST
@@ -38,11 +38,16 @@ examples:
     response:
       status: 200
       statusText: OK
+      headers:
+        - name: content-type
+          value: image/webp
+        - name: content-disposition
+          value: attachment; filename="sample.webp"
       body:
         type: text
         data: ""
   - name: Remote Image
-    description: Create a thumbnail from a remote image collected over HTTP
+    description: Thumbnail of a remote image fetched over HTTP, as JSON. For image sources `source.width` and `source.height` are the original pixels, `result` holds the thumbnail
     request:
       url: "{{host}}/v1/thumbnail"
       method: POST
@@ -50,8 +55,11 @@ examples:
         type: json
         data: |-
           {
+            "output": "json",
             "source": "https://axelered.com/_og/platform.png",
             "options": {
+              "width": 320,
+              "height": 200,
               "fit": "cover"
             }
           }
@@ -59,5 +67,76 @@ examples:
       status: 200
       statusText: OK
       body:
-        type: text
-        data: ""
+        type: json
+        data: |-
+          {
+            "source": {
+              "uri": "https://axelered.com/_og/platform.png",
+              "name": "platform.png",
+              "size": 184220,
+              "mimeType": "image/png",
+              "extension": "png",
+              "label": "png",
+              "group": "image",
+              "pageCount": 1,
+              "width": 1200,
+              "height": 630,
+              "fetch": { "url": "https://axelered.com/_og/platform.png", "status": 200 }
+            },
+            "options": { "page": 1, "width": 320, "height": 200, "fit": "cover", "format": "webp" },
+            "result": {
+              "name": "platform.webp",
+              "size": 8211,
+              "mimeType": "image/webp",
+              "extension": "webp",
+              "label": "webp",
+              "group": "image",
+              "width": 320,
+              "height": 200,
+              "encoding": "base64",
+              "content": "UklGRl4gAABXRUJQVlA4..."
+            }
+          }
+  - name: Website To S3
+    description: Thumbnail of a website (HTML is captured in a browser) written to an S3 destination; requires a "demo-s3" connector. The response is light, without `content`
+    request:
+      url: "{{host}}/v1/thumbnail"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "source": "https://axelered.com/",
+            "destination": "s3://demo-s3/papyrus-test/axelered.webp"
+          }
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: json
+        data: |-
+          {
+            "source": {
+              "uri": "https://axelered.com/",
+              "name": "source.html",
+              "size": 61234,
+              "mimeType": "text/html",
+              "extension": "html",
+              "label": "html",
+              "group": "markup",
+              "pageCount": 1,
+              "fetch": { "url": "https://axelered.com/", "status": 200 }
+            },
+            "options": { "page": 1, "width": 256, "height": 256, "fit": "contain", "format": "webp" },
+            "result": {
+              "uri": "s3://demo-s3/papyrus-test/axelered.webp",
+              "name": "source.webp",
+              "size": 9120,
+              "mimeType": "image/webp",
+              "extension": "webp",
+              "label": "webp",
+              "group": "image",
+              "width": 256,
+              "height": 256
+            }
+          }

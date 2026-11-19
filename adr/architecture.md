@@ -272,7 +272,7 @@ RFC 9457 problem+json with a stable `code` extension. Codes are part of the publ
 ```
 scripts/
   prefetch.py          build-time download of grammars and tokenizers (Docker build, local setup)
-  openapi.py           writes the OpenAPI spec of the app to a path (never committed)
+  openapi.py           prints the OpenAPI spec of the app, for the docs bundle (never committed)
 server/
   __init__.py          empty: pool workers import the package, building the app there costs every worker
   main.py              app = create_app(), the ASGI entrypoint server.main:app

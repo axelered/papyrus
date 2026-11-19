@@ -14,7 +14,7 @@ http:
         "source": "https://axelered.com",
         "options": {
           "chunking": {
-            "max_tokens":512
+            "maxTokens": 512
           }
         }
       }
@@ -29,7 +29,7 @@ settings:
 
 examples:
   - name: Simple File
-    description: Convert file via local multipart file upload
+    description: Convert a local file uploaded as multipart. The JSON envelope describes the uploaded `source`, the resolved `options` and the produced markdown in `result.content`
     request:
       url: "{{host}}/v1/markdown"
       method: POST
@@ -45,10 +45,33 @@ examples:
       status: 200
       statusText: OK
       body:
-        type: text
-        data: ""
+        type: json
+        data: |-
+          {
+            "source": {
+              "uri": "file://file",
+              "name": "sample.pdf",
+              "size": 482113,
+              "mimeType": "application/pdf",
+              "extension": "pdf",
+              "label": "pdf",
+              "group": "document",
+              "title": "Quarterly Report"
+            },
+            "options": {},
+            "result": {
+              "name": "sample.md",
+              "size": 18234,
+              "mimeType": "text/markdown",
+              "extension": "md",
+              "label": "markdown",
+              "group": "markup",
+              "encoding": "utf-8",
+              "content": "# Quarterly Report\n\nRevenue grew in every region..."
+            }
+          }
   - name: File Chunked
-    description: Convert file via local multipart file upload and perform semantic chunking
+    description: Convert a local file and split the markdown into structure-aware chunks. `chunks` is a data section next to the envelope; `start` and `end` are offsets into `result.content`
     request:
       url: "{{host}}/v1/markdown"
       method: POST
@@ -57,7 +80,7 @@ examples:
         data:
           - name: metadata
             type: text
-            value: '{"options": {"chunking": {"max_tokens":512}}}'
+            value: '{"options": {"chunking": {"maxTokens": 512}}}'
             contentType: application/json
           - name: file
             type: file
@@ -68,10 +91,74 @@ examples:
       status: 200
       statusText: OK
       body:
+        type: json
+        data: |-
+          {
+            "source": {
+              "uri": "file://file",
+              "name": "sample.pdf",
+              "size": 482113,
+              "mimeType": "application/pdf",
+              "extension": "pdf",
+              "label": "pdf",
+              "group": "document",
+              "title": "Quarterly Report"
+            },
+            "options": {
+              "chunking": { "maxTokens": 512, "overlap": 0, "tokenizer": "o200k_base" }
+            },
+            "result": {
+              "name": "sample.md",
+              "size": 18234,
+              "mimeType": "text/markdown",
+              "extension": "md",
+              "label": "markdown",
+              "group": "markup",
+              "encoding": "utf-8",
+              "content": "# Quarterly Report\n\nRevenue grew in every region..."
+            },
+            "chunks": [
+              {
+                "index": 0,
+                "kind": "text",
+                "text": "# Quarterly Report\n\nRevenue grew in every region...",
+                "headings": ["Quarterly Report"],
+                "start": 0,
+                "end": 812,
+                "tokens": 201
+              }
+            ]
+          }
+  - name: Chunked File Output
+    description: With chunking, `output=file` downloads the full JSON document (the same body as the JSON output) as `sample.json`
+    request:
+      url: "{{host}}/v1/markdown"
+      method: POST
+      body:
+        type: multipart-form
+        data:
+          - name: metadata
+            type: text
+            value: '{"output": "file", "options": {"chunking": {}}}'
+            contentType: application/json
+          - name: file
+            type: file
+            value:
+              - C:\Software\_data\pdf\sample.pdf
+            contentType: application/pdf
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: content-type
+          value: application/json
+        - name: content-disposition
+          value: attachment; filename="sample.json"
+      body:
         type: text
         data: ""
   - name: Remote S3
-    description: Perform conversion using a remote S3 bucket as source and destination. This requires the configuration of a "demo-s3" connector
+    description: Use a remote S3 bucket as source and destination; requires a "demo-s3" connector. The markdown is uploaded and the response stays light, `result.uri` points to the stored file and there is no `content`
     request:
       url: "{{host}}/v1/markdown"
       method: POST
@@ -79,7 +166,6 @@ examples:
         type: json
         data: |-
           {
-            "output": "json",
             "source": "s3://demo-s3/papyrus-test/sample.pdf",
             "destination": "s3://demo-s3/papyrus-test/sample.md"
           }
@@ -87,10 +173,32 @@ examples:
       status: 200
       statusText: OK
       body:
-        type: text
-        data: ""
-  - name: Website
-    description: Read website content as Markdown
+        type: json
+        data: |-
+          {
+            "source": {
+              "uri": "s3://demo-s3/papyrus-test/sample.pdf",
+              "name": "sample.pdf",
+              "size": 482113,
+              "mimeType": "application/pdf",
+              "extension": "pdf",
+              "label": "pdf",
+              "group": "document",
+              "title": "Quarterly Report"
+            },
+            "options": {},
+            "result": {
+              "uri": "s3://demo-s3/papyrus-test/sample.md",
+              "name": "sample.md",
+              "size": 18234,
+              "mimeType": "text/markdown",
+              "extension": "md",
+              "label": "markdown",
+              "group": "markup"
+            }
+          }
+  - name: Remote S3 Chunked
+    description: With chunking and a destination the full JSON document is uploaded; the response describes the stored `.json` file and carries no chunks
     request:
       url: "{{host}}/v1/markdown"
       method: POST
@@ -98,12 +206,109 @@ examples:
         type: json
         data: |-
           {
-            "output": "json",
+            "source": "s3://demo-s3/papyrus-test/sample.pdf",
+            "destination": "s3://demo-s3/papyrus-test/sample.json",
+            "options": { "chunking": { "maxTokens": 256 } }
+          }
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: json
+        data: |-
+          {
+            "source": {
+              "uri": "s3://demo-s3/papyrus-test/sample.pdf",
+              "name": "sample.pdf",
+              "size": 482113,
+              "mimeType": "application/pdf",
+              "extension": "pdf",
+              "label": "pdf",
+              "group": "document",
+              "title": "Quarterly Report"
+            },
+            "options": {
+              "chunking": { "maxTokens": 256, "overlap": 0, "tokenizer": "o200k_base" }
+            },
+            "result": {
+              "uri": "s3://demo-s3/papyrus-test/sample.json",
+              "name": "sample.json",
+              "size": 41877,
+              "mimeType": "application/json",
+              "extension": "json",
+              "label": "json",
+              "group": "data"
+            }
+          }
+  - name: Website
+    description: Read website content as markdown. `source.fetch` reports the final URL after redirects and the HTTP status
+    request:
+      url: "{{host}}/v1/markdown"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
             "source": "https://axelered.com"
           }
     response:
       status: 200
       statusText: OK
       body:
-        type: text
-        data: ""
+        type: json
+        data: |-
+          {
+            "source": {
+              "uri": "https://axelered.com",
+              "name": "source.html",
+              "size": 61234,
+              "mimeType": "text/html",
+              "extension": "html",
+              "label": "html",
+              "group": "markup",
+              "title": "Axelered",
+              "fetch": { "url": "https://axelered.com/", "status": 200 }
+            },
+            "options": {},
+            "result": {
+              "name": "source.md",
+              "size": 4120,
+              "mimeType": "text/markdown",
+              "extension": "md",
+              "label": "markdown",
+              "group": "markup",
+              "encoding": "utf-8",
+              "content": "# Axelered\n\n..."
+            }
+          }
+  - name: Validation Error
+    description: Request keys are camelCase only; snake_case keys are rejected as unknown fields with a problem+json body
+    request:
+      url: "{{host}}/v1/markdown"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "source": "https://axelered.com",
+            "options": { "chunking": { "max_tokens": 512 } }
+          }
+    response:
+      status: 422
+      statusText: Unprocessable Content
+      headers:
+        - name: content-type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "about:blank",
+            "title": "Unprocessable Content",
+            "status": 422,
+            "code": "validation_error",
+            "detail": "request validation failed",
+            "errors": [
+              { "loc": ["options", "chunking", "max_tokens"], "msg": "Extra inputs are not permitted", "type": "extra_forbidden" }
+            ]
+          }

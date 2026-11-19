@@ -29,7 +29,7 @@ settings:
 
 examples:
   - name: Full Page
-    description: Capture the whole page at double resolution as JSON
+    description: Capture the whole page at double resolution as JSON. A navigated page has no file, so `source` carries only the `uri` and what the navigation reported in `fetch`
     request:
       url: "{{host}}/v1/screenshot"
       method: POST
@@ -40,14 +40,85 @@ examples:
             "output": "json",
             "source": "https://axelered.com",
             "options": {
-              "full_page": true,
+              "fullPage": true,
               "scale": 2,
-              "wait_until": "networkidle"
+              "waitUntil": "networkidle"
             }
           }
     response:
       status: 200
       statusText: OK
       body:
-        type: text
-        data: ""
+        type: json
+        data: |-
+          {
+            "source": {
+              "uri": "https://axelered.com",
+              "fetch": { "url": "https://axelered.com/", "status": 200 }
+            },
+            "options": {
+              "width": 1280,
+              "height": 800,
+              "fullPage": true,
+              "scale": 2,
+              "waitUntil": "networkidle",
+              "delay": 0,
+              "format": "png"
+            },
+            "result": {
+              "name": "axelered.com.png",
+              "size": 1912004,
+              "mimeType": "image/png",
+              "extension": "png",
+              "label": "png",
+              "group": "image",
+              "width": 2560,
+              "height": 4096,
+              "encoding": "base64",
+              "content": "iVBORw0KGgoAAAANSUhEUgAA..."
+            }
+          }
+  - name: To S3
+    description: Screenshot written to an S3 destination; requires a "demo-s3" connector. The response is light, `result.uri` points to the stored image and there is no `content`
+    request:
+      url: "{{host}}/v1/screenshot"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "source": "https://axelered.com",
+            "destination": "s3://demo-s3/papyrus-test/axelered.png"
+          }
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: json
+        data: |-
+          {
+            "source": {
+              "uri": "https://axelered.com",
+              "fetch": { "url": "https://axelered.com/", "status": 200 }
+            },
+            "options": {
+              "width": 1280,
+              "height": 800,
+              "fullPage": false,
+              "scale": 1,
+              "waitUntil": "load",
+              "delay": 0,
+              "format": "png"
+            },
+            "result": {
+              "uri": "s3://demo-s3/papyrus-test/axelered.png",
+              "name": "axelered.com.png",
+              "size": 412004,
+              "mimeType": "image/png",
+              "extension": "png",
+              "label": "png",
+              "group": "image",
+              "width": 1280,
+              "height": 800
+            }
+          }

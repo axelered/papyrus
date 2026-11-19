@@ -66,10 +66,11 @@
 
 ### API Contract (spec: `adr/api.md`)
 
-- [ ] camelCase `ApiModel` base, `{source, options, result}` envelope with shared `FileInfo`, resolved options echo, light `destination` responses
-- [ ] Op file rule: JSON document as file and destination output when data sections are present (chunking)
-- [ ] OpenAPI: named components, `Problem` with generated `code` enum, per-route errors, multipart encoding, spec validator test, `scripts/openapi.py`
-- [ ] Bruno docs to camelCase and the new shapes, `v0.3.0` breaking change in the changelog
+- [x] camelCase `ApiModel` base, `{source, options, result}` envelope with shared `FileInfo`, resolved options echo, light `destination` responses
+- [x] Op file rule: JSON document as file and destination output when data sections are present (chunking)
+- [x] OpenAPI: named components, `Problem` with generated `code` enum, per-route errors, multipart encoding, spec validator test, `scripts/openapi.py`
+- [x] Bruno docs to camelCase and the new shapes
+- [ ] Tag `v0.3.0` and announce the breaking change in the release notes
 - [!] Metadata for `output=file` responses, opt-in data URI content
 
 ## Future Issues

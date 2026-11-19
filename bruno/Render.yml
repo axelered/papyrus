@@ -28,7 +28,7 @@ settings:
 
 examples:
   - name: Simple File
-    description: Render of a local file upload
+    description: Render the first page of a local file upload; the default output is the image file named `<stem>-<page>.<ext>`
     request:
       url: "{{host}}/v1/render"
       method: POST
@@ -43,6 +43,127 @@ examples:
     response:
       status: 200
       statusText: OK
+      headers:
+        - name: content-type
+          value: image/png
+        - name: content-disposition
+          value: attachment; filename="sample-1.png"
       body:
         type: text
         data: ""
+  - name: Page As JSON
+    description: Render page 3 as JSON. `source.pageCount` is the page count of the PDF, `result` the image size in pixels and its base64 `content`; `options` echoes the resolved `dpi`
+    request:
+      url: "{{host}}/v1/render"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "output": "json",
+            "source": "https://axelered.com/docs/report.pdf",
+            "options": { "page": 3 }
+          }
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: json
+        data: |-
+          {
+            "source": {
+              "uri": "https://axelered.com/docs/report.pdf",
+              "name": "report.pdf",
+              "size": 482113,
+              "mimeType": "application/pdf",
+              "extension": "pdf",
+              "label": "pdf",
+              "group": "document",
+              "pageCount": 12,
+              "fetch": { "url": "https://axelered.com/docs/report.pdf", "status": 200 }
+            },
+            "options": { "page": 3, "dpi": 150, "format": "png" },
+            "result": {
+              "name": "report-3.png",
+              "size": 210334,
+              "mimeType": "image/png",
+              "extension": "png",
+              "label": "png",
+              "group": "image",
+              "width": 1240,
+              "height": 1754,
+              "encoding": "base64",
+              "content": "iVBORw0KGgoAAAANSUhEUgAA..."
+            }
+          }
+  - name: Remote S3
+    description: Render page 3 to an S3 destination; requires a "demo-s3" connector. The response is light, `result.uri` points to the stored image and there is no `content`
+    request:
+      url: "{{host}}/v1/render"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "source": "s3://demo-s3/papyrus-test/sample.pdf",
+            "destination": "s3://demo-s3/papyrus-test/sample-3.png",
+            "options": { "page": 3 }
+          }
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: json
+        data: |-
+          {
+            "source": {
+              "uri": "s3://demo-s3/papyrus-test/sample.pdf",
+              "name": "sample.pdf",
+              "size": 482113,
+              "mimeType": "application/pdf",
+              "extension": "pdf",
+              "label": "pdf",
+              "group": "document",
+              "pageCount": 12
+            },
+            "options": { "page": 3, "dpi": 150, "format": "png" },
+            "result": {
+              "uri": "s3://demo-s3/papyrus-test/sample-3.png",
+              "name": "sample-3.png",
+              "size": 210334,
+              "mimeType": "image/png",
+              "extension": "png",
+              "label": "png",
+              "group": "image",
+              "width": 1240,
+              "height": 1754
+            }
+          }
+  - name: Page Out Of Range
+    description: A page beyond the end of the document is a problem+json `page_out_of_range`
+    request:
+      url: "{{host}}/v1/render"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "source": "https://axelered.com/docs/report.pdf",
+            "options": { "page": 99 }
+          }
+    response:
+      status: 422
+      statusText: Unprocessable Content
+      headers:
+        - name: content-type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "about:blank",
+            "title": "Unprocessable Content",
+            "status": 422,
+            "code": "page_out_of_range",
+            "detail": "page 99 is out of range, the document has 12"
+          }
