@@ -26,8 +26,8 @@ Optional structure-aware, token-bounded chunking of the markdown produced by `PO
 ```jsonc
 "options": {
   "chunking": {
-    "max_tokens": 512,          // 64..8192, chunk size for every chunker
-    "overlap": 0,               // < max_tokens, trailing context via OverlapRefinery, 0 = off
+    "maxTokens": 512,           // 64..8192, chunk size for every chunker
+    "overlap": 0,               // < maxTokens, trailing context via OverlapRefinery, 0 = off
     "tokenizer": "o200k_base"   // Tokenizer: o200k_base | cl100k_base | word | character
   }
 }
@@ -46,23 +46,23 @@ Value sets (`server/types/markdown.py`, `StrEnum`, exposed as OpenAPI enums):
   `shell`, `js`).
 
 - Absent `chunking` means today's behavior.
-- Chunking requires `output: json`; any other output is `422 validation_error`. With `destination`, the full JSON
-  body is written as `<stem>.json` and the receipt reports `application/json`.
+- Chunks are a data section (`adr/api.md`): `output=file` returns and `destination` uploads the full JSON document
+  as `<stem>.json`; the `destination` response carries no chunks.
 - The tokenizer allowlist exists because arbitrary names make chonkie fetch models from the Hugging Face Hub.
 
 ## Response
 
-The markdown JSON result gains `chunks`, ordered by offset; empty markdown gives `[]`.
+The markdown response gains the `chunks` section, ordered by offset; empty markdown gives `[]`.
 
 ```jsonc
-{ "markdown": "...", "title": "...", "source_type": { ... },
+{ "source": { ... }, "options": { ... }, "result": { "content": "...", ... },
   "chunks": [
     { "index": 0, "kind": "text",                         // ChunkKind
       "text": "## Revenue\n\nRevenue grew 12% ...",
-      "language": null,                                    // CodeLanguage, code only, null if not curated
+      "language": "python",                                // CodeLanguage, code only, omitted if not curated
       "headings": ["Quarterly Report", "Revenue"],        // heading path at chunk start
-      "slide": null,                                       // pptx only
-      "start": 20, "end": 139, "tokens": 31 }             // offsets into "markdown"
+      "slide": 2,                                          // pptx only, omitted otherwise
+      "start": 20, "end": 139, "tokens": 31 }             // offsets into result.content
   ] }
 ```
 
@@ -79,7 +79,7 @@ markdown --MarkdownChef--+-- prose  --> RecursiveChunker (Papyrus rules)
 
 - **Prose rules** are defined in code (`RecursiveRules`), never loaded with `from_recipe`, which downloads from the
   Hugging Face Hub: level 1 markdown headings, then blank lines, then lines, then sentences, then whitespace.
-- **Tables** are chunked with the request tokenizer and `max_tokens`, so every piece repeats the header row.
+- **Tables** are chunked with the request tokenizer and `maxTokens`, so every piece repeats the header row.
 - **Code** blocks keep their fence in the chunk text (` ```python ... ``` `), so each chunk carries its language
   for embedding. Derived code sources (`adr/mime.md`) are one fenced block and go through the same path as code
   embedded in documents.
@@ -121,7 +121,6 @@ markdown --MarkdownChef--+-- prose  --> RecursiveChunker (Papyrus rules)
 
 | Case                                        | Code                     |
 |---------------------------------------------|--------------------------|
-| `chunking` with `output` other than `json`  | `422 validation_error`   |
 | Option out of range or unknown tokenizer    | `422 validation_error`   |
 | Chunking fails in the worker                | `500 processing_failed`  |
 | Conversion plus chunking exceeds 120s       | `504 processing_timeout` |

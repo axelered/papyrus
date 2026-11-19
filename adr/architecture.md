@@ -56,7 +56,7 @@ and returns the result as a file or JSON, or writes it to a configured destinati
 
 ## Services
 
-A service is a class with async methods over paths, e.g. `await render.page(path, target, spec) -> RenderResult`. It owns its
+A service is a class with async methods over paths, e.g. `await render.page(path, target, spec) -> Raster`. It owns its
 backend and hides its kind from coordinators. Services compose in coordinators
 (e.g. `await convert.convert(p, pdf, ConvertFormat.PDF)` then `await render.page(pdf, ...)`).
 
@@ -92,7 +92,8 @@ Rules:
 
 ## Request Contract
 
-One Pydantic request model per operation, sharing common fields:
+One Pydantic request model per operation, sharing common fields. Keys are camelCase and responses follow the
+envelope of `adr/api.md`:
 
 ```json
 {
@@ -123,7 +124,7 @@ caps, size-limited upload copy) lives in `utils/body.py`:
 - JSON bodies are capped at 1 MiB (`413 payload_too_large`); anything other than JSON or multipart gives
   `415 unsupported_media_type`.
 - Model errors use the wrapped validation shape; `loc` is relative to the request model (no `body` prefix).
-- Both forms are documented in OpenAPI via `openapi_extra`.
+- Both forms are documented in OpenAPI via `openapi_extra` (`$ref` components, see `adr/api.md`).
 - todo: multiple file parts referenced from metadata by `file://<key>` (the URI scheme already supports it).
 
 ### URIs
@@ -158,9 +159,12 @@ Anything else: `422 unsupported_uri`. Unknown connector: `422 unknown_connector`
 
 ### Outputs
 
-- `file`: raw bytes with the correct `Content-Type` and `Content-Disposition` filename.
-- `json`: op-specific result model; binary results are inlined as base64 `data` with `content_type`.
-- `destination`: upload via the connector, then return the receipt `{destination, content_type, size}`.
+Defined in `adr/api.md`: every JSON response is the `{source, options, result}` envelope plus op data sections.
+
+- `file`: the op file (the artifact, or the JSON document when there are data sections) with its `Content-Type` and
+  `Content-Disposition` filename.
+- `json`: the envelope; `result.content` holds the artifact as `utf-8` text or `base64`.
+- `destination`: the op file is uploaded; the response is the envelope without heavy content, `result.uri` set.
 
 ## Routes
 
@@ -256,7 +260,7 @@ RFC 9457 problem+json with a stable `code` extension. Codes are part of the publ
 - **Owned closed value sets are `StrEnum`** (format labels and groups, output modes, chunk kinds, tokenizers, code
   languages). They validate in Pydantic, appear as OpenAPI enums and serialize as plain strings.
 - **Open sets owned by libraries are not mirrored:** internally use the library type (magika `ContentTypeLabel`), at
-  the API boundary a documented `str` (`source_type.label`, `source_type.mime_type`), so library upgrades never
+  the API boundary a documented `str` (`source.label`, `source.mimeType`), so library upgrades never
   change the API schema.
 - **No domain string literals** outside the module that defines the enum; attributes of a value (MIME of a format)
   live on its registry entry, never as separate literals. Allowlists are `frozenset` of enum members.
@@ -268,6 +272,7 @@ RFC 9457 problem+json with a stable `code` extension. Codes are part of the publ
 ```
 scripts/
   prefetch.py          build-time download of grammars and tokenizers (Docker build, local setup)
+  openapi.py           writes the OpenAPI spec of the app to a path (never committed)
 server/
   __init__.py          empty: pool workers import the package, building the app there costs every worker
   main.py              app = create_app(), the ASGI entrypoint server.main:app
@@ -276,16 +281,16 @@ server/
   auth.py              bearer dependency
   errors.py            application error catalog (ProblemError subclasses)
   types/               wire contract: request, result and option models, public enums
-    common.py          OpRequest, OutputMode, SourceType, Receipt, FormatGroup, FormatLabel, ImageFormat, health
-                       responses
+    common.py          ApiModel, OpRequest, OpResponse, FileInfo, Source, Result, Encoding, OutputMode,
+                       FormatGroup, FormatLabel, ImageFormat, Problem, health responses
     markdown.py        markdown request, options, result, Chunk, Tokenizer, ChunkKind, CodeLanguage
     convert.py         ConvertFormat
-    render.py          thumbnail and render requests, options, RenderResult, Fit
+    render.py          thumbnail and render requests, options, responses, Fit
     screenshot.py      screenshot request, options, result, WaitUntil
   utils/               generic primitives
     problem.py         ProblemError, generic errors, problem+json rendering and handlers
     body.py            JSON | multipart body reading, caps, size-limited upload copy
-    openapi.py         schema helpers ($ref inlining)
+    openapi.py         component registration, problem responses per route
     yaml.py            YAML loading with ${VAR} expansion
     logs.py            JSON log formatter, X-Request-ID middleware
     text.py            text decoding, CommonMark fences
@@ -295,7 +300,7 @@ server/
   api/
     admission.py       non-blocking in-flight counter (event loop only, no semaphore needed)
     request.py         op context (admission, workspace, deadline), body -> model, OpenAPI request body
-    output.py          file | json | destination responses
+    output.py          envelope for file | json | destination responses
     health.py          /, /health, /ready
     markdown.py        route + coordinator
     render.py          /v1/thumbnail and /v1/render routes + shared coordinator

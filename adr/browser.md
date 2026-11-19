@@ -134,16 +134,15 @@ Every TCP connection of the browser goes through a pinning proxy; UDP paths are 
 |--------------|---------|-------------------------------------------------------------|
 | `width`      | `1280`  | Viewport, `320..3840`                                       |
 | `height`     | `800`   | Viewport, `200..2160`                                       |
-| `full_page`  | `false` | Capture height capped at 4096 px                            |
+| `fullPage`   | `false` | Capture height capped at 4096 px                            |
 | `scale`      | `1`     | `device_scale_factor`, `1..3`                               |
-| `wait_until` | `load`  | `WaitUntil`: `load`, `domcontentloaded`, `networkidle`      |
+| `waitUntil`  | `load`  | `WaitUntil`: `load`, `domcontentloaded`, `networkidle`      |
 | `delay`      | `0`     | Milliseconds after the wait, `0..10000`                     |
 | `format`     | `png`   | `ImageFormat`                                               |
 
 - File output: image bytes, filename `{host}.{ext}`.
-- JSON output: `{data, content_type, width, height, url, status}`; `url` is the final URL after redirects, `status`
-  the main document HTTP status.
-- Destination receipts are unchanged.
+- JSON output: the envelope of `adr/api.md`; `source` holds only `uri` and `fetch` (`url` final URL after
+  redirects, `status` main document HTTP status), `result` the image `width`, `height` and `base64` content.
 
 ### Documents
 
@@ -174,7 +173,7 @@ Chromium.
 
 ### Contract
 
-`server/types/screenshot.py`: `ScreenshotRequest`, `ScreenshotOptions`, `ScreenshotResult`, `WaitUntil`.
+`server/types/screenshot.py`: `ScreenshotRequest`, `ScreenshotOptions`, `ScreenshotResponse`, `WaitUntil`.
 
 ```python
 class BrowserService:
@@ -195,7 +194,7 @@ No new codes.
 |-----------------------------------------------------------|----------------------------|
 | Top-level host denied by policy, `http.enabled: false`    | `403 source_forbidden`     |
 | DNS failure, connection refused, TLS error on navigation  | `502 source_fetch_failed`  |
-| Main document `4xx`/`5xx`                                 | Screenshot taken, `status` in the result |
+| Main document `4xx`/`5xx`                                 | Screenshot taken, `source.fetch.status`  |
 | Navigation and capture exceed 30s                         | `504 processing_timeout`   |
 | Renderer or browser crash (also mid-navigation), launch failure (sandbox) | `500 processing_failed` |
 

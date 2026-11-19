@@ -119,7 +119,7 @@ MIME, gives `outlook` no extension, and groups `csv` as code). Formats magika ca
 - Each format also lists the extensions that map to it (e.g. `htm`, `markdown`, `docm`, `jpeg`, `tif`) for the
   refinement rule.
 - Image formats are explicit so the render allowlist (`adr/render.md`) is a `frozenset[FormatLabel]`. Markdown still
-  rejects them (not text); only the `source_type` reported in its `415` detail changes from `unknown` to `image`.
+  rejects them (not text); only the `source` type reported in its `415` detail changes from `unknown` to `image`.
 
 ### Derived Formats
 
@@ -148,7 +148,7 @@ failure, never a silent `unknown`.
 - magika reports every ISO BMFF file (AVIF, HEIC, MP4) as `mp4`; when the `ftyp` major brand is `avif` or `avis`
   the content resolves to `avif` before the rules below, so a renamed AVIF is still detected by content.
 - magika reports single-line JSON as `jsonl` (a valid JSONL document), so a minified `data.json` resolves to `jsonl`;
-  both are processed as text, only `source_type` differs.
+  both are processed as text, only the reported `source.label` differs.
 
 1. magika returns a label that is a **base** of the extension's format (directly or transitively): the extension
    refines it (`data.csv` + `txt` -> `csv`, `feed.rss` + `xml` -> `rss`, `book.docx` + `zip` -> `docx`).
@@ -176,9 +176,9 @@ failure, never a silent `unknown`.
 
 ## Exposure
 
-- JSON results and destination receipts gain an additive `source_type: {mime_type, extension, label, group}` field;
-  for code `label` is the language.
-- File responses are unchanged.
+- The detected type is reported in `source` (`mimeType`, `extension`, `label`, `group`, see `adr/api.md`); for code
+  `label` is the language.
+- File responses carry no type metadata.
 
 ## Out of Scope
 

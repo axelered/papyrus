@@ -7,7 +7,7 @@ input through `adr/convert.md`; HTML thumbnails are browser screenshots (`adr/br
 
 ## Goals
 
-- One page in, one image out: the single-result request contract and `respond()` stay unchanged.
+- One page in, one image out: one `result` in the envelope of `adr/api.md`.
 - Render directly at the final resolution (pdfium scale from page size), never render oversized and downscale.
 - Thumbnails stay cheap for large office files: only the requested page is exported to PDF.
 - Bounded worker memory: a pixel cap per side and the Pillow decompression bomb guard.
@@ -72,7 +72,7 @@ Both in `server/api/render.py` (shared allowlist and coordinator). Default `outp
 ## Contract
 
 `server/types/render.py`: `ThumbnailRequest`, `RenderRequest`, their options models, `Fit` (`contain`, `cover`),
-`RenderResult`. `ImageFormat` (`png`, `jpeg`, `webp` with MIME and extension) and `MAX_IMAGE_SIDE` live in
+`ThumbnailResponse`, `RenderResponse`. `ImageFormat` (`png`, `jpeg`, `webp` with MIME and extension) and `MAX_IMAGE_SIDE` live in
 `server/types/common.py`, shared with `adr/browser.md`.
 
 ### File output
@@ -81,20 +81,10 @@ Both in `server/api/render.py` (shared allowlist and coordinator). Default `outp
 
 ### JSON output
 
-```json
-{
-  "data": "<base64>",
-  "content_type": "image/png",
-  "width": 1240,
-  "height": 1754,
-  "page": 3,
-  "page_count": 12,
-  "source_type": { "mime_type": "application/pdf", "extension": "pdf", "label": "pdf", "group": "document" }
-}
-```
+The envelope of `adr/api.md`: `result` carries the image `width`, `height` and `base64` content; `source.pageCount`
+and, for image input, `source.width`/`height`; `options` echoes the resolved options (`dpi` 150 when no size is set).
 
-- `page_count` is omitted for office and HTML input (only the requested page is exported, see Routing).
-- Destination receipts are unchanged.
+- `source.pageCount` is omitted for office and HTML input (only the requested page is exported, see Routing).
 
 ## Routing
 
@@ -128,13 +118,13 @@ paginating it. The coordinator composes the services (the render pool cannot rea
    shape: a square box shows 1280x1280 of the page top, `contain` fills it and `cover` crops nothing unless the clamp
    applies. Scale 1, `load`,
    PNG (lossless, encoded once more by the render worker).
-3. The PNG goes through the render worker like any image: box, `fit`, no upscaling, format. `page_count` is `1`.
+3. The PNG goes through the render worker like any image: box, `fit`, no upscaling, format. `pageCount` is `1`.
 
 - `origin` is the source URL for http(s) sources, so a URL serving HTML yields a site preview with JS and relative
   assets; uploads and connector files get `http://document.invalid/<name>`.
 - The same HTML thus looks like the screen in `/v1/thumbnail` and like LibreOffice print pages in `/v1/render`, until
   the render route moves to Chromium.
-- `wait_until` stays `load`; no new thumbnail options. todo: a `viewport` option if mobile previews are needed.
+- `waitUntil` stays `load`; no new thumbnail options. todo: a `viewport` option if mobile previews are needed.
 
 ### Execution
 
@@ -160,7 +150,7 @@ class RenderSpec:              # services/render.py, internal
 
 
 @dataclass(frozen=True)
-class Raster:                  # worker result; the coordinator adds data and source_type for RenderResult
+class Raster:                  # worker result; the coordinator maps it onto source and result (adr/api.md)
     width: int
     height: int
     page: int

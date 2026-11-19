@@ -6,13 +6,10 @@ service conventions of `adr/architecture.md`.
 ## Contract
 
 - Request: the common `OpRequest` fields plus `options.chunking` (optional, see `adr/chunking.md`).
-- `output` defaults to `json`. With `options.chunking`, `output` must be `json` and the JSON result gains `chunks`.
-
-| Output        | Response                                                                            |
-|---------------|-------------------------------------------------------------------------------------|
-| `json`        | `{"markdown": str, "title": str \| null, "source_type": {"mime_type", "extension", "label", "group"}}` |
-| `file`        | `text/markdown; charset=utf-8`, filename `<source stem>.md`                         |
-| `destination` | Markdown file written to the connector URI, receipt `{destination, content_type, size, source_type}` |
+- `output` defaults to `json`. Responses follow `adr/api.md`: `source.title` is the extracted title, `result` is
+  `<source stem>.md` (`text/markdown; charset=utf-8`, `utf-8` content), `chunks` is a data section.
+- Without chunking the op file is the markdown; with chunking it is the JSON document (`<stem>.json`), for
+  `output=file` and `destination` alike.
 
 ```shell
 curl -H "Authorization: Bearer $KEY" -F file=@report.docx http://localhost:8000/v1/markdown
@@ -47,7 +44,7 @@ curl -H "Authorization: Bearer $KEY" -H 'content-type: application/json' \
 - Rationale: markitdown passes code through as raw text, where `#` comments become markdown headings and corrupt
   heading-based chunking.
 - Explicit formats grouped as code (`ipynb`) still go through markitdown.
-- `title` is `null` for code.
+- `source.title` is omitted for code.
 
 ## Errors
 

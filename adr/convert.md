@@ -79,7 +79,7 @@ binding inside a pebble pool worker.
 | `xls`                 | none         | markitdown reads it natively |
 
 - The markdown route converts by format label before the markdown worker (`CONVERSIONS` in `api/markdown.py`);
-  the converted file is a new workspace file and `source_type` still reports the original format.
+  the converted file is a new workspace file and `source` still reports the original format.
 - `ConvertService` is registered in `Services` (`factory.py`) with profiles in `<limits.tmp_dir>/lo-profiles`; the
   pool starts on the first legacy request, so deployments that never convert pay no RAM.
 - Without LibreOffice (host development) legacy requests fail with `500 processing_failed`; API tests replace the
