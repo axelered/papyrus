@@ -6,8 +6,8 @@ Public documentation of Papyrus on `docs.axelered.com`: who it serves, how it sp
 
 ## Product
 
-- Papyrus: any document or web page in, LLM-ready Markdown, chunks and images out, through one self-hosted HTTP
-  API. todo: settle the exact value proposition sentence while writing `docs/index.mdx`
+- Papyrus turns documents and web pages into LLM-ready Markdown, chunks and images through one HTTP API that runs on
+  your own infrastructure.
 - Offered as a self-hosted Docker image (`ghcr.io/axelered/papyrus`). The docs only cover self-hosting.
 - Out of scope for the docs: the hosted enterprise API (a separate product), pricing, comparisons, sales. The
   landing page links to `https://axelered.com` at most once.

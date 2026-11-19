@@ -1,0 +1,5 @@
+# Local preview config for `axelered-docs dev` (axelered-docs skill, Preview Locally)
+id: papyrus
+name: Papyrus
+repo: axelered/papyrus
+description: LLM-ready Markdown, chunks and images from any document or web page

@@ -1,0 +1,146 @@
+---
+title: Quickstart
+description: Run Papyrus with Docker and extract your first document
+icon: Rocket
+---
+
+Start Papyrus on your machine, convert a web page and a PDF to Markdown, and split one into chunks. You need Docker and `curl`.
+
+## Start the server
+
+```shell
+docker run --rm -p 8000:8000 -e PAPYRUS_API_KEY=dev ghcr.io/axelered/papyrus:0.3
+```
+
+`PAPYRUS_API_KEY` sets the key every request sends as `Authorization: Bearer dev`. The server starts one worker process per CPU and a headless browser before it accepts requests, which takes about 10 seconds on a 32-core machine. Check it is up:
+
+```shell
+curl http://127.0.0.1:8000/health
+```
+
+```json
+{"status": "ok"}
+```
+
+<Callout type="warn">
+`dev` is a key for your machine only. Before you expose Papyrus to a network, follow [run with Docker](./deploy/docker) to set a strong key and a configuration file.
+</Callout>
+
+## Convert a web page
+
+```shell
+curl http://127.0.0.1:8000/v1/markdown \
+  -H 'Authorization: Bearer dev' \
+  -H 'Content-Type: application/json' \
+  -d '{"source": "https://axelered.com"}'
+```
+
+The response describes the page Papyrus fetched in `source` and the Markdown it produced in `result`:
+
+```json
+{
+  "source": {
+    "uri": "https://axelered.com",
+    "name": "source.html",
+    "size": 94018,
+    "mimeType": "text/html",
+    "extension": "html",
+    "label": "html",
+    "group": "markup",
+    "title": "Axelered · Intelligent process automation",
+    "fetch": {"url": "https://axelered.com", "status": 200}
+  },
+  "result": {
+    "name": "source.md",
+    "size": 6810,
+    "mimeType": "text/markdown",
+    "extension": "md",
+    "label": "markdown",
+    "group": "markup",
+    "encoding": "utf-8",
+    "content": "…# Automatethe process.\n\nWe automate your processes end to end and own the outcome after go-live.…"
+  },
+  "options": {}
+}
+```
+
+To get the Markdown file instead of the JSON envelope, add `"output": "file"` to the request.
+
+## Convert a file
+
+Upload any PDF, Word, PowerPoint or Excel file as the `file` part of a multipart request:
+
+```shell
+curl http://127.0.0.1:8000/v1/markdown \
+  -H 'Authorization: Bearer dev' \
+  -F file=@sample.pdf
+```
+
+```json
+{
+  "source": {
+    "uri": "file://file",
+    "name": "sample.pdf",
+    "size": 18810,
+    "mimeType": "application/pdf",
+    "extension": "pdf",
+    "label": "pdf",
+    "group": "document"
+  },
+  "result": {
+    "name": "sample.md",
+    "size": 3092,
+    "mimeType": "text/markdown",
+    "extension": "md",
+    "label": "markdown",
+    "group": "markup",
+    "encoding": "utf-8",
+    "content": "Sample PDF\nThis is a simple PDF ﬁle. Fun fun fun.\n\n…"
+  },
+  "options": {}
+}
+```
+
+## Split it into chunks
+
+Send options with an upload as JSON in the `metadata` part. `chunking` returns the Markdown split along its headings, sized for your embedding model:
+
+```shell
+curl http://127.0.0.1:8000/v1/markdown \
+  -H 'Authorization: Bearer dev' \
+  -F 'metadata={"options": {"chunking": {"maxTokens": 512}}};type=application/json' \
+  -F file=@sample.pdf \
+  | jq '{options, chunks}'
+```
+
+The response gains `chunks` next to the envelope, each with its text, token count and offsets in `result.content`. The [`jq`](https://jqlang.org) filter above shows only the options and chunks:
+
+```json
+{
+  "options": {
+    "chunking": {"maxTokens": 512, "overlap": 0, "tokenizer": "o200k_base"}
+  },
+  "chunks": [
+    {
+      "index": 0,
+      "kind": "text",
+      "text": "Sample PDF\nThis is a simple PDF ﬁle. Fun fun fun.\n\n…",
+      "headings": [],
+      "start": 0,
+      "end": 1043,
+      "tokens": 312
+    },
+    …
+  ]
+}
+```
+
+`options` echoes every default that was applied, so you always see the exact settings that produced the chunks.
+
+## Next steps
+
+<Cards>
+  <Card title="Chunk for RAG" description="Pick a token budget, overlap and tokenizer for your index" href="./guides/chunking" />
+  <Card title="Request format" description="Sources, outputs and destinations shared by every endpoint" href="./concepts/requests" />
+  <Card title="Try it in Bruno" description="Download the collection with every request and example" href="./api" />
+</Cards>
