@@ -245,8 +245,9 @@ def test_failure_releases_slot_and_workspace(echo: TestClient, app: FastAPI, wor
 
 
 def test_openapi_documents_both_transports(echo: TestClient):
-    body = echo.get('/openapi.json').json()['paths']['/echo']['post']['requestBody']['content']
+    spec = echo.get('/openapi.json').json()
+    body = spec['paths']['/echo']['post']['requestBody']['content']
 
     assert set(body) == {'application/json', 'multipart/form-data'}
-    assert '$ref' not in json.dumps(body)
-    assert body['application/json']['schema']['properties']['options']['properties']['delay']
+    assert body['application/json']['schema'] == {'$ref': '#/components/schemas/EchoRequest'}
+    assert spec['components']['schemas']['EchoOptions']['properties']['upperCase']

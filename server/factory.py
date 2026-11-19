@@ -24,6 +24,7 @@ from server.services.detect import DetectService
 from server.services.markdown import MarkdownService
 from server.services.render import RenderService
 from server.utils.logs import RequestIdMiddleware
+from server.utils.openapi import install_openapi
 from server.utils.problem import install_problem_handlers
 from server.utils.timing import TimingMiddleware
 from server.utils.yaml import load_yaml
@@ -191,7 +192,8 @@ def create_app(settings: Settings | None = None, config: Config | None = None) -
                 logger.info('warmup off, services start on first use')
             yield
 
-    app = FastAPI(title='Axelered Papyrus', lifespan=lifespan)
+    app = FastAPI(title='Axelered Papyrus', version=version.__version__, lifespan=lifespan)
+    install_openapi(app)
     # added first so it runs inside RequestIdMiddleware and the timing log line carries the request id
     app.add_middleware(TimingMiddleware, enabled=lambda: app.state.settings.timing)
     app.add_middleware(RequestIdMiddleware)

@@ -131,7 +131,8 @@ Example, `/v1/render` with `destination`:
 
 The problem+json shape of `adr/architecture.md` is unchanged except for camelCase `loc` in `errors`.
 
-- `Problem` component: `type`, `title`, `status`, `detail?`, `code`, `errors?: [{loc, msg, type}]`.
+- `Problem` component (`utils/problem.py`): `type`, `title`, `status`, `detail?`, `code`,
+  `errors?: [{loc, msg, type}]`.
 - `code` is an enum generated from the `ProblemError` catalog plus the handler codes of `utils/problem.py`
   (`not_found`, `method_not_allowed`, `not_ready`, `internal_error`), so new errors appear without doc edits.
 - Every `/v1` route gets a shared base set: `400 bad_request`, `401 unauthorized`, `403 source_forbidden`,
@@ -140,16 +141,19 @@ The problem+json shape of `adr/architecture.md` is unchanged except for camelCas
   `502 source_fetch_failed | destination_failed`, `503 queue_full`, `504 processing_timeout | deadline_exceeded`.
 - Routes declare their own errors on top, as error classes: markdown `UnsupportedFormat`; thumbnail and render
   `UnsupportedFormat`, `ImageTooLarge`, `PageOutOfRange`.
-- Each status description lists its possible `code`s. Headers are documented: `WWW-Authenticate` on `401`,
-  `Retry-After` on `503`.
+- Each status description lists its possible `code`s. Headers come from the error classes' `headers()`:
+  `WWW-Authenticate` on `401`, `Retry-After` on `503`.
+- Framework rejections and `/ready` have catalog classes too (`BadRequest`, `NotReady`) so they are documented;
+  `/ready` renders `NotReady` without raising it, so busy replicas do not log a warning on every probe.
 
 ## OpenAPI
 
 - Named components only, no anonymous inline schemas; `inline_refs` is deleted.
 - Responses: native `response_model=<Op>Response`; returning a `Response` directly still skips re-serialization.
-- Request bodies are parsed manually, so `openapi_extra` references them by `$ref`; an `app.openapi()` override
-  registers request models, `Problem` and their dependencies via pydantic `models_json_schema(..., by_alias=True)`
-  with `#/components/schemas/{model}` refs.
+- Request bodies are parsed manually, so `openapi_extra` references them by `$ref`; `openapi_body` and
+  `problem_responses` record the models they reference and an `app.openapi()` override (`install_openapi`) adds them
+  with pydantic `models_json_schema` and `#/components/schemas/{model}` refs. Models FastAPI also registers from the
+  responses (op options, enums) take the validation schema, so request defaults stay documented.
 - `200` content: `application/json` -> the op response model; file media types (`text/markdown`, `application/json`
   for data sections, `ImageFormat` MIMEs) as `format: binary` or string, with the `Content-Disposition` header.
 - Multipart: `metadata` is a `$ref` to the request model with `encoding: {metadata: {contentType: application/json}}`,

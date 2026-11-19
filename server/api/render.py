@@ -5,10 +5,10 @@ from urllib.parse import quote, urlsplit
 
 from fastapi import APIRouter, Depends, Request, Response
 
-from server.api.output import image_responses, respond, result_of, source_of
+from server.api.output import IMAGE_FILES, op_responses, respond, result_of, source_of
 from server.api.request import Op, op_context, openapi_body
 from server.auth import require_api_key
-from server.errors import PageOutOfRange, UnsupportedFormat
+from server.errors import ImageTooLarge, PageOutOfRange, UnsupportedFormat
 from server.io.uri import HTTP_SCHEMES
 from server.services.browser import BrowserService
 from server.services.convert import ConvertService
@@ -56,6 +56,8 @@ VIEWPORT_HEIGHTS = (400, 2160)
 # reserved name that never resolves, so relative references of uploaded HTML fail at the proxy
 DOCUMENT_ORIGIN = 'http://document.invalid'
 
+RENDER_ERRORS = (UnsupportedFormat, ImageTooLarge, PageOutOfRange)
+
 router = APIRouter(prefix='/v1', tags=['render'], dependencies=[Depends(require_api_key)])
 
 
@@ -63,8 +65,8 @@ router = APIRouter(prefix='/v1', tags=['render'], dependencies=[Depends(require_
     '/thumbnail',
     summary='Render a page or image into a fixed size box',
     openapi_extra=openapi_body(ThumbnailRequest),
-    response_model=None,
-    responses=image_responses(ThumbnailResponse),
+    response_model=ThumbnailResponse,
+    responses=op_responses(IMAGE_FILES, *RENDER_ERRORS),
 )
 async def thumbnail(request: Request) -> Response:
     def spec(model: ThumbnailRequest) -> RenderSpec:
@@ -78,8 +80,8 @@ async def thumbnail(request: Request) -> Response:
     '/render',
     summary='Render a page or image by width, height or dpi',
     openapi_extra=openapi_body(RenderRequest),
-    response_model=None,
-    responses=image_responses(RenderResponse),
+    response_model=RenderResponse,
+    responses=op_responses(IMAGE_FILES, *RENDER_ERRORS),
 )
 async def render(request: Request) -> Response:
     def spec(model: RenderRequest) -> RenderSpec:

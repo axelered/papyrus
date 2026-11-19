@@ -1,21 +1,64 @@
 import base64
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 from fastapi import Request
 from fastapi.responses import FileResponse, JSONResponse, Response
-from pydantic import BaseModel
 from starlette.types import Receive, Scope, Send
 
 from server.api.request import Op
+from server.errors import (
+    DeadlineExceeded,
+    DestinationFailed,
+    ProcessingFailed,
+    ProcessingTimeout,
+    QueueFull,
+    SourceFetchFailed,
+    SourceForbidden,
+    SourceNotFound,
+    SourceTooLarge,
+    Unauthorized,
+    UnknownConnector,
+    UnsupportedUri,
+)
 from server.io.transfer import Materialized
 from server.io.workspace import Workspace
 from server.services.detect import Document, lookup
 from server.types.common import Encoding, Fetch, FormatLabel, ImageFormat, OpResponse, OutputMode, Result, Source
-from server.utils.openapi import inline_refs
+from server.utils.openapi import problem_responses
+from server.utils.problem import (
+    BadRequest,
+    PayloadTooLarge,
+    ProblemError,
+    UnsupportedMediaType,
+    ValidationFailed,
+)
 from server.utils.timing import stage
 
 _ENVELOPE = frozenset({'source', 'options', 'result'})
+
+# errors every operation can return: transport, auth, admission, source and destination, deadline (adr/api.md)
+OP_ERRORS: tuple[type[ProblemError], ...] = (
+    BadRequest,
+    Unauthorized,
+    SourceForbidden,
+    SourceNotFound,
+    PayloadTooLarge,
+    SourceTooLarge,
+    UnsupportedMediaType,
+    ValidationFailed,
+    UnsupportedUri,
+    UnknownConnector,
+    ProcessingFailed,
+    ProblemError,
+    SourceFetchFailed,
+    DestinationFailed,
+    QueueFull,
+    ProcessingTimeout,
+    DeadlineExceeded,
+)
+IMAGE_FILES = {format.mime_type: {'schema': {'type': 'string', 'format': 'binary'}} for format in ImageFormat}
 
 
 def source_of(uri: str, name: str, document: Document, materialized: Materialized, **facts: Any) -> Source:
@@ -49,16 +92,17 @@ def result_of(path: Path, label: str, **facts: Any) -> Result:
     )
 
 
-def image_responses(response: type[BaseModel]) -> dict[int | str, dict[str, Any]]:
-    """OpenAPI 200 response of operations producing one image: the JSON envelope or the file"""
+def op_responses(files: Mapping[str, dict[str, Any]], *errors: type[ProblemError]) -> dict[int | str, dict[str, Any]]:
+    """OpenAPI responses of an operation: the JSON envelope comes from `response_model`, `files` are the op files"""
     return {
         200: {
-            'description': 'The JSON envelope, or the image as a file',
-            'content': {
-                'application/json': {'schema': inline_refs(response.model_json_schema())},
-                **{format.mime_type: {'schema': {'type': 'string', 'format': 'binary'}} for format in ImageFormat},
+            'description': 'The JSON envelope (light with a destination), or the op file for `output=file`',
+            'content': dict(files),
+            'headers': {
+                'Content-Disposition': {'description': 'File name, for `output=file`', 'schema': {'type': 'string'}}
             },
-        }
+        },
+        **problem_responses(*OP_ERRORS, *errors),
     }
 
 

@@ -98,8 +98,8 @@ def test_rejects_invalid_chunking_options(client: TestClient, auth_headers: dict
 
 
 def test_openapi_exposes_enums(client: TestClient):
-    schema = client.get('/openapi.json').json()['paths']['/v1/markdown']['post']['requestBody']['content']
-    chunking = schema['application/json']['schema']['properties']['options']['properties']['chunking']
+    schemas = client.get('/openapi.json').json()['components']['schemas']
 
-    tokenizer = json.dumps(chunking)
+    tokenizer = json.dumps(schemas['Tokenizer'])
+    assert schemas['ChunkingOptions']['properties']['tokenizer']['$ref'] == '#/components/schemas/Tokenizer'
     assert 'o200k_base' in tokenizer and 'cl100k_base' in tokenizer

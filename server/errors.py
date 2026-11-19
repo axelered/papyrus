@@ -88,6 +88,12 @@ class QueueFull(ProblemError):
         return {'Retry-After': str(self.retry_after)}
 
 
+class NotReady(ProblemError):
+    """Readiness probe while admission is exhausted; returned by `/ready`, never raised"""
+
+    status, code = 503, 'not_ready'
+
+
 class ProcessingTimeout(ProblemError):
     """A single service task exceeded its timeout"""
 

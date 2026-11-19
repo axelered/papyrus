@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Request, Response
 
-from server.api.output import respond, result_of, source_of
+from server.api.output import op_responses, respond, result_of, source_of
 from server.api.request import op_context, openapi_body
 from server.auth import require_api_key
 from server.errors import UnsupportedFormat
@@ -9,7 +9,6 @@ from server.services.markdown import CHUNKS
 from server.types.common import Encoding, FormatGroup, FormatLabel
 from server.types.convert import ConvertFormat
 from server.types.markdown import MarkdownRequest, MarkdownResponse
-from server.utils.openapi import inline_refs
 from server.utils.timing import stage
 
 MARKDOWN_FORMATS = frozenset(
@@ -63,16 +62,9 @@ def is_code(value: Format) -> bool:
     '/markdown',
     summary='Extract markdown from a document',
     openapi_extra=openapi_body(MarkdownRequest),
-    response_model=None,
-    responses={
-        200: {
-            'description': 'The JSON envelope, or the markdown as a file (the JSON document when chunked)',
-            'content': {
-                'application/json': {'schema': inline_refs(MarkdownResponse.model_json_schema())},
-                'text/markdown': {'schema': {'type': 'string'}},
-            },
-        }
-    },
+    response_model=MarkdownResponse,
+    # chunked file output is the JSON document, documented by the response model
+    responses=op_responses({'text/markdown': {'schema': {'type': 'string'}}}, UnsupportedFormat),
 )
 async def markdown(request: Request) -> Response:
     services = request.app.state.services

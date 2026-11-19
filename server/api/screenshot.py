@@ -2,7 +2,7 @@ from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, Request, Response
 
-from server.api.output import image_responses, respond, result_of
+from server.api.output import IMAGE_FILES, op_responses, respond, result_of
 from server.api.request import op_context, openapi_body
 from server.auth import require_api_key
 from server.types.common import Encoding, Fetch, Source
@@ -16,8 +16,8 @@ router = APIRouter(prefix='/v1', tags=['screenshot'], dependencies=[Depends(requ
     '/screenshot',
     summary='Screenshot a web page in headless Chromium',
     openapi_extra=openapi_body(ScreenshotRequest),
-    response_model=None,
-    responses=image_responses(ScreenshotResponse),
+    response_model=ScreenshotResponse,
+    responses=op_responses(IMAGE_FILES),
 )
 async def screenshot(request: Request) -> Response:
     async with op_context(request, ScreenshotRequest) as op:

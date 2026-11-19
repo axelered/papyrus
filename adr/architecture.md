@@ -282,13 +282,13 @@ server/
   errors.py            application error catalog (ProblemError subclasses)
   types/               wire contract: request, result and option models, public enums
     common.py          ApiModel, OpRequest, OpResponse, FileInfo, Source, Result, Encoding, OutputMode,
-                       FormatGroup, FormatLabel, ImageFormat, Problem, health responses
+                       FormatGroup, FormatLabel, ImageFormat, health responses
     markdown.py        markdown request, options, result, Chunk, Tokenizer, ChunkKind, CodeLanguage
     convert.py         ConvertFormat
     render.py          thumbnail and render requests, options, responses, Fit
     screenshot.py      screenshot request, options, result, WaitUntil
   utils/               generic primitives
-    problem.py         ProblemError, generic errors, problem+json rendering and handlers
+    problem.py         ProblemError, generic errors, Problem model and codes, problem+json rendering and handlers
     body.py            JSON | multipart body reading, caps, size-limited upload copy
     openapi.py         component registration, problem responses per route
     yaml.py            YAML loading with ${VAR} expansion

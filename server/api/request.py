@@ -15,7 +15,7 @@ from server.io.uri import PART_SCHEME
 from server.io.workspace import Workspace
 from server.types.common import OpRequest
 from server.utils.body import JSON, MULTIPART, read_body
-from server.utils.openapi import inline_refs
+from server.utils.openapi import components
 from server.utils.timing import stage
 
 DEFAULT_PART = 'file'
@@ -73,22 +73,24 @@ async def parse_op[M: OpRequest](request: Request, model: type[M], workspace: Wo
 
 def openapi_body(model: type[BaseModel]) -> dict[str, Any]:
     """Documents both transports; the request is parsed manually so FastAPI cannot infer it"""
+    ref = components.ref(model)
     return {
         'requestBody': {
             'required': True,
             'content': {
-                'application/json': {'schema': inline_refs(model.model_json_schema())},
+                'application/json': {'schema': ref},
                 'multipart/form-data': {
                     'schema': {
                         'type': 'object',
                         'properties': {
                             METADATA_FIELD: {
-                                'type': 'string',
-                                'description': f'JSON-encoded {model.__name__}; source defaults to file://file',
+                                **ref,
+                                'description': 'The request as JSON; source defaults to file://file',
                             },
-                            DEFAULT_PART: {'type': 'string', 'format': 'binary'},
+                            DEFAULT_PART: {'type': 'string', 'format': 'binary', 'description': 'The source document'},
                         },
-                    }
+                    },
+                    'encoding': {METADATA_FIELD: {'contentType': 'application/json'}},
                 },
             },
         }

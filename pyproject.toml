@@ -27,6 +27,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "fastapi[standard]>=0.163.1",
+    "openapi-spec-validator>=0.9.0",
     "pytest>=9.2.0",
     "ruff>=0.17.5",
 ]

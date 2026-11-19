@@ -2,14 +2,14 @@ import logging
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, ClassVar
 
+from pydantic import BaseModel, ConfigDict, Field
+
 # fastapi is imported where used: pool workers import the error classes and would pay ~0.7s per process
 if TYPE_CHECKING:
     from fastapi import FastAPI, Request
     from fastapi.responses import JSONResponse
 
 PROBLEM_JSON = 'application/problem+json'
-
-_HTTP_CODES = {400: 'bad_request', 404: 'not_found', 405: 'method_not_allowed'}
 
 
 class ProblemError(Exception):
@@ -27,6 +27,12 @@ class ProblemError(Exception):
         return {}
 
 
+class BadRequest(ProblemError):
+    """Malformed request the framework rejects before the route (e.g. unparsable multipart)"""
+
+    status, code = 400, 'bad_request'
+
+
 class PayloadTooLarge(ProblemError):
     status, code = 413, 'payload_too_large'
 
@@ -37,6 +43,43 @@ class UnsupportedMediaType(ProblemError):
 
 class ValidationFailed(ProblemError):
     status, code = 422, 'validation_error'
+
+
+_HTTP_CODES = {400: BadRequest.code, 404: 'not_found', 405: 'method_not_allowed'}
+_HTTP_ERROR = 'http_error'
+
+
+def problem_codes() -> list[str]:
+    """Every code the API can return: the catalog (subclasses imported so far) plus the framework handler codes"""
+    codes = {*_HTTP_CODES.values(), _HTTP_ERROR}
+    pending: list[type[ProblemError]] = [ProblemError]
+    while pending:
+        error = pending.pop()
+        codes.add(error.code)
+        pending.extend(error.__subclasses__())
+    return sorted(codes)
+
+
+class ProblemIssue(BaseModel):
+    loc: list[str | int] = Field(description='Path of the invalid field in the request, camelCase')
+    msg: str
+    type: str
+
+
+class Problem(BaseModel):
+    """RFC 9457 problem details with the stable `code` extension"""
+
+    # the enum is computed when the schema is generated, once every error class is imported
+    model_config = ConfigDict(
+        json_schema_extra=lambda schema: schema['properties']['code'].update(enum=problem_codes())
+    )
+
+    type: str = 'about:blank'
+    title: str = Field(description='HTTP status phrase')
+    status: int
+    detail: str | None = None
+    code: str = Field(description='Stable machine readable error code, part of the public contract')
+    errors: list[ProblemIssue] | None = Field(default=None, description='Present for `validation_error`')
 
 
 def validation_errors(errors: Any) -> list[dict[str, Any]]:
@@ -71,7 +114,7 @@ def install_problem_handlers(app: FastAPI, logger: logging.Logger) -> None:
         return problem(422, ValidationFailed.code, 'request validation failed', errors=validation_errors(exc.errors()))
 
     async def http_error(_: Request, exc: HTTPException) -> JSONResponse:
-        return problem(exc.status_code, _HTTP_CODES.get(exc.status_code, 'http_error'), exc.detail, exc.headers)
+        return problem(exc.status_code, _HTTP_CODES.get(exc.status_code, _HTTP_ERROR), exc.detail, exc.headers)
 
     async def unhandled_error(_: Request, exc: Exception) -> JSONResponse:
         logger.exception('unhandled error', exc_info=exc)
