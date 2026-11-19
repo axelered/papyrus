@@ -3,7 +3,18 @@ from typing import Self
 
 from pydantic import Field, model_validator
 
-from server.types.common import MAX_IMAGE_SIDE, ImageFormat, OpRequest, OpResponse, OptionsModel, OutputMode
+from server.types.common import (
+    FORMAT,
+    MAX_IMAGE_SIDE,
+    OPTIONS,
+    OUTPUT,
+    RESOLVED,
+    ImageFormat,
+    OpRequest,
+    OpResponse,
+    OptionsModel,
+    OutputMode,
+)
 
 DEFAULT_DPI = 150
 
@@ -20,7 +31,7 @@ class ThumbnailOptions(OptionsModel):
     width: int = Field(default=256, ge=1, le=MAX_IMAGE_SIDE, description='Box width in pixels')
     height: int = Field(default=256, ge=1, le=MAX_IMAGE_SIDE, description='Box height in pixels')
     fit: Fit = Field(default=Fit.CONTAIN, description='`cover` fills the box and center crops')
-    format: ImageFormat = ImageFormat.WEBP
+    format: ImageFormat = Field(default=ImageFormat.WEBP, description=FORMAT)
 
 
 class RenderOptions(OptionsModel):
@@ -33,7 +44,7 @@ class RenderOptions(OptionsModel):
         le=600,
         description=f'Resolution of document pages, {DEFAULT_DPI} when no size is set; images ignore it',
     )
-    format: ImageFormat = ImageFormat.PNG
+    format: ImageFormat = Field(default=ImageFormat.PNG, description=FORMAT)
 
     @model_validator(mode='after')
     def _one_sizing(self) -> Self:
@@ -46,18 +57,18 @@ class RenderOptions(OptionsModel):
 
 
 class ThumbnailRequest(OpRequest):
-    output: OutputMode = OutputMode.FILE
-    options: ThumbnailOptions = Field(default_factory=ThumbnailOptions)
+    output: OutputMode = Field(default=OutputMode.FILE, description=OUTPUT)
+    options: ThumbnailOptions = Field(default_factory=ThumbnailOptions, description=OPTIONS)
 
 
 class RenderRequest(OpRequest):
-    output: OutputMode = OutputMode.FILE
-    options: RenderOptions = Field(default_factory=RenderOptions)
+    output: OutputMode = Field(default=OutputMode.FILE, description=OUTPUT)
+    options: RenderOptions = Field(default_factory=RenderOptions, description=OPTIONS)
 
 
 class ThumbnailResponse(OpResponse):
-    options: ThumbnailOptions
+    options: ThumbnailOptions = Field(description=RESOLVED)
 
 
 class RenderResponse(OpResponse):
-    options: RenderOptions
+    options: RenderOptions = Field(description=RESOLVED)

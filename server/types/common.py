@@ -93,6 +93,15 @@ class ApiModel(BaseModel):
     )
 
 
+OUTPUT = (
+    '`json` returns the envelope with the artifact inline, `file` returns the artifact as the response body; '
+    'with a destination the response is always the light JSON envelope'
+)
+OPTIONS = 'Operation options, omitted fields take their defaults'
+RESOLVED = 'The request options with defaults applied'
+FORMAT = 'Output image format'
+
+
 class OpRequest(ApiModel):
     """Common request contract; operations subclass it, override `output` defaults and add typed `options`"""
 
@@ -100,7 +109,7 @@ class OpRequest(ApiModel):
 
     source: str = Field(description='file://<part>, http(s):// URL or <protocol>://<connector>/<path>')
     destination: str | None = Field(default=None, description='Connector URI to write the result to')
-    output: OutputMode = OutputMode.JSON
+    output: OutputMode = Field(default=OutputMode.JSON, description=OUTPUT)
 
 
 class OptionsModel(ApiModel):
@@ -118,18 +127,21 @@ class Encoding(StrEnum):
 
 _MIME = 'Explicit format MIME or the MIME magika reports for derived formats'
 _LABEL = 'Papyrus format label or magika content type label; the language for code'
+_NAME = 'File name'
+_EXTENSION = 'File extension of the format, without the dot'
+_GROUP = 'Format family, e.g. `document` or `image`'
 
 
 class FileInfo(ApiModel):
     """File facts shared by `source` and `result`; unknown fields are omitted"""
 
     uri: str | None = Field(default=None, description='Source URI, or the destination the result was written to')
-    name: str | None = None
+    name: str | None = Field(default=None, description=_NAME)
     size: int | None = Field(default=None, description='Bytes')
     mime_type: str | None = Field(default=None, description=_MIME)
-    extension: str | None = None
+    extension: str | None = Field(default=None, description=_EXTENSION)
     label: str | None = Field(default=None, description=_LABEL)
-    group: FormatGroup | None = None
+    group: FormatGroup | None = Field(default=None, description=_GROUP)
     page_count: int | None = Field(default=None, description='Pages or frames, when the operation knows it')
     width: int | None = Field(default=None, description='Pixels, raster images only')
     height: int | None = Field(default=None, description='Pixels, raster images only')
@@ -151,12 +163,12 @@ class Source(FileInfo):
 class Result(FileInfo):
     """The primary artifact; `content` is inline unless a destination is set"""
 
-    name: str
+    name: str = Field(description=_NAME)
     size: int = Field(description='Bytes')
     mime_type: str = Field(description=_MIME)
-    extension: str
+    extension: str = Field(description=_EXTENSION)
     label: str = Field(description=_LABEL)
-    group: FormatGroup
+    group: FormatGroup = Field(description=_GROUP)
     encoding: Encoding | None = Field(default=None, description='Encoding of `content`, omitted with a destination')
     content: str | None = Field(
         default=None, description='The artifact as utf-8 text or base64, omitted with a destination'
@@ -166,16 +178,18 @@ class Result(FileInfo):
 class OpResponse(ApiModel):
     """Envelope of every operation; subclasses type `options` and add data sections defaulting to None"""
 
-    source: Source
-    result: Result
+    source: Source = Field(description='The input document')
+    result: Result = Field(description='The primary artifact')
 
 
 class HelloResponse(ApiModel):
-    status: Literal['ok'] = 'ok'
-    name: str = 'Axelered Papyrus'
-    version: str
-    watermark: str | None = None
+    status: Literal['ok'] = Field(default='ok', description='Always `ok`')
+    name: str = Field(default='Axelered Papyrus', description='Product name')
+    version: str = Field(description='Release version, `0.0.0` in local development')
+    watermark: str | None = Field(
+        default=None, description='Build stamp with version, commit and date; omitted locally'
+    )
 
 
 class StatusResponse(ApiModel):
-    status: Literal['ok'] = 'ok'
+    status: Literal['ok'] = Field(default='ok', description='Always `ok`')

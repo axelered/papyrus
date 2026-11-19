@@ -11,17 +11,17 @@ from server.utils.problem import problem
 router = APIRouter(tags=['health'])
 
 
-@router.get('/')
+@router.get('/', summary='Server name and version')
 async def read_root() -> HelloResponse:
     return HelloResponse(version=version.__version__, watermark=version.__watermark__)
 
 
-@router.get('/health')
+@router.get('/health', summary='Liveness probe')
 async def health() -> StatusResponse:
     return StatusResponse()
 
 
-@router.get('/ready', response_model=StatusResponse, responses=problem_responses(NotReady))
+@router.get('/ready', summary='Readiness probe', response_model=StatusResponse, responses=problem_responses(NotReady))
 async def ready(request: Request) -> StatusResponse | JSONResponse:
     admission: Admission = request.app.state.admission
     if admission.available <= 0:

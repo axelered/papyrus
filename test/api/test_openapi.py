@@ -69,6 +69,18 @@ def test_wire_names_are_camel_case(spec: dict[str, Any]):
     assert 'maxTokens' in schemas['ChunkingOptions']['properties']
 
 
+def test_every_field_is_described(spec: dict[str, Any]):
+    # the docs site API reference takes field descriptions from the spec only (adr/docs.md)
+    missing = [
+        f'{name}.{field}'
+        for name, schema in spec['components']['schemas'].items()
+        for field, value in schema.get('properties', {}).items()
+        if not value.get('description')
+    ]
+
+    assert missing == []
+
+
 def test_ready_documents_not_ready(spec: dict[str, Any]):
     response = spec['paths']['/ready']['get']['responses']['503']
 

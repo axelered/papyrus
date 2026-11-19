@@ -62,8 +62,8 @@ def problem_codes() -> list[str]:
 
 class ProblemIssue(BaseModel):
     loc: list[str | int] = Field(description='Path of the invalid field in the request, camelCase')
-    msg: str
-    type: str
+    msg: str = Field(description='Human readable message')
+    type: str = Field(description='Validation error type, e.g. `extra_forbidden`')
 
 
 class Problem(BaseModel):
@@ -74,10 +74,10 @@ class Problem(BaseModel):
         json_schema_extra=lambda schema: schema['properties']['code'].update(enum=problem_codes())
     )
 
-    type: str = 'about:blank'
+    type: str = Field(default='about:blank', description='Always `about:blank`, `code` tells errors apart')
     title: str = Field(description='HTTP status phrase')
-    status: int
-    detail: str | None = None
+    status: int = Field(description='HTTP status code')
+    detail: str | None = Field(default=None, description='Human readable explanation, not stable: do not parse it')
     code: str = Field(description='Stable machine readable error code, part of the public contract')
     errors: list[ProblemIssue] | None = Field(default=None, description='Present for `validation_error`')
 

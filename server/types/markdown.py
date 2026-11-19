@@ -3,7 +3,7 @@ from typing import Self
 
 from pydantic import Field, model_validator
 
-from server.types.common import ApiModel, OpRequest, OpResponse, OptionsModel, OutputMode
+from server.types.common import OPTIONS, OUTPUT, RESOLVED, ApiModel, OpRequest, OpResponse, OptionsModel, OutputMode
 
 
 class Tokenizer(StrEnum):
@@ -56,7 +56,10 @@ class CodeLanguage(StrEnum):
 class ChunkingOptions(OptionsModel):
     max_tokens: int = Field(default=512, ge=64, le=8192, description='Token budget of every chunk')
     overlap: int = Field(default=0, ge=0, description='Tokens of the next prose chunk appended to each prose chunk')
-    tokenizer: Tokenizer = Tokenizer.O200K_BASE
+    tokenizer: Tokenizer = Field(
+        default=Tokenizer.O200K_BASE,
+        description='Token counting: `o200k_base` (GPT-4o and later), `cl100k_base` (GPT-4), `word` or `character`',
+    )
 
     @model_validator(mode='after')
     def _overlap_below_budget(self) -> Self:
@@ -72,24 +75,24 @@ class MarkdownOptions(OptionsModel):
 
 
 class MarkdownRequest(OpRequest):
-    output: OutputMode = OutputMode.JSON
-    options: MarkdownOptions = Field(default_factory=MarkdownOptions)
+    output: OutputMode = Field(default=OutputMode.JSON, description=OUTPUT)
+    options: MarkdownOptions = Field(default_factory=MarkdownOptions, description=OPTIONS)
 
 
 class Chunk(ApiModel):
-    index: int
-    kind: ChunkKind
-    text: str
+    index: int = Field(description='Position in the document, from 0')
+    kind: ChunkKind = Field(description='`text` prose, `table` rows with the header repeated, `code` a fenced block')
+    text: str = Field(description='Markdown of the chunk, with the overlap appended for prose')
     language: CodeLanguage | None = Field(default=None, description='Code chunks only, omitted if not curated')
-    headings: list[str]
+    headings: list[str] = Field(description='Headings the chunk sits under, outermost first')
     slide: int | None = Field(default=None, description='pptx only')
     start: int = Field(description='Offset of the chunk span in `result.content` (overlap not included)')
-    end: int
-    tokens: int
+    end: int = Field(description='End offset of the chunk span in `result.content`, exclusive')
+    tokens: int = Field(description='Tokens in `text`, counted with the requested tokenizer')
 
 
 class MarkdownResponse(OpResponse):
-    options: MarkdownOptions
+    options: MarkdownOptions = Field(description=RESOLVED)
     chunks: list[Chunk] | None = Field(
         default=None, description='Present when options.chunking is set, omitted with a destination'
     )
