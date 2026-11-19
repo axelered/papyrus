@@ -43,7 +43,8 @@ def echo(app: FastAPI, calls: list[str]) -> Iterator[TestClient]:
     async def echo_route(request: Request):
         async with op_context(request, EchoRequest) as op:
             calls.append(op.model.source)
-            source = await request.app.state.transfer.materialize(op.model.source, op.workspace, op.parts)
+            materialized = await request.app.state.transfer.materialize(op.model.source, op.workspace, op.parts)
+            source = materialized.path
             await asyncio.sleep(op.model.options.delay)
             if op.model.options.fail:
                 raise RuntimeError('boom')

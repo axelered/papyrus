@@ -90,7 +90,7 @@ async def markdown(request: Request) -> Response:
         with stage('materialize'):
             source = await request.app.state.transfer.materialize(op.model.source, op.workspace, op.parts)
         with stage('detect'):
-            document = await services.detect.detect(source)
+            document = await services.detect.detect(source.path)
         if not accepts(document.format):
             raise UnsupportedFormat(
                 f'{document.format.mime_type} ({document.format.label}) is not supported for markdown extraction'

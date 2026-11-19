@@ -15,7 +15,7 @@ def _ok(content: bytes = b'data', **headers: str) -> httpx.Response:
 async def test_fetches_into_workspace(make_fetcher: FetcherFactory, workspace: Workspace):
     fetcher = make_fetcher(lambda request: _ok(b'%PDF-1.7'))
 
-    path = await fetcher.fetch('https://example.com/files/My%20Report.pdf?x=1', workspace)
+    path = (await fetcher.fetch('https://example.com/files/My%20Report.pdf?x=1', workspace)).path
 
     assert path.read_bytes() == b'%PDF-1.7'
     assert path.name == 'My Report.pdf'
@@ -25,8 +25,8 @@ async def test_fetches_into_workspace(make_fetcher: FetcherFactory, workspace: W
 async def test_guesses_extension_from_content_type(make_fetcher: FetcherFactory, workspace: Workspace):
     fetcher = make_fetcher(lambda request: _ok(**{'content-type': 'application/pdf; charset=binary'}))
 
-    assert (await fetcher.fetch('https://example.com/download', workspace)).name == 'download.pdf'
-    assert (await fetcher.fetch('https://example.com/', workspace)).name == 'source.pdf'
+    assert (await fetcher.fetch('https://example.com/download', workspace)).path.name == 'download.pdf'
+    assert (await fetcher.fetch('https://example.com/', workspace)).path.name == 'source.pdf'
 
 
 @pytest.mark.parametrize(
@@ -49,7 +49,7 @@ async def test_blocks_host_resolving_to_any_private_address(make_fetcher: Fetche
 async def test_allow_private_skips_address_check(make_fetcher: FetcherFactory, workspace: Workspace):
     fetcher = make_fetcher(lambda request: _ok(), dns={}, allow_private=True)
 
-    assert (await fetcher.fetch('http://127.0.0.1/a.txt', workspace)).read_bytes() == b'data'
+    assert (await fetcher.fetch('http://127.0.0.1/a.txt', workspace)).path.read_bytes() == b'data'
 
 
 async def test_allowed_hosts_restricts_targets(make_fetcher: FetcherFactory, workspace: Workspace):
@@ -73,10 +73,11 @@ async def test_follows_relative_redirects(make_fetcher: FetcherFactory, workspac
             return httpx.Response(302, headers={'location': '/new/doc.txt'})
         return _ok(b'moved')
 
-    path = await make_fetcher(handler).fetch('https://example.com/old', workspace)
+    fetched = await make_fetcher(handler).fetch('https://example.com/old', workspace)
 
-    assert path.read_bytes() == b'moved'
-    assert path.name == 'doc.txt'
+    assert fetched.path.read_bytes() == b'moved'
+    assert fetched.path.name == 'doc.txt'
+    assert (fetched.url, fetched.status) == ('https://example.com/new/doc.txt', 200)
 
 
 async def test_revalidates_redirect_target(make_fetcher: FetcherFactory, workspace: Workspace):

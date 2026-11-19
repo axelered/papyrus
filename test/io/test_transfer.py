@@ -27,25 +27,29 @@ def transfer(connectors: Connectors, make_fetcher: FetcherFactory) -> Transfer:
 
 
 async def test_materializes_http_source(transfer: Transfer, workspace: Workspace):
-    path = await transfer.materialize('https://example.com/a.txt', workspace, {})
+    materialized = await transfer.materialize('https://example.com/a.txt', workspace, {})
 
-    assert path.read_bytes() == b'remote'
+    assert materialized.path.read_bytes() == b'remote'
+    assert materialized.fetched is not None
+    assert (materialized.fetched.url, materialized.fetched.status) == ('https://example.com/a.txt', 200)
 
 
 async def test_materializes_connector_source(transfer: Transfer, workspace: Workspace, memory_fs: AbstractFileSystem):
     memory_fs.pipe('bucket/dir/doc.html', b'<p>hi</p>')
 
-    path = await transfer.materialize('memory://mem/bucket/dir/doc.html', workspace, {})
+    materialized = await transfer.materialize('memory://mem/bucket/dir/doc.html', workspace, {})
+    path = materialized.path
 
     assert path.read_bytes() == b'<p>hi</p>'
     assert path.name == 'doc.html'
     assert path.is_relative_to(workspace.path)
+    assert materialized.fetched is None
 
 
 async def test_materializes_part_without_copy(transfer: Transfer, workspace: Workspace, tmp_path: Path):
     part = tmp_path / 'upload.pdf'
 
-    assert await transfer.materialize('file://file', workspace, {'file': part}) is part
+    assert (await transfer.materialize('file://file', workspace, {'file': part})).path is part
 
 
 async def test_missing_part_is_validation_error(transfer: Transfer, workspace: Workspace):

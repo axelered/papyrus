@@ -1,5 +1,6 @@
 import logging
 import mimetypes
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from urllib.parse import unquote
 
@@ -16,6 +17,13 @@ logger = logging.getLogger('papyrus.http')
 
 _CHUNK = 64 * 1024
 _NOT_FOUND = frozenset({404, 410})
+
+
+@dataclass(frozen=True)
+class Fetched:
+    path: Path
+    url: str  # final URL after redirects
+    status: int
 
 
 class HttpFetcher:
@@ -37,7 +45,7 @@ class HttpFetcher:
     async def aclose(self) -> None:
         await self._client.aclose()
 
-    async def fetch(self, url: str, workspace: Workspace) -> Path:
+    async def fetch(self, url: str, workspace: Workspace) -> Fetched:
         if not self._config.enabled:
             raise SourceForbidden('http(s) sources are disabled')
         current = httpx.URL(url)
@@ -48,7 +56,8 @@ class HttpFetcher:
                     if response.is_redirect:
                         current = self._redirect_target(response)
                         continue
-                    return await self._save(response, workspace)
+                    path = await self._save(response, workspace)
+                    return Fetched(path, str(response.url), response.status_code)
         except ProblemError:
             raise
         except httpx.HTTPError as e:

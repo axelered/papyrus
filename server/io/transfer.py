@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
 
 from fsspec import AbstractFileSystem
@@ -13,12 +14,18 @@ from server.errors import (
     UnsupportedUri,
 )
 from server.io.connectors import Connectors
-from server.io.http import HttpFetcher
+from server.io.http import Fetched, HttpFetcher
 from server.io.uri import Uri, parse_uri
 from server.io.workspace import Workspace
 from server.utils.problem import ProblemError, ValidationFailed
 
 logger = logging.getLogger('papyrus.transfer')
+
+
+@dataclass(frozen=True)
+class Materialized:
+    path: Path
+    fetched: Fetched | None = None  # set for http(s) sources
 
 
 class Transfer:
@@ -29,18 +36,19 @@ class Transfer:
         self._http = http
         self._max_file_size = max_file_size
 
-    async def materialize(self, source: str, workspace: Workspace, parts: Mapping[str, Path]) -> Path:
+    async def materialize(self, source: str, workspace: Workspace, parts: Mapping[str, Path]) -> Materialized:
         uri = parse_uri(source)
         if uri.is_part:
             if uri.authority not in parts:
                 raise ValidationFailed(f'source {source!r} references a missing file part')
-            return parts[uri.authority]
+            return Materialized(parts[uri.authority])
         if uri.is_http:
-            return await self._http.fetch(source, workspace)
+            fetched = await self._http.fetch(source, workspace)
+            return Materialized(fetched.path, fetched)
         filesystem, remote = self._connectors.resolve(uri)
         local = workspace.new_file(uri.filename)
         await asyncio.to_thread(self._get, filesystem, remote, local)
-        return local
+        return Materialized(local)
 
     def check_destination(self, destination: str) -> Uri:
         """Validates the destination before any processing happens"""

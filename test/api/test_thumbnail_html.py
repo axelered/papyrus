@@ -7,6 +7,8 @@ from fastapi.testclient import TestClient
 from fsspec import AbstractFileSystem
 from PIL import Image
 
+from server.io.http import Fetched
+from server.io.transfer import Materialized
 from server.services.browser import Capture
 from server.types.screenshot import ScreenshotOptions
 from test.api.test_render_convert import FakePdfConvert
@@ -104,10 +106,10 @@ def test_fetched_html_keeps_its_url_as_origin(client: TestClient, auth_headers: 
     browser, _ = _install(client)
     transfer = client.app.state.transfer
 
-    async def materialize(uri: str, workspace, parts) -> Path:
+    async def materialize(uri: str, workspace, parts) -> Materialized:
         path = workspace.new_file('index.html')
         path.write_bytes(HTML)
-        return path
+        return Materialized(path, Fetched(path, uri, 200))
 
     transfer.materialize = materialize
 
