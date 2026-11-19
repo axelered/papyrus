@@ -1,0 +1,80 @@
+---
+title: Errors
+description: Error codes, what causes them and how your client should react
+---
+
+Every error is an `application/problem+json` body with a stable `code`. Branch on `code` in your client; `detail` is for people and its wording can change between releases.
+
+```json
+{
+  "type": "about:blank",
+  "title": "Unprocessable Content",
+  "status": 422,
+  "code": "page_out_of_range",
+  "detail": "page 5 is out of range, the document has 1"
+}
+```
+
+Validation errors add `errors`, one entry per invalid field, with `loc` as the path in your request:
+
+```json
+{
+  "type": "about:blank",
+  "title": "Unprocessable Content",
+  "status": 422,
+  "code": "validation_error",
+  "detail": "request validation failed",
+  "errors": [
+    {"loc": ["options", "chunking", "max_tokens"], "msg": "Extra inputs are not permitted", "type": "extra_forbidden"}
+  ]
+}
+```
+
+## Fix the request
+
+Retrying these returns the same error.
+
+| Status | Code | Cause |
+|---|---|---|
+| 400 | `bad_request` | The multipart body is malformed |
+| 413 | `payload_too_large` | The upload exceeds `limits.max_file_size` (100 MB by default) |
+| 413 | `source_too_large` | The URL or storage object exceeds `limits.max_file_size` |
+| 413 | `image_too_large` | The image has more pixels than the decompression guard allows |
+| 415 | `unsupported_media_type` | The request is neither `application/json` nor `multipart/form-data` |
+| 415 | `unsupported_format` | The operation does not accept the detected format. See [supported formats](./formats) |
+| 422 | `validation_error` | The body or `metadata` is not a JSON object, or a field is missing, unknown or out of range; see `errors` |
+| 422 | `unsupported_uri` | The URI is malformed or not allowed there, for example `file://` in a JSON request |
+| 422 | `unknown_connector` | The storage URI names a connector the server does not have |
+| 422 | `page_out_of_range` | `page` is past the end of the document |
+
+## Fix access
+
+| Status | Code | Cause |
+|---|---|---|
+| 401 | `unauthorized` | The `Authorization: Bearer` key is missing or wrong |
+| 403 | `source_forbidden` | The fetch policy blocks the URL: private address, host not allowed, or URLs disabled |
+| 404 | `source_not_found` | The URL returned 404 or 410, or the storage object does not exist |
+
+## Retry later
+
+| Status | Code | Cause | Retry |
+|---|---|---|---|
+| 502 | `source_fetch_failed` | The remote server failed, returned an error status or redirected too often | with backoff |
+| 502 | `destination_failed` | Writing to storage failed | with backoff; the result was not stored |
+| 503 | `queue_full` | The server is at capacity | after the `Retry-After` seconds |
+| 504 | `processing_timeout` | One step took too long, for example a page that never finishes loading | with a smaller input or simpler options |
+| 504 | `deadline_exceeded` | The whole request exceeded `limits.deadline` (300 s by default) | with a smaller input, or ask the operator to raise the deadline |
+
+## Report it
+
+| Status | Code | Cause |
+|---|---|---|
+| 500 | `processing_failed` | A converter failed on this document, for example a corrupt file |
+| 500 | `internal_error` | An unexpected error; the server logs it, the response never includes internals |
+
+If `processing_failed` repeats for a document that opens in its own application, keep the file and the request: it is the fastest way to get it fixed.
+
+## Next steps
+
+- [Request format](./requests): the fields these errors refer to.
+- [API reference](../api): the errors each endpoint can return.

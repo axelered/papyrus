@@ -1,0 +1,49 @@
+---
+title: Source and destination URIs
+description: Point Papyrus at uploads, web URLs and storage buckets
+---
+
+`source` and `destination` are URIs, so one field covers uploads, web pages and storage objects. The scheme decides where Papyrus reads from or writes to.
+
+| URI | Reads | As `source` | As `destination` |
+|---|---|---|---|
+| `file://<part>` | the multipart part named `<part>` | yes, multipart requests only | no |
+| `http://…`, `https://…` | the URL, following redirects | yes | no |
+| `<protocol>://<connector>/<path>` | the object `<path>` in a configured connector | yes | yes |
+
+## Uploads
+
+`file://file` is the default `source` of a multipart request and reads the `file` part. Sending `file://` in a JSON request fails with `422 unsupported_uri`, since there is no part to read.
+
+## URLs
+
+Papyrus downloads the URL, follows up to 5 redirects and reports the final URL and HTTP status in `source.fetch`. The server fetch policy applies to every hop:
+
+- URLs that resolve to private or internal addresses fail with `403 source_forbidden`, unless the server sets `http.allow_private`.
+- When the server sets `http.allowed_hosts`, any other host fails with `403 source_forbidden`.
+- A `404` or `410` from the remote server fails with `404 source_not_found`; any other error status with `502 source_fetch_failed`.
+
+`source.name` is the last segment of the URL path, or `source` with an extension from the `Content-Type` when the path has none, as for `https://axelered.com`.
+
+## Storage connectors
+
+A connector is a named storage location in the server configuration, such as an S3 bucket. With a connector named `prod` using the `s3` protocol, `s3://prod/reports/q3.pdf` is the object `reports/q3.pdf` in it:
+
+```shell
+curl http://127.0.0.1:8000/v1/markdown \
+  -H 'Authorization: Bearer dev' \
+  -H 'Content-Type: application/json' \
+  -d '{"source": "s3://prod/reports/q3.pdf", "destination": "s3://prod/markdown/q3.md"}'
+```
+
+- The connector name comes from the configuration, not from your bucket name. An unknown name fails with `422 unknown_connector`, and a protocol other than the connector's with `422 unsupported_uri`.
+- The path is used as is, without percent-decoding, so object keys round-trip exactly.
+- A missing object fails with `404 source_not_found`; a failed upload with `502 destination_failed`.
+- The destination is checked before any processing starts, so a typo fails in milliseconds instead of after a long conversion.
+
+Operators add connectors in [configuration](../deploy/configuration).
+
+## Next steps
+
+- [Storage guide](../guides/storage): batch documents from a bucket into a bucket.
+- [Supported formats](./formats): what each operation accepts.

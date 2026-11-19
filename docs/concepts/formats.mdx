@@ -1,0 +1,58 @@
+---
+title: Supported formats
+description: Which formats each operation accepts and how Papyrus detects them
+---
+
+Papyrus detects the format of every document from its content, then checks it against what the operation accepts. This page lists both.
+
+## By operation
+
+| Format | Extensions | Markdown | Render and thumbnail |
+|---|---|---|---|
+| PDF | `.pdf` | yes, text layer only | yes |
+| Word | `.docx`, `.doc`, `.rtf` | yes | yes, through LibreOffice |
+| PowerPoint | `.pptx`, `.ppt` | yes, slide text, tables and notes | yes, through LibreOffice |
+| Excel | `.xlsx`, `.xls` | yes, one table per sheet | yes, through LibreOffice |
+| OpenDocument | `.odt`, `.odp`, `.ods` | yes | yes, through LibreOffice |
+| Outlook | `.msg` | yes, headers and body | no |
+| HTML | `.html`, `.htm` | yes | yes; thumbnails are browser captures |
+| EPUB | `.epub` | yes | no |
+| CSV and TSV | `.csv`, `.tsv` | yes, as a table | no |
+| Jupyter | `.ipynb` | yes | no |
+| RSS and Atom | `.rss`, `.atom`, `.xml` | yes | no |
+| JSON | `.json`, `.jsonl` | yes, passed through | no |
+| ZIP | `.zip` | yes, every entry converted | no |
+| Text and Markdown | `.txt`, `.md`, … | yes, passed through | no |
+| Code and config | `.py`, `.ts`, `.go`, `.sql`, `.yaml`, … | yes, as one fenced block | no |
+| Images | `.png`, `.jpg`, `.webp`, `.gif`, `.bmp`, `.tiff`, `.avif` | no | yes |
+
+Screenshot takes `http(s)://` URLs only and captures whatever the browser shows.
+
+A format an operation does not accept fails with `415 unsupported_format`, before any processing.
+
+## What to expect per format
+
+- **Scanned PDFs** have no text layer, and Papyrus does not run OCR, so Markdown extraction returns little or no text. Render still produces page images you can send to an OCR or vision model.
+- **Legacy and OpenDocument files** are converted with LibreOffice first, which adds time to every request. For render and thumbnail, LibreOffice exports one page at a time, so `source.pageCount` is not reported.
+- **HTML** keeps headings, lists, links and tables. Site navigation and footers come through as text, as on the page.
+- **Animated and multi-page images** (GIF, TIFF, animated WebP) render one frame per request, chosen with `page`.
+
+## How detection works
+
+Papyrus identifies the content with [Magika](https://github.com/google/magika), a file type model, and uses the extension only to refine generic results. A PDF named `report.docx` is processed as a PDF; a `.csv` file is processed as CSV even though its content is plain text.
+
+`source` reports the result:
+
+| Field | Example | Meaning |
+|---|---|---|
+| `mimeType` | `application/pdf` | MIME type of the detected format |
+| `extension` | `pdf` | Canonical extension, without the dot |
+| `label` | `pdf` | Format label; for code, the language (`python`, `sql`) |
+| `group` | `document` | Family: `document`, `spreadsheet`, `presentation`, `email`, `archive`, `markup`, `data`, `code`, `text`, `image` or `unknown` |
+
+Use `group` to route documents in your own pipeline, and `label` when you need the exact format.
+
+## Next steps
+
+- [Extract Markdown](../guides/markdown): get the most out of each format.
+- [Errors](./errors): handle `unsupported_format` and size limits.
