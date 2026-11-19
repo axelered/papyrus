@@ -73,6 +73,15 @@
 - [ ] Tag `v0.3.0` and announce the breaking change in the release notes
 - [!] Metadata for `output=file` responses, opt-in data URI content
 
+### Documentation (spec: `adr/docs.md`)
+
+- [x] Docs spec: readers, language, structure; `/document` command and `axelered-docs` skill
+- [ ] Guides: introduction, Docker quickstart, guides, concepts and deploy pages
+- [ ] Bruno: collection overview, endpoint docs, examples and `seq` order for every public endpoint
+- [ ] Complete `Field(description=…)` and route summaries in FastAPI for the API reference
+- [ ] Docs bundle in the check workflow and onboarding on `axelered/docs`
+- [!] Slim the README once the docs site covers its content
+
 ## Future Issues
 
 - Starlette parses multipart bodies before size checks; the request body limit must also be enforced at the reverse proxy
