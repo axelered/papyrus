@@ -10,13 +10,7 @@ http:
     type: json
     data: |-
       {
-        "source": "https://axelered.com",
-        "options": {
-          "format": "webp",
-          "width": 1400,
-          "height": 1000,
-          "delay": 1000
-        }
+        "source": "https://axelered.com"
       }
   auth: inherit
 
@@ -27,9 +21,47 @@ settings:
   maxRedirects: 5
   forwardAuthorizationHeader: false
 
+docs:
+  content: |-
+    Loads a web page in headless Chromium and captures it as an image. By default the response body is a PNG of the 1280 × 800 viewport, named `<host>.png`.
+
+    ## When to use it
+
+    - Archive or audit how a page looked at a point in time.
+    - Give a vision model the rendered page, including content built by JavaScript.
+    - Capture long pages with `fullPage`.
+
+    Use thumbnail for small link previews, which handles sizing for you.
+
+    ## Inputs
+
+    `source` must be an `http(s)://` URL; uploads and storage URIs fail with `422 unsupported_uri`. The page and every request it makes follow the server fetch policy: private addresses are blocked unless the server allows them, and an allowed host list applies to every image, script and frame. Pages that answer with an error status are still captured, and `source.fetch.status` reports the status.
+
+    ## Options
+
+    | Option | Default | Notes |
+    |---|---|---|
+    | `width` | `1280` | viewport width in CSS pixels, `320` to `3840` |
+    | `height` | `800` | viewport height in CSS pixels, `200` to `2160` |
+    | `fullPage` | `false` | capture the whole page, cut at 4096 px height |
+    | `scale` | `1` | device scale factor, `1` to `3`; multiplies the output pixels |
+    | `waitUntil` | `load` | `load`, `domcontentloaded` or `networkidle` |
+    | `delay` | `0` | milliseconds to wait after `waitUntil`, up to `10000`, for animations and late content |
+    | `format` | `png` | `png`, `jpeg` or `webp` |
+
+    The viewport times `scale` must stay within 4096 px per side, so `width: 1920` allows `scale: 2` but not `3`.
+
+    ## Errors
+
+    - `422 validation_error`: options out of range, including the 4096 px bound.
+    - `403 source_forbidden`: the URL is blocked by the fetch policy.
+    - `502 source_fetch_failed`: the host does not resolve or the navigation fails.
+    - `504 processing_timeout`: the page did not reach `waitUntil` within 30 s. Pages that keep polling the network never reach `networkidle`; use `load` with a `delay` instead.
+  type: text/markdown
+
 examples:
-  - name: Full Page
-    description: Capture the whole page at double resolution as JSON. A navigated page has no file, so `source` carries only the `uri` and what the navigation reported in `fetch`
+  - name: Capture a full page as WebP
+    description: Capture the whole page once the network is idle. A navigated page has no file, so `source` holds only the URL and what the navigation reported.
     request:
       url: "{{host}}/v1/screenshot"
       method: POST
@@ -39,11 +71,7 @@ examples:
           {
             "output": "json",
             "source": "https://axelered.com",
-            "options": {
-              "fullPage": true,
-              "scale": 2,
-              "waitUntil": "networkidle"
-            }
+            "options": { "fullPage": true, "waitUntil": "networkidle", "format": "webp" }
           }
     response:
       status: 200
@@ -56,30 +84,30 @@ examples:
               "uri": "https://axelered.com",
               "fetch": { "url": "https://axelered.com/", "status": 200 }
             },
+            "result": {
+              "name": "axelered.com.webp",
+              "size": 109976,
+              "mimeType": "image/webp",
+              "extension": "webp",
+              "label": "webp",
+              "group": "image",
+              "width": 1280,
+              "height": 4096,
+              "encoding": "base64",
+              "content": "UklGRpCtAQBXRUJQVlA4WAoAAAAgAAAA/wQA/w8A…"
+            },
             "options": {
               "width": 1280,
               "height": 800,
               "fullPage": true,
-              "scale": 2,
+              "scale": 1,
               "waitUntil": "networkidle",
               "delay": 0,
-              "format": "png"
-            },
-            "result": {
-              "name": "axelered.com.png",
-              "size": 1912004,
-              "mimeType": "image/png",
-              "extension": "png",
-              "label": "png",
-              "group": "image",
-              "width": 2560,
-              "height": 4096,
-              "encoding": "base64",
-              "content": "iVBORw0KGgoAAAANSUhEUgAA..."
+              "format": "webp"
             }
           }
-  - name: To S3
-    description: Screenshot written to an S3 destination; requires a "demo-s3" connector. The response is light, `result.uri` points to the stored image and there is no `content`
+  - name: Store a screenshot in a bucket
+    description: Write the image to a storage connector, here an S3 connector named `demo-s3`. The response omits `content` and `result.uri` is the stored image.
     request:
       url: "{{host}}/v1/screenshot"
       method: POST
@@ -101,6 +129,17 @@ examples:
               "uri": "https://axelered.com",
               "fetch": { "url": "https://axelered.com/", "status": 200 }
             },
+            "result": {
+              "uri": "s3://demo-s3/papyrus-test/axelered.png",
+              "name": "axelered.com.png",
+              "size": 29654,
+              "mimeType": "image/png",
+              "extension": "png",
+              "label": "png",
+              "group": "image",
+              "width": 1280,
+              "height": 800
+            },
             "options": {
               "width": 1280,
               "height": 800,
@@ -109,16 +148,65 @@ examples:
               "waitUntil": "load",
               "delay": 0,
               "format": "png"
-            },
-            "result": {
-              "uri": "s3://demo-s3/papyrus-test/axelered.png",
-              "name": "axelered.com.png",
-              "size": 412004,
-              "mimeType": "image/png",
-              "extension": "png",
-              "label": "png",
-              "group": "image",
-              "width": 1280,
-              "height": 800
             }
+          }
+  - name: Exceed the pixel bound
+    description: A 1920 px viewport at scale 3 would be 5760 px wide, above the 4096 px limit, so the request fails before the browser starts.
+    request:
+      url: "{{host}}/v1/screenshot"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "source": "https://axelered.com",
+            "options": { "width": 1920, "scale": 3 }
+          }
+    response:
+      status: 422
+      statusText: Unprocessable Content
+      headers:
+        - name: content-type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "about:blank",
+            "title": "Unprocessable Content",
+            "status": 422,
+            "code": "validation_error",
+            "detail": "request validation failed",
+            "errors": [
+              { "loc": ["options"], "msg": "Value error, viewport times scale must not exceed 4096 px per side", "type": "value_error" }
+            ]
+          }
+  - name: Upload a file
+    description: Screenshots only navigate URLs; an upload fails with `unsupported_uri`. Use thumbnail for uploaded HTML.
+    request:
+      url: "{{host}}/v1/screenshot"
+      method: POST
+      body:
+        type: multipart-form
+        data:
+          - name: file
+            type: file
+            value:
+              - sample.pdf
+            contentType: application/pdf
+    response:
+      status: 422
+      statusText: Unprocessable Content
+      headers:
+        - name: content-type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "about:blank",
+            "title": "Unprocessable Content",
+            "status": 422,
+            "code": "unsupported_uri",
+            "detail": "'file://file' is not an http(s) URL"
           }

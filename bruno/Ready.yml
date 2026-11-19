@@ -1,7 +1,7 @@
 info:
   name: Ready
   type: http
-  seq: 2
+  seq: 7
 
 http:
   method: GET
@@ -15,9 +15,16 @@ settings:
   maxRedirects: 5
   forwardAuthorizationHeader: false
 
+docs:
+  content: |-
+    Readiness probe: returns `200` while the server can accept another request, and `503 not_ready` once every slot of `workers.max_queue` is in use. No API key needed.
+
+    Point your load balancer's readiness check here, so traffic moves to other replicas while one is at capacity and returns once it recovers. A busy replica is not restarted: `/health` still answers `200`.
+  type: text/markdown
+
 examples:
-  - name: Ready
-    description: The replica accepts requests
+  - name: Ready for requests
+    description: The replica has free slots.
     request:
       url: "{{host}}/ready"
       method: GET
@@ -30,8 +37,8 @@ examples:
           {
             "status": "ok"
           }
-  - name: Not Ready
-    description: Admission is exhausted, the load balancer should drain the replica until it recovers
+  - name: At capacity
+    description: Every slot is in use; the detail reports how many requests are running.
     request:
       url: "{{host}}/ready"
       method: GET

@@ -1,7 +1,7 @@
 info:
   name: Health
   type: http
-  seq: 1
+  seq: 6
 
 http:
   method: GET
@@ -14,3 +14,26 @@ settings:
   followRedirects: true
   maxRedirects: 5
   forwardAuthorizationHeader: false
+
+docs:
+  content: |-
+    Liveness probe: returns `200` while the server process is up, however busy it is. No API key needed.
+
+    Point your orchestrator's liveness check here, so a replica is restarted only when it stops answering. The Docker image already uses it as its `HEALTHCHECK`. For routing traffic use ready instead.
+  type: text/markdown
+
+examples:
+  - name: Server is alive
+    description: The process answers requests.
+    request:
+      url: "{{host}}/health"
+      method: GET
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: json
+        data: |-
+          {
+            "status": "ok"
+          }

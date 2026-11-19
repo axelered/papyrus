@@ -1,17 +1,19 @@
 info:
   name: Thumbnail
   type: http
-  seq: 5
+  seq: 3
 
 http:
   method: POST
   url: "{{host}}/v1/thumbnail"
   body:
-    type: json
-    data: |-
-      {
-        "source": "https://axelered.com/"
-      }
+    type: multipart-form
+    data:
+      - name: file
+        type: file
+        value:
+          - sample.pdf
+        contentType: application/pdf
   auth: inherit
 
 settings:
@@ -21,33 +23,86 @@ settings:
   maxRedirects: 5
   forwardAuthorizationHeader: false
 
+docs:
+  content: |-
+    Fits one page, image or web page into a fixed box, for file lists, search results and link previews. By default the response body is a WebP file named `<source name>.webp`, at most 256 × 256 px.
+
+    ## When to use it
+
+    - Show a preview next to every uploaded file, whatever its format.
+    - Build link previews: a URL that serves HTML is captured in a browser, so `https://axelered.com` gives a picture of the site.
+
+    Use render instead when you need a page at reading size.
+
+    ## Inputs
+
+    Everything render accepts: PDF, images, Word, PowerPoint, Excel, OpenDocument and RTF. HTML is the exception: it is captured as a browser shows it on a desktop screen, 1280 px wide and as tall as the box shape asks for (between 400 and 2160 px). HTML has a single page, so `page` above 1 fails with `page_out_of_range`. An uploaded HTML file is shown without the images and styles it references by relative path.
+
+    ## Fit
+
+    | `fit` | Result |
+    |---|---|
+    | `contain` (default) | The whole page fits inside the box; one side can be shorter than the box |
+    | `cover` | The page fills the box and the center is cropped; the output is exactly `width` × `height` |
+
+    `width` and `height` are `1` to `4096`, both default to `256`. Images are never enlarged.
+
+    ## Errors
+
+    The same as render: `422 page_out_of_range`, `413 image_too_large` and `415 unsupported_format`.
+  type: text/markdown
+
 examples:
-  - name: Simple File
-    description: Thumbnail of a local file upload; the default output is a 256x256 webp file named `<stem>.webp`
+  - name: Preview an uploaded PDF
+    description: Return the preview as JSON. With the default `contain`, a portrait page fills the box height and the width follows.
     request:
       url: "{{host}}/v1/thumbnail"
       method: POST
       body:
         type: multipart-form
         data:
+          - name: metadata
+            type: text
+            value: '{"output": "json"}'
+            contentType: application/json
           - name: file
             type: file
             value:
-              - C:\Software\_data\pdf\sample.pdf
+              - sample.pdf
             contentType: application/pdf
     response:
       status: 200
       statusText: OK
-      headers:
-        - name: content-type
-          value: image/webp
-        - name: content-disposition
-          value: attachment; filename="sample.webp"
       body:
-        type: text
-        data: ""
-  - name: Remote Image
-    description: Thumbnail of a remote image fetched over HTTP, as JSON. For image sources `source.width` and `source.height` are the original pixels, `result` holds the thumbnail
+        type: json
+        data: |-
+          {
+            "source": {
+              "uri": "file://file",
+              "name": "sample.pdf",
+              "size": 18810,
+              "mimeType": "application/pdf",
+              "extension": "pdf",
+              "label": "pdf",
+              "group": "document",
+              "pageCount": 1
+            },
+            "result": {
+              "name": "sample.webp",
+              "size": 9852,
+              "mimeType": "image/webp",
+              "extension": "webp",
+              "label": "webp",
+              "group": "image",
+              "width": 198,
+              "height": 256,
+              "encoding": "base64",
+              "content": "UklGRnQmAABXRUJQVlA4IGgmAACwagCdASrGAAAB…"
+            },
+            "options": { "page": 1, "width": 256, "height": 256, "fit": "contain", "format": "webp" }
+          }
+  - name: Crop a remote image to a card
+    description: "`cover` fills a 320 × 200 card and crops the center. For image sources, `source.width` and `source.height` are the original pixels."
     request:
       url: "{{host}}/v1/thumbnail"
       method: POST
@@ -57,11 +112,7 @@ examples:
           {
             "output": "json",
             "source": "https://axelered.com/_og/platform.png",
-            "options": {
-              "width": 320,
-              "height": 200,
-              "fit": "cover"
-            }
+            "options": { "width": 320, "height": 200, "fit": "cover" }
           }
     response:
       status: 200
@@ -73,7 +124,7 @@ examples:
             "source": {
               "uri": "https://axelered.com/_og/platform.png",
               "name": "platform.png",
-              "size": 184220,
+              "size": 80238,
               "mimeType": "image/png",
               "extension": "png",
               "label": "png",
@@ -83,10 +134,9 @@ examples:
               "height": 630,
               "fetch": { "url": "https://axelered.com/_og/platform.png", "status": 200 }
             },
-            "options": { "page": 1, "width": 320, "height": 200, "fit": "cover", "format": "webp" },
             "result": {
               "name": "platform.webp",
-              "size": 8211,
+              "size": 6738,
               "mimeType": "image/webp",
               "extension": "webp",
               "label": "webp",
@@ -94,11 +144,12 @@ examples:
               "width": 320,
               "height": 200,
               "encoding": "base64",
-              "content": "UklGRl4gAABXRUJQVlA4..."
-            }
+              "content": "UklGRkoaAABXRUJQVlA4ID4aAACwaQCdASpAAcgA…"
+            },
+            "options": { "page": 1, "width": 320, "height": 200, "fit": "cover", "format": "webp" }
           }
-  - name: Website To S3
-    description: Thumbnail of a website (HTML is captured in a browser) written to an S3 destination; requires a "demo-s3" connector. The response is light, without `content`
+  - name: Preview a website
+    description: A URL that serves HTML is captured in a browser at desktop width. A 4:3 box captures a 1280 × 960 viewport and scales it down.
     request:
       url: "{{host}}/v1/thumbnail"
       method: POST
@@ -106,8 +157,9 @@ examples:
         type: json
         data: |-
           {
-            "source": "https://axelered.com/",
-            "destination": "s3://demo-s3/papyrus-test/axelered.webp"
+            "output": "json",
+            "source": "https://axelered.com",
+            "options": { "width": 400, "height": 300 }
           }
     response:
       status: 200
@@ -117,26 +169,71 @@ examples:
         data: |-
           {
             "source": {
-              "uri": "https://axelered.com/",
+              "uri": "https://axelered.com",
               "name": "source.html",
-              "size": 61234,
+              "size": 94018,
               "mimeType": "text/html",
               "extension": "html",
               "label": "html",
               "group": "markup",
               "pageCount": 1,
-              "fetch": { "url": "https://axelered.com/", "status": 200 }
+              "fetch": { "url": "https://axelered.com", "status": 200 }
             },
-            "options": { "page": 1, "width": 256, "height": 256, "fit": "contain", "format": "webp" },
             "result": {
-              "uri": "s3://demo-s3/papyrus-test/axelered.webp",
               "name": "source.webp",
-              "size": 9120,
+              "size": 6872,
               "mimeType": "image/webp",
               "extension": "webp",
               "label": "webp",
               "group": "image",
-              "width": 256,
-              "height": 256
-            }
+              "width": 400,
+              "height": 300,
+              "encoding": "base64",
+              "content": "UklGRtAaAABXRUJQVlA4IMQaAABwhQCdASqQASwB…"
+            },
+            "options": { "page": 1, "width": 400, "height": 300, "fit": "contain", "format": "webp" }
+          }
+  - name: Store a website preview in a bucket
+    description: Write the preview to a storage connector, here an S3 connector named `demo-s3`. The response omits `content` and `result.uri` is the stored image.
+    request:
+      url: "{{host}}/v1/thumbnail"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "source": "https://axelered.com",
+            "destination": "s3://demo-s3/papyrus-test/axelered.webp",
+            "options": { "width": 400, "height": 300 }
+          }
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: json
+        data: |-
+          {
+            "source": {
+              "uri": "https://axelered.com",
+              "name": "source.html",
+              "size": 94018,
+              "mimeType": "text/html",
+              "extension": "html",
+              "label": "html",
+              "group": "markup",
+              "pageCount": 1,
+              "fetch": { "url": "https://axelered.com", "status": 200 }
+            },
+            "result": {
+              "uri": "s3://demo-s3/papyrus-test/axelered.webp",
+              "name": "source.webp",
+              "size": 6872,
+              "mimeType": "image/webp",
+              "extension": "webp",
+              "label": "webp",
+              "group": "image",
+              "width": 400,
+              "height": 300
+            },
+            "options": { "page": 1, "width": 400, "height": 300, "fit": "contain", "format": "webp" }
           }

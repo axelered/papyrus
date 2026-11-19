@@ -1,7 +1,7 @@
 info:
   name: Markdown
   type: http
-  seq: 3
+  seq: 1
 
 http:
   method: POST
@@ -10,13 +10,7 @@ http:
     type: json
     data: |-
       {
-        "output": "json",
-        "source": "https://axelered.com",
-        "options": {
-          "chunking": {
-            "maxTokens": 512
-          }
-        }
+        "source": "https://axelered.com"
       }
   auth: inherit
 
@@ -27,9 +21,92 @@ settings:
   maxRedirects: 5
   forwardAuthorizationHeader: false
 
+docs:
+  content: |-
+    Extracts Markdown from a document or web page, ready to pass to an LLM or index for retrieval. Add `options.chunking` to also get structure-aware chunks sized for your embedding model.
+
+    ## When to use it
+
+    - Feed documents to an LLM as context: PDFs, Office files, emails, web pages, notebooks, feeds and code.
+    - Build a RAG index: one request returns the Markdown and its chunks, with offsets back into the Markdown.
+    - Normalize mixed uploads: the format is detected from the content, so a mislabeled file is processed as what it really is and `source` reports the detected type.
+
+    ## Inputs
+
+    PDF (text layer only), Word, PowerPoint, Excel, OpenDocument, RTF, Outlook `.msg`, HTML, CSV and TSV, Jupyter, EPUB, RSS and Atom, JSON and JSON Lines, ZIP archives (every entry converted), plain text, Markdown and source code. Legacy formats (`.doc`, `.ppt`, `.rtf`, `.odt`, `.odp`, `.ods`) are converted with LibreOffice first and take longer. Code and config files come back as one fenced block tagged with the detected language. Images are rejected with `415 unsupported_format`: Papyrus does not run OCR, so scanned PDFs return little or no text.
+
+    ## Chunking
+
+    `options.chunking` splits the Markdown along its structure: chunks never cross a heading or slide, tables split by rows with the header repeated, and code splits along functions and classes. Each chunk reports its `kind` (`text`, `table`, `code`), the `headings` it sits under, its `tokens` and the `start`/`end` offsets of its span in `result.content`.
+
+    | Option | Default | Notes |
+    |---|---|---|
+    | `maxTokens` | `512` | `64` to `8192`, the budget of every chunk |
+    | `overlap` | `0` | tokens of the next prose chunk appended to each prose chunk, below `maxTokens` |
+    | `tokenizer` | `o200k_base` | match your embedding model: `o200k_base`, `cl100k_base`, `word` or `character` |
+
+    `chunking: {}` turns chunking on with every default.
+
+    ## Output
+
+    | Request | Response |
+    |---|---|
+    | `output: json` (default) | The envelope, with the Markdown in `result.content` |
+    | `output: file` | The Markdown as `text/markdown`, named `<source name>.md` |
+    | `chunking` with `output: file` | The full JSON document (envelope and `chunks`) as `application/json` |
+    | `destination` | The Markdown, or the JSON document when chunking, is uploaded; the response omits `content` and `chunks` |
+
+    ## Limits and errors
+
+    - Sources over `limits.max_file_size` (100 MB by default) fail with `413 payload_too_large` for uploads and `413 source_too_large` for URLs and storage.
+    - URLs on private or internal addresses fail with `403 source_forbidden` unless the server allows them.
+    - A request running longer than `limits.deadline` (300 s by default) fails with `504 deadline_exceeded`.
+  type: text/markdown
+
 examples:
-  - name: Simple File
-    description: Convert a local file uploaded as multipart. The JSON envelope describes the uploaded `source`, the resolved `options` and the produced markdown in `result.content`
+  - name: Convert a web page
+    description: Fetch a page and return its Markdown. `source.fetch` reports the final URL and HTTP status, `source.title` the page title.
+    request:
+      url: "{{host}}/v1/markdown"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "source": "https://axelered.com"
+          }
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: json
+        data: |-
+          {
+            "source": {
+              "uri": "https://axelered.com",
+              "name": "source.html",
+              "size": 94018,
+              "mimeType": "text/html",
+              "extension": "html",
+              "label": "html",
+              "group": "markup",
+              "title": "Axelered · Intelligent process automation",
+              "fetch": { "url": "https://axelered.com", "status": 200 }
+            },
+            "result": {
+              "name": "source.md",
+              "size": 6810,
+              "mimeType": "text/markdown",
+              "extension": "md",
+              "label": "markdown",
+              "group": "markup",
+              "encoding": "utf-8",
+              "content": "[Axelered](/)[01Platform](/platform)…\n\n# Automatethe process.\n\nWe automate your processes end to end and own the outcome after go-live.…"
+            },
+            "options": {}
+          }
+  - name: Convert an uploaded PDF
+    description: Upload a file as multipart. Without a `metadata` part the source is the `file` part and every option takes its default.
     request:
       url: "{{host}}/v1/markdown"
       method: POST
@@ -39,7 +116,7 @@ examples:
           - name: file
             type: file
             value:
-              - C:\Software\_data\pdf\sample.pdf
+              - sample.pdf
             contentType: application/pdf
     response:
       status: 200
@@ -51,27 +128,90 @@ examples:
             "source": {
               "uri": "file://file",
               "name": "sample.pdf",
-              "size": 482113,
+              "size": 18810,
               "mimeType": "application/pdf",
               "extension": "pdf",
               "label": "pdf",
-              "group": "document",
-              "title": "Quarterly Report"
+              "group": "document"
             },
-            "options": {},
             "result": {
               "name": "sample.md",
-              "size": 18234,
+              "size": 3092,
               "mimeType": "text/markdown",
               "extension": "md",
               "label": "markdown",
               "group": "markup",
               "encoding": "utf-8",
-              "content": "# Quarterly Report\n\nRevenue grew in every region..."
-            }
+              "content": "Sample PDF\nThis is a simple PDF ﬁle. Fun fun fun.\n\n…"
+            },
+            "options": {}
           }
-  - name: File Chunked
-    description: Convert a local file and split the markdown into structure-aware chunks. `chunks` is a data section next to the envelope; `start` and `end` are offsets into `result.content`
+  - name: Chunk a web page for embeddings
+    description: Return the Markdown and chunks of at most 256 tokens. Each chunk carries the headings it sits under and its offsets in `result.content`.
+    request:
+      url: "{{host}}/v1/markdown"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "source": "https://axelered.com",
+            "options": { "chunking": { "maxTokens": 256 } }
+          }
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: json
+        data: |-
+          {
+            "source": {
+              "uri": "https://axelered.com",
+              "name": "source.html",
+              "size": 94018,
+              "mimeType": "text/html",
+              "extension": "html",
+              "label": "html",
+              "group": "markup",
+              "title": "Axelered · Intelligent process automation",
+              "fetch": { "url": "https://axelered.com", "status": 200 }
+            },
+            "result": {
+              "name": "source.md",
+              "size": 6810,
+              "mimeType": "text/markdown",
+              "extension": "md",
+              "label": "markdown",
+              "group": "markup",
+              "encoding": "utf-8",
+              "content": "[Axelered](/)[01Platform](/platform)…"
+            },
+            "options": {
+              "chunking": { "maxTokens": 256, "overlap": 0, "tokenizer": "o200k_base" }
+            },
+            "chunks": [
+              {
+                "index": 1,
+                "kind": "text",
+                "text": "# Automatethe process.\n\nWe automate your processes end to end and own the outcome after go-live.…",
+                "headings": ["Automatethe process."],
+                "start": 200,
+                "end": 516,
+                "tokens": 66
+              },
+              {
+                "index": 2,
+                "kind": "text",
+                "text": "## Each step, from intake to write-back.\n\n10+10+\n\nYears in production…",
+                "headings": ["Automatethe process.", "Each step, from intake to write-back."],
+                "start": 516,
+                "end": 849,
+                "tokens": 85
+              }
+            ]
+          }
+  - name: Chunk an uploaded file
+    description: Send options with an upload in the `metadata` part, as the same JSON you would post to the endpoint.
     request:
       url: "{{host}}/v1/markdown"
       method: POST
@@ -85,7 +225,7 @@ examples:
           - name: file
             type: file
             value:
-              - C:\Software\_data\pdf\sample.pdf
+              - sample.pdf
             contentType: application/pdf
     response:
       status: 200
@@ -97,68 +237,39 @@ examples:
             "source": {
               "uri": "file://file",
               "name": "sample.pdf",
-              "size": 482113,
+              "size": 18810,
               "mimeType": "application/pdf",
               "extension": "pdf",
               "label": "pdf",
-              "group": "document",
-              "title": "Quarterly Report"
-            },
-            "options": {
-              "chunking": { "maxTokens": 512, "overlap": 0, "tokenizer": "o200k_base" }
+              "group": "document"
             },
             "result": {
               "name": "sample.md",
-              "size": 18234,
+              "size": 3092,
               "mimeType": "text/markdown",
               "extension": "md",
               "label": "markdown",
               "group": "markup",
               "encoding": "utf-8",
-              "content": "# Quarterly Report\n\nRevenue grew in every region..."
+              "content": "Sample PDF\nThis is a simple PDF ﬁle. Fun fun fun.\n\n…"
+            },
+            "options": {
+              "chunking": { "maxTokens": 512, "overlap": 0, "tokenizer": "o200k_base" }
             },
             "chunks": [
               {
                 "index": 0,
                 "kind": "text",
-                "text": "# Quarterly Report\n\nRevenue grew in every region...",
-                "headings": ["Quarterly Report"],
+                "text": "Sample PDF\nThis is a simple PDF ﬁle. Fun fun fun.\n\n…",
+                "headings": [],
                 "start": 0,
-                "end": 812,
-                "tokens": 201
+                "end": 1043,
+                "tokens": 312
               }
             ]
           }
-  - name: Chunked File Output
-    description: With chunking, `output=file` downloads the full JSON document (the same body as the JSON output) as `sample.json`
-    request:
-      url: "{{host}}/v1/markdown"
-      method: POST
-      body:
-        type: multipart-form
-        data:
-          - name: metadata
-            type: text
-            value: '{"output": "file", "options": {"chunking": {}}}'
-            contentType: application/json
-          - name: file
-            type: file
-            value:
-              - C:\Software\_data\pdf\sample.pdf
-            contentType: application/pdf
-    response:
-      status: 200
-      statusText: OK
-      headers:
-        - name: content-type
-          value: application/json
-        - name: content-disposition
-          value: attachment; filename="sample.json"
-      body:
-        type: text
-        data: ""
-  - name: Remote S3
-    description: Use a remote S3 bucket as source and destination; requires a "demo-s3" connector. The markdown is uploaded and the response stays light, `result.uri` points to the stored file and there is no `content`
+  - name: Store Markdown in a bucket
+    description: Read from and write to a configured storage connector, here an S3 connector named `demo-s3`. The response omits `content` and `result.uri` is the stored file.
     request:
       url: "{{host}}/v1/markdown"
       method: POST
@@ -179,26 +290,25 @@ examples:
             "source": {
               "uri": "s3://demo-s3/papyrus-test/sample.pdf",
               "name": "sample.pdf",
-              "size": 482113,
+              "size": 18810,
               "mimeType": "application/pdf",
               "extension": "pdf",
               "label": "pdf",
-              "group": "document",
-              "title": "Quarterly Report"
+              "group": "document"
             },
-            "options": {},
             "result": {
               "uri": "s3://demo-s3/papyrus-test/sample.md",
               "name": "sample.md",
-              "size": 18234,
+              "size": 3092,
               "mimeType": "text/markdown",
               "extension": "md",
               "label": "markdown",
               "group": "markup"
-            }
+            },
+            "options": {}
           }
-  - name: Remote S3 Chunked
-    description: With chunking and a destination the full JSON document is uploaded; the response describes the stored `.json` file and carries no chunks
+  - name: Store chunks in a bucket
+    description: With chunking and a destination, the full JSON document is uploaded and the response describes the stored `.json` file, without chunks.
     request:
       url: "{{host}}/v1/markdown"
       method: POST
@@ -220,28 +330,27 @@ examples:
             "source": {
               "uri": "s3://demo-s3/papyrus-test/sample.pdf",
               "name": "sample.pdf",
-              "size": 482113,
+              "size": 18810,
               "mimeType": "application/pdf",
               "extension": "pdf",
               "label": "pdf",
-              "group": "document",
-              "title": "Quarterly Report"
-            },
-            "options": {
-              "chunking": { "maxTokens": 256, "overlap": 0, "tokenizer": "o200k_base" }
+              "group": "document"
             },
             "result": {
               "uri": "s3://demo-s3/papyrus-test/sample.json",
               "name": "sample.json",
-              "size": 41877,
+              "size": 7251,
               "mimeType": "application/json",
               "extension": "json",
               "label": "json",
               "group": "data"
+            },
+            "options": {
+              "chunking": { "maxTokens": 256, "overlap": 0, "tokenizer": "o200k_base" }
             }
           }
-  - name: Website
-    description: Read website content as markdown. `source.fetch` reports the final URL after redirects and the HTTP status
+  - name: Name an unknown connector
+    description: Storage URIs must name a connector from the server configuration; any other name fails before anything is read.
     request:
       url: "{{host}}/v1/markdown"
       method: POST
@@ -249,40 +358,53 @@ examples:
         type: json
         data: |-
           {
-            "source": "https://axelered.com"
+            "source": "s3://demo-s3/papyrus-test/sample.pdf"
           }
     response:
-      status: 200
-      statusText: OK
+      status: 422
+      statusText: Unprocessable Content
+      headers:
+        - name: content-type
+          value: application/problem+json
       body:
         type: json
         data: |-
           {
-            "source": {
-              "uri": "https://axelered.com",
-              "name": "source.html",
-              "size": 61234,
-              "mimeType": "text/html",
-              "extension": "html",
-              "label": "html",
-              "group": "markup",
-              "title": "Axelered",
-              "fetch": { "url": "https://axelered.com/", "status": 200 }
-            },
-            "options": {},
-            "result": {
-              "name": "source.md",
-              "size": 4120,
-              "mimeType": "text/markdown",
-              "extension": "md",
-              "label": "markdown",
-              "group": "markup",
-              "encoding": "utf-8",
-              "content": "# Axelered\n\n..."
-            }
+            "type": "about:blank",
+            "title": "Unprocessable Content",
+            "status": 422,
+            "code": "unknown_connector",
+            "detail": "connector 'demo-s3' is not configured"
           }
-  - name: Validation Error
-    description: Request keys are camelCase only; snake_case keys are rejected as unknown fields with a problem+json body
+  - name: Reject an image
+    description: Markdown extraction does not run OCR, so images fail with `unsupported_format`. Use render or thumbnail for images.
+    request:
+      url: "{{host}}/v1/markdown"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "source": "https://axelered.com/_og/platform.png"
+          }
+    response:
+      status: 415
+      statusText: Unsupported Media Type
+      headers:
+        - name: content-type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "about:blank",
+            "title": "Unsupported Media Type",
+            "status": 415,
+            "code": "unsupported_format",
+            "detail": "image/png (png) is not supported for markdown extraction"
+          }
+  - name: Reject snake_case keys
+    description: Field names are camelCase only. Any other spelling is an unknown field and `errors[].loc` points at it.
     request:
       url: "{{host}}/v1/markdown"
       method: POST
@@ -311,4 +433,31 @@ examples:
             "errors": [
               { "loc": ["options", "chunking", "max_tokens"], "msg": "Extra inputs are not permitted", "type": "extra_forbidden" }
             ]
+          }
+  - name: Block a private address
+    description: URLs that resolve to private or internal addresses are refused before any request is sent, unless the server sets `http.allow_private`.
+    request:
+      url: "{{host}}/v1/markdown"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "source": "http://127.0.0.1/admin"
+          }
+    response:
+      status: 403
+      statusText: Forbidden
+      headers:
+        - name: content-type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "about:blank",
+            "title": "Forbidden",
+            "status": 403,
+            "code": "source_forbidden",
+            "detail": "host '127.0.0.1' resolves to a non-public address"
           }

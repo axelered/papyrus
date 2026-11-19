@@ -20,10 +20,111 @@ request:
     token: "{{token}}"
   variables:
     - name: host
-      value: 127.0.0.1:8001
-      description: Base URL of the server being tested
+      value: http://127.0.0.1:8000
+      description: Base URL of your Papyrus server, the quickstart default
     - name: token
       value: dev
+      description: API key, one of the values in PAPYRUS_API_KEY
+
+docs:
+  content: |-
+    Papyrus turns documents and web pages into LLM-ready Markdown, chunks and images through one HTTP API that runs on your own infrastructure.
+
+    | Endpoint | Use it to |
+    |---|---|
+    | `POST /v1/markdown` | Extract Markdown from a file or web page, optionally split into chunks for embeddings |
+    | `POST /v1/render` | Render one page of a document or image at a readable size |
+    | `POST /v1/thumbnail` | Fit one page, image or web page into a fixed preview box |
+    | `POST /v1/screenshot` | Capture a web page in a headless browser |
+    | `GET /`, `/health`, `/ready` | Check the version, liveness and readiness of a server |
+
+    ## Authentication
+
+    Every `/v1` request needs `Authorization: Bearer <key>`, where the key is one of the comma separated values of `PAPYRUS_API_KEY`. A missing or wrong key returns `401 unauthorized`. `/`, `/health` and `/ready` are public.
+
+    ## Collection variables
+
+    | Variable | Default | Set it to |
+    |---|---|---|
+    | `host` | `http://127.0.0.1:8000` | the base URL of your server |
+    | `token` | `dev` | your API key |
+
+    The defaults match the quickstart (`docker run -p 8000:8000 -e PAPYRUS_API_KEY=dev ghcr.io/axelered/papyrus`). For another server, create a Bruno environment that overrides both.
+
+    ## Requests
+
+    Every operation takes the same three fields, sent in one of two ways:
+
+    - `application/json`: the request is the body. Use it for URLs and storage sources.
+    - `multipart/form-data`: upload the document in the `file` part and send the request as JSON in the `metadata` part. `source` defaults to `file://file`, so a bare upload needs no `metadata`.
+
+    | Field | Meaning |
+    |---|---|
+    | `source` | What to process: `file://<part>` for an upload, an `http(s)://` URL, or `<protocol>://<connector>/<path>` for configured storage such as `s3://prod/reports/q3.pdf` |
+    | `destination` | Optional storage URI to write the result to instead of returning it |
+    | `output` | `json` for the envelope below, `file` for the artifact as the response body |
+    | `options` | Operation options; omitted fields take their defaults |
+
+    Field names are camelCase (`maxTokens`, `fullPage`). Unknown fields, snake_case included, fail with `422 validation_error`.
+
+    ## Responses
+
+    With `output: json` every operation returns the same envelope:
+
+    ```json
+    {
+      "source": {
+        "uri": "https://axelered.com",
+        "name": "source.html",
+        "size": 94018,
+        "mimeType": "text/html",
+        "extension": "html",
+        "label": "html",
+        "group": "markup",
+        "title": "Axelered · Intelligent process automation",
+        "fetch": {"url": "https://axelered.com", "status": 200}
+      },
+      "result": {
+        "name": "source.md",
+        "size": 6810,
+        "mimeType": "text/markdown",
+        "extension": "md",
+        "label": "markdown",
+        "group": "markup",
+        "encoding": "utf-8",
+        "content": "…# Automatethe process.\n\nWe automate your processes end to end…"
+      },
+      "options": {}
+    }
+    ```
+
+    - `source` describes the input as detected from its content, not its extension.
+    - `result` describes the produced file. `content` is UTF-8 text for Markdown and base64 for images.
+    - `options` echoes the options with every default applied, so you see exactly what ran.
+    - Operation data such as `chunks` sits next to these three keys.
+
+    With `output: file` the body is the artifact and `Content-Disposition` carries its name. With a `destination` the result is uploaded and the response is the envelope without `content`, where `result.uri` is the stored location.
+
+    ## Errors
+
+    Errors are `application/problem+json` with a stable `code`; branch on `code`, never on `detail`.
+
+    ```json
+    {"type": "about:blank", "title": "Unsupported Media Type", "status": 415, "code": "unsupported_format", "detail": "image/png (png) is not supported for markdown extraction"}
+    ```
+
+    | Status | Codes | What to do |
+    |---|---|---|
+    | 400, 413, 415, 422 | `bad_request`, `payload_too_large`, `source_too_large`, `image_too_large`, `unsupported_format`, `unsupported_media_type`, `validation_error`, `unsupported_uri`, `unknown_connector`, `page_out_of_range` | Fix the request; retrying does not help |
+    | 401 | `unauthorized` | Send a valid API key |
+    | 403, 404 | `source_forbidden`, `source_not_found` | Check the source URL or object key and the server fetch policy |
+    | 500 | `processing_failed`, `internal_error` | The document could not be processed; report it if it persists |
+    | 502 | `source_fetch_failed`, `destination_failed` | The remote source or storage failed; retry later |
+    | 503 | `queue_full` | The server is at capacity; retry after the `Retry-After` seconds |
+    | 504 | `processing_timeout`, `deadline_exceeded` | The document took too long; try a smaller document or a single page |
+
+    Validation errors list every invalid field in `errors`, with `loc` as the path in your request.
+  type: text/markdown
 bundled: false
 extensions:
   bruno:

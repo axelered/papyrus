@@ -1,22 +1,19 @@
 info:
   name: Render
   type: http
-  seq: 6
+  seq: 2
 
 http:
   method: POST
   url: "{{host}}/v1/render"
   body:
-    type: json
-    data: |-
-      {
-        "output": "file",
-        "source": "s3://demo-s3/papyrus-test/sample.pdf",
-        "options": {
-          "page": 1,
-          "dpi": 150
-        }
-      }
+    type: multipart-form
+    data:
+      - name: file
+        type: file
+        value:
+          - sample.pdf
+        contentType: application/pdf
   auth: inherit
 
 settings:
@@ -26,44 +23,60 @@ settings:
   maxRedirects: 5
   forwardAuthorizationHeader: false
 
+docs:
+  content: |-
+    Renders one page of a document, or one frame of an image, at a readable size. By default the response body is the image file, named `<source name>-<page>.<ext>`.
+
+    ## When to use it
+
+    - Send page images to a vision model alongside the extracted Markdown.
+    - Show a document page in a viewer or review screen.
+    - Turn office documents into images without installing LibreOffice in your own services.
+
+    Use thumbnail instead for fixed size previews, and screenshot for web pages as a browser shows them.
+
+    ## Inputs
+
+    PDF, PNG, JPEG, WebP, GIF, BMP, TIFF and AVIF. Word, PowerPoint, Excel, OpenDocument, RTF and HTML are exported to PDF one page at a time with LibreOffice, so their `source` has no `pageCount` and HTML is paginated like a printed page. For images, `page` selects the frame of a GIF, TIFF or animated WebP.
+
+    ## Sizing
+
+    Pick one way to size the output:
+
+    | Options | Result |
+    |---|---|
+    | none | document pages at `dpi: 150`, images at their own size |
+    | `dpi` | `1` to `600`; images ignore it |
+    | `width` or `height` | `1` to `4096`, the other side follows the aspect ratio |
+    | `width` and `height` | the page fits inside the box, keeping its aspect ratio |
+
+    `dpi` combined with `width` or `height` fails with `422 validation_error`. Images are never enlarged, and no output side exceeds 4096 px. `options` in the response echoes the resolved `dpi`.
+
+    ## Errors
+
+    - `422 page_out_of_range`: `page` is past the last page or frame.
+    - `413 image_too_large`: the source image has more pixels than the decompression guard allows.
+    - `415 unsupported_format`: the detected format cannot be rendered, for example a ZIP or a CSV file.
+  type: text/markdown
+
 examples:
-  - name: Simple File
-    description: Render the first page of a local file upload; the default output is the image file named `<stem>-<page>.<ext>`
+  - name: Render a page as JSON
+    description: Return the image as base64 in `result.content`. `source.pageCount` is the length of the document and `options` shows the default `dpi` that was applied.
     request:
       url: "{{host}}/v1/render"
       method: POST
       body:
         type: multipart-form
         data:
+          - name: metadata
+            type: text
+            value: '{"output": "json"}'
+            contentType: application/json
           - name: file
             type: file
             value:
-              - C:\Software\_data\pdf\sample.pdf
+              - sample.pdf
             contentType: application/pdf
-    response:
-      status: 200
-      statusText: OK
-      headers:
-        - name: content-type
-          value: image/png
-        - name: content-disposition
-          value: attachment; filename="sample-1.png"
-      body:
-        type: text
-        data: ""
-  - name: Page As JSON
-    description: Render page 3 as JSON. `source.pageCount` is the page count of the PDF, `result` the image size in pixels and its base64 `content`; `options` echoes the resolved `dpi`
-    request:
-      url: "{{host}}/v1/render"
-      method: POST
-      body:
-        type: json
-        data: |-
-          {
-            "output": "json",
-            "source": "https://axelered.com/docs/report.pdf",
-            "options": { "page": 3 }
-          }
     response:
       status: 200
       statusText: OK
@@ -72,32 +85,79 @@ examples:
         data: |-
           {
             "source": {
-              "uri": "https://axelered.com/docs/report.pdf",
-              "name": "report.pdf",
-              "size": 482113,
+              "uri": "file://file",
+              "name": "sample.pdf",
+              "size": 18810,
               "mimeType": "application/pdf",
               "extension": "pdf",
               "label": "pdf",
               "group": "document",
-              "pageCount": 12,
-              "fetch": { "url": "https://axelered.com/docs/report.pdf", "status": 200 }
+              "pageCount": 1
             },
-            "options": { "page": 3, "dpi": 150, "format": "png" },
             "result": {
-              "name": "report-3.png",
-              "size": 210334,
+              "name": "sample-1.png",
+              "size": 397384,
               "mimeType": "image/png",
               "extension": "png",
               "label": "png",
               "group": "image",
-              "width": 1240,
-              "height": 1754,
+              "width": 1275,
+              "height": 1650,
               "encoding": "base64",
-              "content": "iVBORw0KGgoAAAANSUhEUgAA..."
-            }
+              "content": "iVBORw0KGgoAAAANSUhEUgAABPsAAAZyCAIAAADJpnZZ…"
+            },
+            "options": { "page": 1, "dpi": 150, "format": "png" }
           }
-  - name: Remote S3
-    description: Render page 3 to an S3 destination; requires a "demo-s3" connector. The response is light, `result.uri` points to the stored image and there is no `content`
+  - name: Render at a fixed width
+    description: Set `width` for a predictable layout; the height follows the page aspect ratio.
+    request:
+      url: "{{host}}/v1/render"
+      method: POST
+      body:
+        type: multipart-form
+        data:
+          - name: metadata
+            type: text
+            value: '{"output": "json", "options": {"width": 800, "format": "webp"}}'
+            contentType: application/json
+          - name: file
+            type: file
+            value:
+              - sample.pdf
+            contentType: application/pdf
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: json
+        data: |-
+          {
+            "source": {
+              "uri": "file://file",
+              "name": "sample.pdf",
+              "size": 18810,
+              "mimeType": "application/pdf",
+              "extension": "pdf",
+              "label": "pdf",
+              "group": "document",
+              "pageCount": 1
+            },
+            "result": {
+              "name": "sample-1.webp",
+              "size": 122152,
+              "mimeType": "image/webp",
+              "extension": "webp",
+              "label": "webp",
+              "group": "image",
+              "width": 800,
+              "height": 1036,
+              "encoding": "base64",
+              "content": "UklGRiDdAQBXRUJQVlA4IBTdAQDwZASdASogAwwE…"
+            },
+            "options": { "page": 1, "width": 800, "format": "webp" }
+          }
+  - name: Store a page in a bucket
+    description: Write the image to a storage connector, here an S3 connector named `demo-s3`. The response omits `content` and `result.uri` is the stored image.
     request:
       url: "{{host}}/v1/render"
       method: POST
@@ -106,8 +166,7 @@ examples:
         data: |-
           {
             "source": "s3://demo-s3/papyrus-test/sample.pdf",
-            "destination": "s3://demo-s3/papyrus-test/sample-3.png",
-            "options": { "page": 3 }
+            "destination": "s3://demo-s3/papyrus-test/sample-1.png"
           }
     response:
       status: 200
@@ -119,38 +178,43 @@ examples:
             "source": {
               "uri": "s3://demo-s3/papyrus-test/sample.pdf",
               "name": "sample.pdf",
-              "size": 482113,
+              "size": 18810,
               "mimeType": "application/pdf",
               "extension": "pdf",
               "label": "pdf",
               "group": "document",
-              "pageCount": 12
+              "pageCount": 1
             },
-            "options": { "page": 3, "dpi": 150, "format": "png" },
             "result": {
-              "uri": "s3://demo-s3/papyrus-test/sample-3.png",
-              "name": "sample-3.png",
-              "size": 210334,
+              "uri": "s3://demo-s3/papyrus-test/sample-1.png",
+              "name": "sample-1.png",
+              "size": 397384,
               "mimeType": "image/png",
               "extension": "png",
               "label": "png",
               "group": "image",
-              "width": 1240,
-              "height": 1754
-            }
+              "width": 1275,
+              "height": 1650
+            },
+            "options": { "page": 1, "dpi": 150, "format": "png" }
           }
-  - name: Page Out Of Range
-    description: A page beyond the end of the document is a problem+json `page_out_of_range`
+  - name: Ask for a page past the end
+    description: A `page` beyond the document fails with `page_out_of_range`; the detail reports how many pages there are.
     request:
       url: "{{host}}/v1/render"
       method: POST
       body:
-        type: json
-        data: |-
-          {
-            "source": "https://axelered.com/docs/report.pdf",
-            "options": { "page": 99 }
-          }
+        type: multipart-form
+        data:
+          - name: metadata
+            type: text
+            value: '{"options": {"page": 5}}'
+            contentType: application/json
+          - name: file
+            type: file
+            value:
+              - sample.pdf
+            contentType: application/pdf
     response:
       status: 422
       statusText: Unprocessable Content
@@ -165,5 +229,41 @@ examples:
             "title": "Unprocessable Content",
             "status": 422,
             "code": "page_out_of_range",
-            "detail": "page 99 is out of range, the document has 12"
+            "detail": "page 5 is out of range, the document has 1"
+          }
+  - name: Combine dpi with a size
+    description: "`dpi` and `width` or `height` are two ways to size the same page, so sending both fails validation."
+    request:
+      url: "{{host}}/v1/render"
+      method: POST
+      body:
+        type: multipart-form
+        data:
+          - name: metadata
+            type: text
+            value: '{"options": {"dpi": 200, "width": 800}}'
+            contentType: application/json
+          - name: file
+            type: file
+            value:
+              - sample.pdf
+            contentType: application/pdf
+    response:
+      status: 422
+      statusText: Unprocessable Content
+      headers:
+        - name: content-type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "about:blank",
+            "title": "Unprocessable Content",
+            "status": 422,
+            "code": "validation_error",
+            "detail": "request validation failed",
+            "errors": [
+              { "loc": ["options"], "msg": "Value error, dpi cannot be combined with width or height", "type": "value_error" }
+            ]
           }

@@ -1,0 +1,42 @@
+info:
+  name: Root
+  type: http
+  seq: 5
+
+http:
+  method: GET
+  url: "{{host}}/"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+docs:
+  content: |-
+    Returns the product name, the release version and the build watermark of the server. No API key needed.
+
+    Use it to confirm which release a deployment runs before you compare its behavior with these docs, or to check a rollout reached every replica. `watermark` is omitted when the server runs from source.
+  type: text/markdown
+
+examples:
+  - name: Check the running version
+    description: A server running release 0.2.0, built from commit 70dc00a.
+    request:
+      url: "{{host}}/"
+      method: GET
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: json
+        data: |-
+          {
+            "status": "ok",
+            "name": "Axelered Papyrus",
+            "version": "0.2.0",
+            "watermark": "v0.2.0 #70dc00a 2026-11-17"
+          }

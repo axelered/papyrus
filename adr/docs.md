@@ -33,7 +33,11 @@ emojis. The README keeps its emoji headings; the docs site does not use them.
 - Uploads: bare file names (`sample.pdf`).
 - Server: `http://127.0.0.1:8000` with API key `dev`, as started by the quickstart
   (`docker run -p 8000:8000 -e PAPYRUS_API_KEY=dev ghcr.io/axelered/papyrus`).
-- todo: the Bruno `host` variable defaults to `127.0.0.1:8001`; align it with the quickstart or document why not
+- Bruno `host` defaults to `http://127.0.0.1:8000` and `token` to `dev`, so the downloaded collection works right
+  after the quickstart. Development servers (`docker/dev` on 8001, stage) use gitignored environments
+  (`bruno/environments/*.nogit.yml`).
+- Bruno responses are captured from a running image and trimmed with `…`; storage examples, which need a connector,
+  reuse the sizes of the same document processed locally.
 
 ## Sources of Truth
 
