@@ -76,9 +76,9 @@
 ### Documentation (spec: `adr/docs.md`)
 
 - [x] Docs spec: readers, language, structure; `/document` command and `axelered-docs` skill
-- [ ] Guides: introduction, Docker quickstart, guides, concepts and deploy pages
-- [ ] Bruno: collection overview, endpoint docs, examples and `seq` order for every public endpoint
-- [ ] Complete `Field(description=…)` and route summaries in FastAPI for the API reference
+- [x] Guides: introduction, Docker quickstart, guides, concepts and deploy pages
+- [x] Bruno: collection overview, endpoint docs, examples and `seq` order for every public endpoint
+- [x] Complete `Field(description=…)` and route summaries in FastAPI for the API reference
 - [ ] Docs bundle in the check workflow and onboarding on `axelered/docs`
 - [!] Slim the README once the docs site covers its content
 
@@ -90,3 +90,6 @@
 - clamd inside the image needs a multi-process entrypoint and adds about 1 GB RAM per replica
 - LibreOffice workers keep network access; deny egress for the worker (network namespace or deployment policy)
 - LibreOffice adds about 630 MB to the image and about 330 MB RAM per convert worker, 1 GB+ spikes on large files
+- `workers.processes: auto` uses `os.cpu_count()`, which ignores container CPU limits: a 2 CPU container on a 32 core host starts 32 processes per pool
+- The docs site drops Bruno error examples: `json` bodies map to `application/json`, errors are `application/problem+json` (axelered/docs `scripts/bruno.ts`)
+- Chunking: a heading directly followed by a table becomes a heading-only chunk, and `overlap` skips the table to the next prose chunk
