@@ -1,0 +1,85 @@
+---
+title: Run with Docker
+description: Run the Papyrus image in production with keys, configuration, probes and logs
+---
+
+Papyrus ships as one Docker image with every converter, LibreOffice and Chromium included. Run it with an API key and a configuration file, put it behind your reverse proxy, and point your probes at `/health` and `/ready`.
+
+```shell
+docker run -d --name papyrus \
+  -p 8000:8000 \
+  -e PAPYRUS_API_KEY="$PAPYRUS_API_KEY" \
+  -v ./config.yml:/etc/papyrus/config.yml:ro \
+  ghcr.io/axelered/papyrus:0.3
+```
+
+## Image tags
+
+| Tag | Moves | Use it for |
+|---|---|---|
+| `0.3` | to every `0.3.x` patch release | Production, to receive fixes without behavior changes |
+| `0.3.0` | never | Pinned, reproducible deployments |
+
+Releases before `1.0` can change the API between minor versions; read the release notes before you move from `0.3` to `0.4`. `GET /` returns the version a server runs.
+
+The image is about 2.6 GB, LibreOffice and Chromium included, and runs as the non-root user `papyrus` (uid 10001).
+
+## API keys
+
+`PAPYRUS_API_KEY` holds the accepted keys, comma separated. The server refuses to start without one. To rotate a key without downtime, deploy with both keys, move your clients to the new one, then deploy with the new key only:
+
+```shell
+-e PAPYRUS_API_KEY="$NEW_KEY,$OLD_KEY"
+```
+
+Use long random keys, for example `openssl rand -hex 32`, and pass them from your secret manager, never from the configuration file.
+
+## Configuration file
+
+The server reads `/etc/papyrus/config.yml`, or the path in `PAPYRUS_CONFIG`. Without the file every setting takes its default. Start from [`config.example.yml`](https://github.com/axelered/papyrus/blob/main/config.example.yml), which lists every key with its default, and see [configuration](./configuration) for what to change.
+
+## Probes
+
+| Probe | Endpoint | Behavior |
+|---|---|---|
+| Liveness | `GET /health` | `200` while the process answers; restart the container when it fails |
+| Readiness | `GET /ready` | `503 not_ready` while every request slot is in use; stop routing traffic, do not restart |
+
+Both are public and cheap. The image also declares a Docker `HEALTHCHECK` on `/health`. With `workers.warmup` on, the default, the server answers only once every worker process and the browser have started, between a few seconds and about 15 seconds depending on the CPU count.
+
+Kubernetes example:
+
+```yaml
+livenessProbe:
+  httpGet: {path: /health, port: 8000}
+  periodSeconds: 30
+readinessProbe:
+  httpGet: {path: /ready, port: 8000}
+  periodSeconds: 5
+```
+
+## Shutdown
+
+On `SIGTERM` the server stops accepting requests and gives running requests up to 30 seconds to finish. Set your orchestrator's grace period above 30 seconds, for example `terminationGracePeriodSeconds: 40`.
+
+## Logs
+
+Logs go to stderr, one line per event, in UTC.
+
+| Variable | Values | Default |
+|---|---|---|
+| `PAPYRUS_LOG_FORMAT` | `text` or `json`, one object per line for log pipelines | `text` |
+| `PAPYRUS_LOG_LEVEL` | `debug`, `info`, `warning`, `error` | `info` |
+
+Every response carries an `X-Request-ID` header, and every log line of that request carries the same id. Send your own `X-Request-ID` from your gateway to trace a request across services; Papyrus keeps it when it is 1 to 128 characters of letters, digits and `._:-`.
+
+At startup the server logs what it runs: version, limits, worker pools, fetch policy and connector names, never keys or connector credentials.
+
+## One process per container
+
+The image runs a single server process that manages its own worker pools. Scale with more containers, not with `uvicorn --workers`: extra server processes multiply the pools and split the request limit. See [sizing](./sizing).
+
+## Next steps
+
+- [Configuration](./configuration): limits, fetch policy and storage connectors.
+- [Security](./security): what to lock down before exposing Papyrus.

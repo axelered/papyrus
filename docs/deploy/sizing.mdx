@@ -1,0 +1,56 @@
+---
+title: Sizing and performance
+description: Choose CPU, memory, worker processes and replica count for your load
+---
+
+One Papyrus container processes as many documents in parallel as it has worker processes, and accepts up to `workers.max_queue` requests at once. Size it by CPU, give it memory for its pools, and add replicas behind a load balancer for more throughput.
+
+## Set `processes` to your CPU limit
+
+`workers.processes: auto` counts the CPUs the container sees, and that is the host's CPU count even when you set a CPU limit: a container limited to 2 CPUs on a 32-core host starts 32 processes per pool. Set it explicitly whenever the container has a CPU limit:
+
+```yaml
+workers:
+  processes: 4
+```
+
+From `processes`, Papyrus sizes every pool:
+
+| Pool | Size | Runs |
+|---|---|---|
+| Markdown | `processes` | Text extraction and chunking |
+| Render | `processes` | Page and image rendering |
+| Convert | half of `processes`, at least 1 | LibreOffice, for legacy and office formats |
+| Browser | half of `processes`, at least 1, pages | Screenshots and website thumbnails, in one Chromium |
+
+## Memory
+
+Measured with `warmup` on, before any request:
+
+| `processes` | Memory at idle |
+|---|---|
+| 4 | about 1 GB |
+| 32 | about 6 GB |
+
+Add headroom for the documents in flight. Each LibreOffice worker uses about 330 MB and can pass 1 GB on large office files, so deployments that convert many office documents need the most memory. Turn `warmup` off only in development: pools then start on first use, and the first requests of each kind are slower.
+
+## Concurrency and back pressure
+
+- Requests beyond the pool size wait for a free worker, up to `workers.max_queue` per container (64 by default).
+- Beyond `max_queue`, requests fail at once with `503 queue_full` and `Retry-After: 2`, and `/ready` answers `503 not_ready`, so your load balancer sends new requests to other replicas.
+- Clients should retry `503 queue_full` after `Retry-After`, with backoff.
+
+Lower `max_queue` when your requests are long, so a burst waits on other replicas instead of queuing behind slow conversions; keep `limits.deadline` above the slowest document you expect.
+
+## Scale out
+
+Each container is independent and keeps no state between requests, so add replicas behind any HTTP load balancer, with the readiness probe on `/ready`. Prefer more medium containers, 4 to 8 CPUs each, over one large one: a hostile or huge document then affects fewer requests, and rolling updates keep more capacity online.
+
+## Measure
+
+Set `PAPYRUS_TIMING=true` on a test deployment to add a `Server-Timing` header to every response, with the duration of each stage such as `parse`, `materialize`, `detect`, `convert`, `render` and `markdown`. The same values are logged once per request. Keep it off in production: the header reveals internal timings.
+
+## Next steps
+
+- [Configuration](./configuration): every worker and limit setting.
+- [Run with Docker](./docker): probes and graceful shutdown.

@@ -1,0 +1,101 @@
+---
+title: Configuration
+description: Every setting of the configuration file and the environment variables
+---
+
+Papyrus reads one YAML file and a few environment variables. Every key is optional and shows its default below; change only what your deployment needs.
+
+```yaml
+workers:
+  processes: auto
+  max_queue: 64
+  warmup: true
+
+limits:
+  max_file_size: 100MB
+  deadline: 300
+
+http:
+  enabled: true
+  allow_private: false
+  allowed_hosts: []
+  timeout: 30
+  max_redirects: 5
+
+browser:
+  sandbox: false
+
+connectors: {}
+```
+
+- Unknown keys stop the server at startup, so a typo never passes silently.
+- Durations are in seconds. Sizes take units such as `100MB` or `2MiB`.
+- `${VAR}` in any value is replaced with the environment variable `VAR`. If it is not set, the server does not start.
+
+## Workers
+
+| Key | Default | Meaning |
+|---|---|---|
+| `processes` | `auto` | Worker processes per pool. `auto` is one per CPU the container sees; set it to your CPU limit, see [sizing](./sizing) |
+| `max_queue` | `64` | Requests one container handles at once. Beyond it requests fail with `503 queue_full` and `/ready` reports `not_ready` |
+| `warmup` | `true` | Start every worker and the browser at startup, so the first requests do not wait. Startup fails if a component cannot start |
+
+## Limits
+
+| Key | Default | Meaning |
+|---|---|---|
+| `max_file_size` | `100MB` | Largest document, uploaded or downloaded. Larger ones fail with `413` |
+| `deadline` | `300` | Seconds a whole request may take before `504 deadline_exceeded` |
+| `tmp_dir` | system temp + `/papyrus` | Folder for files while a request runs; every request removes its own files |
+
+## Fetching URLs
+
+These settings apply to URL sources and to everything a screenshot page loads.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `enabled` | `true` | `false` rejects every `http(s)` source with `403 source_forbidden` |
+| `allow_private` | `false` | Allow URLs that resolve to private or internal addresses. Keep it off in production |
+| `allowed_hosts` | `[]` | When set, only these hostnames can be fetched, e.g. `[docs.axelered.com]` |
+| `timeout` | `30` | Seconds per download |
+| `max_redirects` | `5` | Redirects followed per download |
+
+## Browser
+
+| Key | Default | Meaning |
+|---|---|---|
+| `sandbox` | `false` | Run Chromium in its sandbox. Needs a runtime that allows unprivileged user namespaces; see [security](./security) |
+
+## Storage connectors
+
+A connector names a storage location that requests address as `<protocol>://<name>/<path>`. The image includes the `s3` protocol, for AWS S3 and S3-compatible storage such as MinIO or Cloudflare R2:
+
+```yaml
+connectors:
+  prod:
+    protocol: s3
+    options:
+      endpoint_url: https://s3.eu-central-1.amazonaws.com
+      key: ${PROD_S3_KEY}
+      secret: ${PROD_S3_SECRET}
+```
+
+Requests then read and write `s3://prod/<key>`. `options` are passed as is to the [s3fs](https://s3fs.readthedocs.io) filesystem, so any s3fs option works, such as `client_kwargs: {region_name: eu-central-1}`. Keep credentials in environment variables and reference them with `${VAR}`; the startup log lists connector names, never their options.
+
+An unknown protocol stops the server at startup with the reason.
+
+## Environment variables
+
+| Variable | Meaning |
+|---|---|
+| `PAPYRUS_API_KEY` | Accepted API keys, comma separated. Required unless auth is disabled |
+| `PAPYRUS_CONFIG` | Path of the configuration file, default `/etc/papyrus/config.yml` |
+| `PAPYRUS_LOG_LEVEL` | `debug`, `info` (default), `warning` or `error` |
+| `PAPYRUS_LOG_FORMAT` | `text` (default) or `json` |
+| `PAPYRUS_AUTH_DISABLED` | `true` turns off authentication. Local development only |
+| `PAPYRUS_TIMING` | `true` adds a `Server-Timing` header with stage durations. Profiling only: it reveals internal timings |
+
+## Next steps
+
+- [Security](./security): settings to review before going to production.
+- [Sizing](./sizing): pick `processes` and `max_queue` for your load.

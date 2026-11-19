@@ -1,0 +1,60 @@
+---
+title: Security
+description: How Papyrus handles untrusted documents and URLs, and what to lock down in your deployment
+---
+
+Papyrus processes documents and web pages you do not control. This page lists what it protects by default, what it leaves to your deployment, and the settings to review before you expose it.
+
+## Checklist
+
+- [ ] Long random API keys from your secret manager, rotated by listing old and new keys together.
+- [ ] TLS and a request body size limit at your reverse proxy.
+- [ ] `http.allow_private: false`, and `http.allowed_hosts` set when your sources come from known hosts.
+- [ ] Egress from the container limited to the hosts and buckets Papyrus needs.
+- [ ] `PAPYRUS_AUTH_DISABLED` and `PAPYRUS_TIMING` unset.
+- [ ] Storage credentials passed as environment variables, scoped to the buckets Papyrus reads and writes.
+
+## Authentication
+
+Every `/v1` request needs a static bearer key from `PAPYRUS_API_KEY`; `/`, `/health` and `/ready` are public and reveal only the version and status. Keys are compared in constant time. Papyrus has no users or per-key permissions: every key can call every endpoint and read every configured connector, so give it to services, not to end users.
+
+## Fetching URLs
+
+Every URL source, redirect and resource a screenshot page loads is checked before Papyrus connects:
+
+- Hostnames that resolve to private, loopback, link-local or other internal addresses are refused with `403 source_forbidden`, unless `http.allow_private` is on.
+- With `http.allowed_hosts`, any other host is refused, for every hop and every page resource.
+- Downloads stop at `limits.max_file_size`, even when the server does not announce a size.
+
+The browser connects only through this check, with the resolved address pinned, so a page cannot change its DNS answer between the check and the connection. Plain URL downloads check the address but do not pin it yet, so a host that switches its DNS answer right after the check could reach an internal address. Until pinning lands, set `http.allowed_hosts` for known sources, or block internal ranges with an egress policy on the container.
+
+## Untrusted documents
+
+- Every converter runs in a separate worker process. A document that crashes or hangs a worker fails its own request with `500 processing_failed` or `504 processing_timeout`, and the worker is replaced.
+- Images are checked against a pixel limit before decoding, so a small file cannot expand into gigabytes of memory.
+- Error responses never include stack traces or internal paths.
+- Every request works in its own temporary folder, removed when the response is sent.
+
+LibreOffice workers keep network access. A crafted office document that makes LibreOffice fetch a remote resource is not stopped by the fetch policy. Deny egress for the container, or at least to internal ranges, when you process office files from untrusted sources.
+
+## Browser isolation
+
+Chromium runs without its own sandbox by default, because the default Docker seccomp profile blocks the user namespaces the sandbox needs. Each request still gets an isolated browser context, and the container runs as a non-root user.
+
+Without the sandbox, a Chromium exploit in a hostile page runs as the Papyrus user, with access to its environment variables, including API keys and storage credentials, and to other requests' temporary files. To close that gap, run the container with a seccomp profile that allows unprivileged user namespaces, and set:
+
+```yaml
+browser:
+  sandbox: true
+```
+
+With `sandbox: true` on a runtime that does not allow it, screenshots and HTML thumbnails fail with `500 processing_failed`. If you do not need screenshots or website thumbnails, block URL sources to untrusted hosts with `http.allowed_hosts` to keep hostile pages out entirely.
+
+## Request size
+
+The server parses multipart uploads before it checks their size, so an oversized upload uses disk and time before it is refused. Enforce a body limit slightly above `limits.max_file_size` at your reverse proxy, for example `client_max_body_size 110m;` in nginx.
+
+## Next steps
+
+- [Configuration](./configuration): the fetch policy and browser keys.
+- [Sizing](./sizing): limits that keep one client from starving the others.
