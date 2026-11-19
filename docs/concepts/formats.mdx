@@ -33,7 +33,8 @@ A format an operation does not accept fails with `415 unsupported_format`, befor
 ## What to expect per format
 
 - **Scanned PDFs** have no text layer, and Papyrus does not run OCR, so Markdown extraction returns little or no text. Render still produces page images you can send to an OCR or vision model.
-- **Legacy and OpenDocument files** are converted with LibreOffice first, which adds time to every request. For render and thumbnail, LibreOffice exports one page at a time, so `source.pageCount` is not reported.
+- **Legacy and OpenDocument files** (`.doc`, `.ppt`, `.rtf`, `.odt`, `.odp`, `.ods`) are converted with LibreOffice before Markdown extraction, which adds time to every request.
+- **Office files and HTML in render and thumbnail**, `.docx`, `.pptx` and `.xlsx` included, are exported by LibreOffice one page at a time, so `source.pageCount` is not reported. HTML thumbnails are the exception: they are browser captures.
 - **HTML** keeps headings, lists, links and tables. Site navigation and footers come through as text, as on the page.
 - **Animated and multi-page images** (GIF, TIFF, animated WebP) render one frame per request, chosen with `page`.
 
