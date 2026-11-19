@@ -1,6 +1,8 @@
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+from pydantic.alias_generators import to_camel
 
 
 class OutputMode(StrEnum):
@@ -80,7 +82,18 @@ class FormatLabel(StrEnum):
     UNKNOWN = 'unknown'
 
 
-class OpRequest(BaseModel):
+class ApiModel(BaseModel):
+    """Wire model: camelCase JSON keys, Python names in code
+
+    Python names stay valid for constructors; the API boundary validates with `by_name=False` (adr/api.md).
+    """
+
+    model_config = ConfigDict(
+        alias_generator=to_camel, validate_by_alias=True, validate_by_name=True, serialize_by_alias=True
+    )
+
+
+class OpRequest(ApiModel):
     """Common request contract; operations subclass it, override `output` defaults and add typed `options`"""
 
     model_config = ConfigDict(extra='forbid')
@@ -90,26 +103,79 @@ class OpRequest(BaseModel):
     output: OutputMode = OutputMode.JSON
 
 
-class SourceType(BaseModel):
-    mime_type: str = Field(description='Explicit format MIME or the MIME magika reports for derived formats')
+class OptionsModel(ApiModel):
+    """Base of every op `options` model; echoed back resolved in the response"""
+
+    model_config = ConfigDict(extra='forbid')
+
+
+class Encoding(StrEnum):
+    """How `result.content` carries the artifact"""
+
+    UTF8 = 'utf-8'
+    BASE64 = 'base64'
+
+
+_MIME = 'Explicit format MIME or the MIME magika reports for derived formats'
+_LABEL = 'Papyrus format label or magika content type label; the language for code'
+
+
+class FileInfo(ApiModel):
+    """File facts shared by `source` and `result`; unknown fields are omitted"""
+
+    uri: str | None = Field(default=None, description='Source URI, or the destination the result was written to')
+    name: str | None = None
+    size: int | None = Field(default=None, description='Bytes')
+    mime_type: str | None = Field(default=None, description=_MIME)
+    extension: str | None = None
+    label: str | None = Field(default=None, description=_LABEL)
+    group: FormatGroup | None = None
+    page_count: int | None = Field(default=None, description='Pages or frames, when the operation knows it')
+    width: int | None = Field(default=None, description='Pixels, raster images only')
+    height: int | None = Field(default=None, description='Pixels, raster images only')
+    title: str | None = Field(default=None, description='Document title, when extracted')
+
+
+class Fetch(ApiModel):
+    url: str = Field(description='Final URL after redirects')
+    status: int | None = Field(default=None, description='HTTP status of the document, omitted when none was sent')
+
+
+class Source(FileInfo):
+    """The input document; file fields are omitted for navigated pages, which have no file"""
+
+    uri: str = Field(description='The request `source`')
+    fetch: Fetch | None = Field(default=None, description='Present for http(s) sources')
+
+
+class Result(FileInfo):
+    """The primary artifact; `content` is inline unless a destination is set"""
+
+    name: str
+    size: int = Field(description='Bytes')
+    mime_type: str = Field(description=_MIME)
     extension: str
-    label: str = Field(description='Papyrus format label or magika content type label; the language for code')
+    label: str = Field(description=_LABEL)
     group: FormatGroup
+    encoding: Encoding | None = Field(default=None, description='Encoding of `content`, omitted with a destination')
+    content: str | None = Field(
+        default=None, description='The artifact as utf-8 text or base64, omitted with a destination'
+    )
 
 
-class Receipt(BaseModel):
-    destination: str
-    content_type: str
-    size: int
-    source_type: SourceType | None = None
+class OpResponse(ApiModel):
+    """Envelope of every operation; subclasses type `options` and add data sections defaulting to None"""
+
+    source: Source
+    result: Result
 
 
-class HelloResponse(BaseModel):
-    status: str = 'ok'
+class HelloResponse(ApiModel):
+    status: Literal['ok'] = 'ok'
     name: str = 'Axelered Papyrus'
     version: str
     watermark: str | None = None
 
 
-class StatusResponse(BaseModel):
-    status: str = 'ok'
+class StatusResponse(ApiModel):
+    status: Literal['ok'] = 'ok'

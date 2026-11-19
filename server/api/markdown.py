@@ -1,19 +1,16 @@
 from fastapi import APIRouter, Depends, Request, Response
 
-from server.api.output import respond, source_type_of
+from server.api.output import respond, result_of, source_of
 from server.api.request import op_context, openapi_body
 from server.auth import require_api_key
 from server.errors import UnsupportedFormat
 from server.services.detect import Format
 from server.services.markdown import CHUNKS
-from server.types.common import FormatGroup, FormatLabel, Receipt
+from server.types.common import Encoding, FormatGroup, FormatLabel
 from server.types.convert import ConvertFormat
-from server.types.markdown import MarkdownRequest, MarkdownResult
+from server.types.markdown import MarkdownRequest, MarkdownResponse
 from server.utils.openapi import inline_refs
 from server.utils.timing import stage
-
-MEDIA_TYPE = 'text/markdown; charset=utf-8'
-JSON_MEDIA_TYPE = 'application/json'
 
 MARKDOWN_FORMATS = frozenset(
     {
@@ -69,16 +66,9 @@ def is_code(value: Format) -> bool:
     response_model=None,
     responses={
         200: {
-            'description': 'Markdown as JSON, as a file, or a receipt when `destination` is set',
+            'description': 'The JSON envelope, or the markdown as a file (the JSON document when chunked)',
             'content': {
-                'application/json': {
-                    'schema': {
-                        'anyOf': [
-                            inline_refs(MarkdownResult.model_json_schema()),
-                            inline_refs(Receipt.model_json_schema()),
-                        ]
-                    }
-                },
+                'application/json': {'schema': inline_refs(MarkdownResponse.model_json_schema())},
                 'text/markdown': {'schema': {'type': 'string'}},
             },
         }
@@ -89,6 +79,7 @@ async def markdown(request: Request) -> Response:
     async with op_context(request, MarkdownRequest) as op:
         with stage('materialize'):
             source = await request.app.state.transfer.materialize(op.model.source, op.workspace, op.parts)
+        name = source.path.name
         with stage('detect'):
             document = await services.detect.detect(source.path)
         if not accepts(document.format):
@@ -113,12 +104,10 @@ async def markdown(request: Request) -> Response:
             else:
                 title = await services.markdown.convert(source_path, target, chunking, chunks_target)
 
-        source_type = source_type_of(document.format)
-        result = MarkdownResult(markdown=target.read_text(encoding='utf-8'), title=title, source_type=source_type)
-        if chunks_target is None:
-            return await respond(request, op, target, MEDIA_TYPE, lambda: result, source_type)
-
-        result.chunks = CHUNKS.validate_json(chunks_target.read_bytes())
-        body = op.workspace.new_file(f'{stem}.json')
-        body.write_text(result.model_dump_json(), encoding='utf-8')
-        return await respond(request, op, body, JSON_MEDIA_TYPE, lambda: result, source_type)
+        response = MarkdownResponse(
+            source=source_of(op.model.source, name, document, source, title=title),
+            options=op.model.options,
+            result=result_of(target, FormatLabel.MARKDOWN),
+            chunks=CHUNKS.validate_json(chunks_target.read_bytes()) if chunks_target else None,
+        )
+        return await respond(request, op, response, target, Encoding.UTF8)

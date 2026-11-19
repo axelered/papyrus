@@ -1,4 +1,3 @@
-import base64
 from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
@@ -6,7 +5,7 @@ from urllib.parse import quote, urlsplit
 
 from fastapi import APIRouter, Depends, Request, Response
 
-from server.api.output import image_responses, respond, source_type_of
+from server.api.output import image_responses, respond, result_of, source_of
 from server.api.request import Op, op_context, openapi_body
 from server.auth import require_api_key
 from server.errors import PageOutOfRange, UnsupportedFormat
@@ -15,9 +14,9 @@ from server.services.browser import BrowserService
 from server.services.convert import ConvertService
 from server.services.detect import Document
 from server.services.render import Raster, RenderService, RenderSpec
-from server.types.common import FormatLabel
+from server.types.common import Encoding, FormatLabel
 from server.types.convert import ConvertFormat
-from server.types.render import Fit, RenderRequest, RenderResult, ThumbnailRequest
+from server.types.render import Fit, RenderRequest, RenderResponse, ThumbnailRequest, ThumbnailResponse
 from server.types.screenshot import ScreenshotOptions
 from server.utils.timing import stage
 
@@ -65,14 +64,14 @@ router = APIRouter(prefix='/v1', tags=['render'], dependencies=[Depends(require_
     summary='Render a page or image into a fixed size box',
     openapi_extra=openapi_body(ThumbnailRequest),
     response_model=None,
-    responses=image_responses(RenderResult),
+    responses=image_responses(ThumbnailResponse),
 )
 async def thumbnail(request: Request) -> Response:
     def spec(model: ThumbnailRequest) -> RenderSpec:
         options = model.options
         return RenderSpec(options.page, options.width, options.height, None, options.fit, options.format)
 
-    return await _render(request, ThumbnailRequest, spec, lambda stem, _: stem, html_screenshot=True)
+    return await _render(request, ThumbnailRequest, ThumbnailResponse, spec, lambda stem, _: stem, html_screenshot=True)
 
 
 @router.post(
@@ -80,19 +79,20 @@ async def thumbnail(request: Request) -> Response:
     summary='Render a page or image by width, height or dpi',
     openapi_extra=openapi_body(RenderRequest),
     response_model=None,
-    responses=image_responses(RenderResult),
+    responses=image_responses(RenderResponse),
 )
 async def render(request: Request) -> Response:
     def spec(model: RenderRequest) -> RenderSpec:
         options = model.options
         return RenderSpec(options.page, options.width, options.height, options.dpi, Fit.CONTAIN, options.format)
 
-    return await _render(request, RenderRequest, spec, lambda stem, page: f'{stem}-{page}')
+    return await _render(request, RenderRequest, RenderResponse, spec, lambda stem, page: f'{stem}-{page}')
 
 
 async def _render[M: ThumbnailRequest | RenderRequest](
     request: Request,
     model: type[M],
+    response: type[ThumbnailResponse | RenderResponse],
     spec_of: Callable[[M], RenderSpec],
     name_of: Callable[[str, int], str],
     html_screenshot: bool = False,
@@ -105,6 +105,7 @@ async def _render[M: ThumbnailRequest | RenderRequest](
     async with op_context(request, model) as op:
         with stage('materialize'):
             source = await request.app.state.transfer.materialize(op.model.source, op.workspace, op.parts)
+        name = source.path.name
         with stage('detect'):
             document = await services.detect.detect(source.path)
         if document.format.label not in RENDER_FORMATS | PDF_CONVERSIONS:
@@ -120,22 +121,15 @@ async def _render[M: ThumbnailRequest | RenderRequest](
         else:
             with stage('render'):
                 raster = await services.render.page(document.path, target, spec)
-        source_type = source_type_of(document.format)
-
-        def as_json() -> RenderResult:
-            # page_count stays unset, so omitted from JSON, when the page count is unknown
-            extra = {} if raster.page_count is None else {'page_count': raster.page_count}
-            return RenderResult(
-                data=base64.b64encode(target.read_bytes()).decode('ascii'),
-                content_type=spec.format.mime_type,
-                width=raster.width,
-                height=raster.height,
-                page=raster.page,
-                source_type=source_type,
-                **extra,
-            )
-
-        return await respond(request, op, target, spec.format.mime_type, as_json, source_type)
+        width, height = raster.source_size or (None, None)
+        reply = response(
+            source=source_of(
+                op.model.source, name, document, source, page_count=raster.page_count, width=width, height=height
+            ),
+            options=op.model.options,
+            result=result_of(target, spec.format, width=raster.width, height=raster.height),
+        )
+        return await respond(request, op, reply, target, Encoding.BASE64)
 
 
 def thumbnail_viewport(spec: RenderSpec) -> ScreenshotOptions:
@@ -154,7 +148,7 @@ async def _convert_page(
         await convert.convert(document.path, pdf, ConvertFormat.PDF, page=spec.page)
     with stage('render'):
         raster = await render.page(pdf, target, replace(spec, page=1))
-    return replace(raster, page=spec.page, page_count=None)
+    return replace(raster, page=spec.page, page_count=None, source_size=None)
 
 
 async def _screenshot_html(
@@ -170,4 +164,4 @@ async def _screenshot_html(
         await browser.screenshot(origin, shot, thumbnail_viewport(spec), document=document.path)
     with stage('render'):
         raster = await render.page(shot, target, spec)
-    return replace(raster, page_count=1)
+    return replace(raster, page_count=1, source_size=None)

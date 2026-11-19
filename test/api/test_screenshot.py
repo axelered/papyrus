@@ -58,13 +58,23 @@ def test_json_output_inlines_the_image(client: TestClient, auth_headers: dict[st
     )
 
     assert response.status_code == 200
-    assert response.json() == {
-        'data': base64.b64encode(PNG).decode(),
-        'content_type': 'image/png',
+    body = response.json()
+    assert body['source'] == {
+        'uri': 'https://example.com/',
+        'fetch': {'url': 'https://example.com/final', 'status': 200},
+    }
+    assert body['options']['width'] == 800 and body['options']['fullPage'] is False
+    assert body['result'] == {
+        'name': 'example.com.png',
+        'size': len(PNG),
+        'mimeType': 'image/png',
+        'extension': 'png',
+        'label': 'png',
+        'group': 'image',
         'width': 800,
         'height': 600,
-        'url': 'https://example.com/final',
-        'status': 200,
+        'encoding': 'base64',
+        'content': base64.b64encode(PNG).decode(),
     }
 
 
@@ -77,12 +87,16 @@ def test_format_sets_media_type_and_extension(client: TestClient, auth_headers: 
     assert 'filename="example.com.jpg"' in response.headers['content-disposition']
 
 
-def test_destination_returns_a_receipt(client: TestClient, auth_headers: dict[str, str], memory_fs: AbstractFileSystem):
+def test_destination_returns_light_envelope(
+    client: TestClient, auth_headers: dict[str, str], memory_fs: AbstractFileSystem
+):
     _install(client, FakeBrowser())
 
     response = _post(client, auth_headers, source='https://example.com/', destination='memory://mem/shots/a.png')
 
-    assert response.json() == {'destination': 'memory://mem/shots/a.png', 'content_type': 'image/png', 'size': len(PNG)}
+    result = response.json()['result']
+    assert (result['uri'], result['mimeType'], result['size']) == ('memory://mem/shots/a.png', 'image/png', len(PNG))
+    assert 'content' not in result
     assert memory_fs.cat('shots/a.png') == PNG
 
 

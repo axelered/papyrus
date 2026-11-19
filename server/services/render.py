@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from server.errors import ImageTooLarge, PageOutOfRange, ProcessingFailed, UnsupportedFormat
 from server.services.base import Service, pool_errors
 from server.types.common import MAX_IMAGE_SIDE, ImageFormat
-from server.types.render import Fit
+from server.types.render import DEFAULT_DPI, Fit
 from server.utils.pool import ProcessPool
 from server.utils.problem import ProblemError
 
@@ -16,7 +16,6 @@ if TYPE_CHECKING:
 
 TIMEOUT = 60
 MAX_TASKS = 200
-DEFAULT_DPI = 150
 QUALITY = 85
 _POINTS_PER_INCH = 72
 _EPSILON = 1e-9
@@ -43,6 +42,7 @@ class Raster:
     height: int
     page: int
     page_count: int | None
+    source_size: tuple[int, int] | None = None  # pixels of an image source as displayed (exif applied)
 
 
 @dataclass(frozen=True)
@@ -93,16 +93,17 @@ def init_worker() -> None:
 def render_page(source: str, target: str, spec: RenderSpec) -> Raster:
     """Pool worker: rasterizes one PDF page or image frame and encodes it to `target`"""
     try:
+        source_size = None
         if Path(source).suffix.lower() == '.pdf':
             image, page_count = _render_pdf(Path(source), spec)
         else:
-            image, page_count = _render_image(Path(source), spec)
+            image, page_count, source_size = _render_image(Path(source), spec)
         _encode(image, Path(target), spec.format)
     except ProblemError:
         raise
     except Exception as e:
         raise ProcessingFailed(f'rendering failed ({type(e).__name__})') from None
-    return Raster(width=image.width, height=image.height, page=spec.page, page_count=page_count)
+    return Raster(image.width, image.height, spec.page, page_count, source_size)
 
 
 def _render_pdf(source: Path, spec: RenderSpec) -> tuple['Image', int]:
@@ -126,7 +127,7 @@ def _render_pdf(source: Path, spec: RenderSpec) -> tuple['Image', int]:
         document.close()
 
 
-def _render_image(source: Path, spec: RenderSpec) -> tuple['Image', int]:
+def _render_image(source: Path, spec: RenderSpec) -> tuple['Image', int, tuple[int, int]]:
     from PIL import Image, ImageOps, UnidentifiedImageError
 
     with warnings.catch_warnings():
@@ -148,7 +149,7 @@ def _render_image(source: Path, spec: RenderSpec) -> tuple['Image', int]:
                 oriented = oriented.convert('RGBA' if _has_alpha(oriented) else 'RGB')
                 if oriented.size != layout.size:
                     oriented = oriented.resize(layout.size, Image.Resampling.LANCZOS)
-                return _crop(oriented, layout.crop), count
+                return _crop(oriented, layout.crop), count, (width, height)
         except (Image.DecompressionBombError, Image.DecompressionBombWarning):
             raise ImageTooLarge(f'image exceeds {Image.MAX_IMAGE_PIXELS} pixels') from None
         except (UnidentifiedImageError, OSError, SyntaxError, EOFError):

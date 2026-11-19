@@ -62,7 +62,8 @@ async def parse_op[M: OpRequest](request: Request, model: type[M], workspace: Wo
     if body.content_type == MULTIPART and 'source' not in data and DEFAULT_PART in body.files:
         data['source'] = f'{PART_SCHEME}://{DEFAULT_PART}'
     try:
-        parsed = model.model_validate(data)
+        # camelCase only on the wire; Python names stay valid for constructors in code
+        parsed = model.model_validate(data, by_alias=True, by_name=False)
     except ValidationError as e:
         raise RequestValidationError(e.errors()) from e
     if body.content_type == JSON and parsed.source.startswith(f'{PART_SCHEME}://'):

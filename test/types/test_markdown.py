@@ -24,8 +24,17 @@ def test_overlap_must_stay_below_budget():
         ChunkingOptions(max_tokens=64, overlap=64)
 
 
-def test_chunking_requires_json_output():
+def test_chunking_is_allowed_with_file_output():
     options = MarkdownOptions(chunking=ChunkingOptions())
 
-    with pytest.raises(ValidationError, match='output=json'):
-        MarkdownRequest(source='s3://c/a.pdf', output=OutputMode.FILE, options=options)
+    assert MarkdownRequest(source='s3://c/a.pdf', output=OutputMode.FILE, options=options).options.chunking
+
+
+def test_wire_names_are_camel_case_only():
+    data = {'source': 's3://c/a.pdf', 'options': {'chunking': {'maxTokens': 128}}}
+
+    assert MarkdownRequest.model_validate(data, by_alias=True, by_name=False).options.chunking.max_tokens == 128
+    with pytest.raises(ValidationError, match='max_tokens'):
+        MarkdownRequest.model_validate(
+            {'source': 's3://c/a.pdf', 'options': {'chunking': {'max_tokens': 128}}}, by_alias=True, by_name=False
+        )

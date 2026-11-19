@@ -1,4 +1,4 @@
-from collections.abc import Callable
+import base64
 from pathlib import Path
 from typing import Any
 
@@ -8,28 +8,54 @@ from pydantic import BaseModel
 from starlette.types import Receive, Scope, Send
 
 from server.api.request import Op
+from server.io.transfer import Materialized
 from server.io.workspace import Workspace
-from server.services.detect import Format
-from server.types.common import ImageFormat, OutputMode, Receipt, SourceType
+from server.services.detect import Document, lookup
+from server.types.common import Encoding, Fetch, FormatLabel, ImageFormat, OpResponse, OutputMode, Result, Source
 from server.utils.openapi import inline_refs
 from server.utils.timing import stage
 
-
-def source_type_of(value: Format) -> SourceType:
-    return SourceType(mime_type=value.mime_type, extension=value.extension, label=value.label, group=value.group)
+_ENVELOPE = frozenset({'source', 'options', 'result'})
 
 
-def image_responses(result: type[BaseModel]) -> dict[int | str, dict[str, Any]]:
-    """OpenAPI 200 response of operations producing one image: the file, the JSON result or a receipt"""
+def source_of(uri: str, name: str, document: Document, materialized: Materialized, **facts: Any) -> Source:
+    """`name` is the materialized name, before detection renames the file to its detected extension"""
+    value = document.format
+    fetched = materialized.fetched
+    return Source(
+        uri=uri,
+        name=name,
+        size=document.path.stat().st_size,
+        mime_type=value.mime_type,
+        extension=value.extension,
+        label=value.label,
+        group=value.group,
+        fetch=Fetch(url=fetched.url, status=fetched.status) if fetched else None,
+        **facts,
+    )
+
+
+def result_of(path: Path, label: str, **facts: Any) -> Result:
+    """Facts of a produced file; its type comes from the format table, never from detection"""
+    value = lookup(label)
+    return Result(
+        name=path.name,
+        size=path.stat().st_size,
+        mime_type=value.mime_type,
+        extension=value.extension,
+        label=value.label,
+        group=value.group,
+        **facts,
+    )
+
+
+def image_responses(response: type[BaseModel]) -> dict[int | str, dict[str, Any]]:
+    """OpenAPI 200 response of operations producing one image: the JSON envelope or the file"""
     return {
         200: {
-            'description': 'Image as a file, as JSON, or a receipt when `destination` is set',
+            'description': 'The JSON envelope, or the image as a file',
             'content': {
-                'application/json': {
-                    'schema': {
-                        'anyOf': [inline_refs(result.model_json_schema()), inline_refs(Receipt.model_json_schema())]
-                    }
-                },
+                'application/json': {'schema': inline_refs(response.model_json_schema())},
                 **{format.mime_type: {'schema': {'type': 'string', 'format': 'binary'}} for format in ImageFormat},
             },
         }
@@ -51,20 +77,52 @@ class WorkspaceFileResponse(FileResponse):
             self._workspace.cleanup()
 
 
-async def respond(
-    request: Request,
-    op: Op,
-    path: Path,
-    media_type: str,
-    as_json: Callable[[], BaseModel],
-    source_type: SourceType | None = None,
-) -> Response:
-    """Builds the response for the result at `path` according to the request's destination and output"""
+async def respond(request: Request, op: Op, response: OpResponse, artifact: Path, encoding: Encoding) -> Response:
+    """Builds the reply for `response`, whose result describes `artifact` without content (adr/api.md, Output Modes)
+
+    The op file is the artifact, or the full JSON document when the response has data sections.
+    """
+    has_data = _has_data(response)
+    inline = op.model.destination is None and op.model.output == OutputMode.JSON
+    if has_data or inline:
+        update = {'encoding': encoding, 'content': _content(artifact, encoding)}
+        response.result = response.result.model_copy(update=update)
+    if has_data:
+        path = op.workspace.new_file(f'{artifact.stem}.json')
+        path.write_text(response.model_dump_json(exclude_none=True), encoding='utf-8')
+        file, media_type = result_of(path, FormatLabel.JSON), 'application/json'
+    else:
+        path, file, media_type = artifact, response.result, _media_type(response.result.mime_type, encoding)
+
     if op.model.destination:
         with stage('deliver'):
-            size = await request.app.state.transfer.deliver(path, op.model.destination)
-        receipt = Receipt(destination=op.model.destination, content_type=media_type, size=size, source_type=source_type)
-        return JSONResponse(receipt.model_dump(mode='json', exclude_none=True))
-    if op.model.output == OutputMode.FILE:
+            await request.app.state.transfer.deliver(path, op.model.destination)
+        light = file.model_copy(update={'uri': op.model.destination, 'encoding': None, 'content': None})
+        response = type(response).model_validate({**_envelope(response), 'result': light})
+        return _json(response)
+    if not inline:
         return WorkspaceFileResponse(path, media_type, op.workspace)
-    return JSONResponse(as_json().model_dump(mode='json', exclude_unset=True))
+    return _json(response)
+
+
+def _content(path: Path, encoding: Encoding) -> str:
+    if encoding == Encoding.UTF8:
+        return path.read_text(encoding='utf-8')
+    return base64.b64encode(path.read_bytes()).decode('ascii')
+
+
+def _media_type(mime_type: str, encoding: Encoding) -> str:
+    return f'{mime_type}; charset=utf-8' if encoding == Encoding.UTF8 and mime_type.startswith('text/') else mime_type
+
+
+def _has_data(response: OpResponse) -> bool:
+    return any(getattr(response, name) is not None for name in type(response).model_fields if name not in _ENVELOPE)
+
+
+def _envelope(response: OpResponse) -> dict[str, Any]:
+    """The three fixed keys only; data sections stay behind with the heavy content"""
+    return {name: getattr(response, name) for name in _ENVELOPE}
+
+
+def _json(response: OpResponse) -> JSONResponse:
+    return JSONResponse(response.model_dump(mode='json', exclude_none=True))

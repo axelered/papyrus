@@ -56,8 +56,9 @@ def test_uploaded_html_thumbnail_is_a_screenshot(client: TestClient, auth_header
     body = response.json()
     assert browser.calls == [('http://document.invalid/page.html', ScreenshotOptions(width=1280, height=1280), HTML)]
     assert convert.calls == []
-    assert (body['width'], body['height'], body['page'], body['page_count']) == (256, 256, 1, 1)
-    assert body['source_type']['label'] == 'html'
+    assert (body['result']['width'], body['result']['height'], body['source']['pageCount']) == (256, 256, 1)
+    assert body['source']['label'] == 'html'
+    assert 'width' not in body['source']
 
 
 @pytest.mark.parametrize(
@@ -148,5 +149,5 @@ def test_real_html_thumbnail(client: TestClient, auth_headers: dict[str, str]):
 
     assert response.status_code == 200, response.text
     body = response.json()
-    thumbnail = Image.open(io.BytesIO(base64.b64decode(body['data'])))
+    thumbnail = Image.open(io.BytesIO(base64.b64decode(body['result']['content'])))
     assert (thumbnail.format, thumbnail.size) == ('WEBP', (256, 256))

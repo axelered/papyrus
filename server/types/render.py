@@ -1,9 +1,11 @@
 from enum import StrEnum
 from typing import Self
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import Field, model_validator
 
-from server.types.common import MAX_IMAGE_SIDE, ImageFormat, OpRequest, OutputMode, SourceType
+from server.types.common import MAX_IMAGE_SIDE, ImageFormat, OpRequest, OpResponse, OptionsModel, OutputMode
+
+DEFAULT_DPI = 150
 
 
 class Fit(StrEnum):
@@ -13,9 +15,7 @@ class Fit(StrEnum):
     COVER = 'cover'
 
 
-class ThumbnailOptions(BaseModel):
-    model_config = ConfigDict(extra='forbid')
-
+class ThumbnailOptions(OptionsModel):
     page: int = Field(default=1, ge=1, description='Page, or frame of an animated or multi-page image')
     width: int = Field(default=256, ge=1, le=MAX_IMAGE_SIDE, description='Box width in pixels')
     height: int = Field(default=256, ge=1, le=MAX_IMAGE_SIDE, description='Box height in pixels')
@@ -23,9 +23,7 @@ class ThumbnailOptions(BaseModel):
     format: ImageFormat = ImageFormat.WEBP
 
 
-class RenderOptions(BaseModel):
-    model_config = ConfigDict(extra='forbid')
-
+class RenderOptions(OptionsModel):
     page: int = Field(default=1, ge=1, description='Page, or frame of an animated or multi-page image')
     width: int | None = Field(default=None, ge=1, le=MAX_IMAGE_SIDE, description='Width in pixels')
     height: int | None = Field(default=None, ge=1, le=MAX_IMAGE_SIDE, description='Height in pixels')
@@ -33,7 +31,7 @@ class RenderOptions(BaseModel):
         default=None,
         ge=1,
         le=600,
-        description='Resolution of document pages, 150 when no size is set; images ignore it',
+        description=f'Resolution of document pages, {DEFAULT_DPI} when no size is set; images ignore it',
     )
     format: ImageFormat = ImageFormat.PNG
 
@@ -41,6 +39,9 @@ class RenderOptions(BaseModel):
     def _one_sizing(self) -> Self:
         if self.dpi is not None and (self.width is not None or self.height is not None):
             raise ValueError('dpi cannot be combined with width or height')
+        if self.dpi is None and self.width is None and self.height is None:
+            # resolved here so the response echoes the effective value
+            self.dpi = DEFAULT_DPI
         return self
 
 
@@ -54,11 +55,9 @@ class RenderRequest(OpRequest):
     options: RenderOptions = Field(default_factory=RenderOptions)
 
 
-class RenderResult(BaseModel):
-    data: str = Field(description='Base64 encoded image')
-    content_type: str
-    width: int = Field(description='Image width in pixels')
-    height: int = Field(description='Image height in pixels')
-    page: int
-    page_count: int | None = Field(default=None, description='Omitted for office and HTML input')
-    source_type: SourceType
+class ThumbnailResponse(OpResponse):
+    options: ThumbnailOptions
+
+
+class RenderResponse(OpResponse):
+    options: RenderOptions

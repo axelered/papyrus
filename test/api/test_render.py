@@ -36,10 +36,12 @@ def test_thumbnail_cover_json(client: TestClient, auth_headers: dict[str, str]):
     response = _upload(client, 'thumbnail', auth_headers, 'photo.jpg', image('JPEG', size=(400, 200)), metadata)
 
     body = response.json()
-    assert (body['width'], body['height'], body['content_type']) == (128, 128, 'image/jpeg')
-    assert (body['page'], body['page_count']) == (1, 1)
-    assert body['source_type']['group'] == 'image'
-    assert _size(base64.b64decode(body['data'])) == (128, 128)
+    result, source = body['result'], body['source']
+    assert (result['width'], result['height'], result['mimeType']) == (128, 128, 'image/jpeg')
+    assert (result['name'], result['extension'], result['encoding']) == ('photo.jpg', 'jpg', 'base64')
+    assert (source['group'], source['pageCount'], source['width'], source['height']) == ('image', 1, 400, 200)
+    assert body['options'] == {'page': 1, 'width': 128, 'height': 128, 'fit': 'cover', 'format': 'jpeg'}
+    assert _size(base64.b64decode(result['content'])) == (128, 128)
 
 
 def test_render_page_at_default_dpi(client: TestClient, auth_headers: dict[str, str]):
@@ -48,8 +50,10 @@ def test_render_page_at_default_dpi(client: TestClient, auth_headers: dict[str, 
     response = _upload(client, 'render', auth_headers, 'report.pdf', pdf_pages(A4, A4), metadata)
 
     body = response.json()
-    assert (body['width'], body['height'], body['page'], body['page_count']) == (1240, 1755, 2, 2)
-    assert body['source_type']['label'] == 'pdf'
+    assert (body['result']['width'], body['result']['height'], body['source']['pageCount']) == (1240, 1755, 2)
+    assert body['source']['label'] == 'pdf'
+    assert 'width' not in body['source']
+    assert body['options'] == {'page': 2, 'dpi': 150, 'format': 'png'}
 
 
 def test_render_file_is_named_by_page(client: TestClient, auth_headers: dict[str, str]):
@@ -67,7 +71,7 @@ def test_render_image_ignores_dpi(client: TestClient, auth_headers: dict[str, st
     assert _size(response.content) == (320, 200)
 
 
-def test_destination_receipt_reports_source_type(
+def test_destination_returns_light_envelope(
     client: TestClient, auth_headers: dict[str, str], memory_fs: AbstractFileSystem
 ):
     memory_fs.pipe('docs/report.pdf', pdf_pages(A4))
@@ -79,8 +83,11 @@ def test_destination_receipt_reports_source_type(
     )
 
     body = response.json()
-    assert (body['destination'], body['content_type']) == ('memory://mem/thumbs/report.webp', 'image/webp')
-    assert body['source_type']['label'] == 'pdf'
+    result = body['result']
+    assert (result['uri'], result['mimeType']) == ('memory://mem/thumbs/report.webp', 'image/webp')
+    assert (result['width'], result['height']) == (181, 256)
+    assert 'content' not in result
+    assert body['source']['label'] == 'pdf'
     assert _size(memory_fs.cat('thumbs/report.webp')) == (181, 256)
 
 

@@ -26,9 +26,27 @@ def test_upload_returns_json_by_default(client: TestClient, auth_headers: dict[s
 
     assert response.status_code == 200
     assert response.json() == {
-        'markdown': '# Report\n\nRevenue grew.',
-        'title': 'Quarterly',
-        'source_type': {'mime_type': 'text/html', 'extension': 'html', 'label': 'html', 'group': 'markup'},
+        'source': {
+            'uri': 'file://file',
+            'name': 'report.html',
+            'size': len(HTML),
+            'mimeType': 'text/html',
+            'extension': 'html',
+            'label': 'html',
+            'group': 'markup',
+            'title': 'Quarterly',
+        },
+        'options': {},
+        'result': {
+            'name': 'report.md',
+            'size': len('# Report\n\nRevenue grew.'),
+            'mimeType': 'text/markdown',
+            'extension': 'md',
+            'label': 'markdown',
+            'group': 'markup',
+            'encoding': 'utf-8',
+            'content': '# Report\n\nRevenue grew.',
+        },
     }
     assert _leftovers(work_dir) == []
 
@@ -37,8 +55,9 @@ def test_mislabeled_source_is_converted_by_content(client: TestClient, auth_head
     response = client.post('/v1/markdown', headers=auth_headers, files={'file': ('report.pdf', HTML)})
 
     assert response.status_code == 200
-    assert response.json()['source_type']['label'] == 'html'
-    assert response.json()['markdown'].startswith('# Report')
+    assert response.json()['source']['label'] == 'html'
+    assert response.json()['source']['name'] == 'report.pdf'
+    assert response.json()['result']['content'].startswith('# Report')
 
 
 def test_file_output_returns_markdown_document(client: TestClient, auth_headers: dict[str, str], work_dir: Path):
@@ -67,10 +86,15 @@ def test_connector_source_to_destination(
         json={'source': 'memory://mem/docs/report.html', 'destination': 'memory://mem/out/report.md'},
     )
 
+    body = response.json()
     assert response.status_code == 200
-    assert response.json()['destination'] == 'memory://mem/out/report.md'
-    assert response.json()['source_type']['mime_type'] == 'text/html'
+    assert body['source']['uri'] == 'memory://mem/docs/report.html'
+    assert body['source']['mimeType'] == 'text/html'
+    assert body['result']['uri'] == 'memory://mem/out/report.md'
+    assert body['result']['mimeType'] == 'text/markdown'
+    assert 'content' not in body['result'] and 'encoding' not in body['result']
     assert memory_fs.cat('out/report.md').decode().strip() == '# Report\n\nRevenue grew.'
+    assert body['result']['size'] == len(memory_fs.cat('out/report.md'))
 
 
 def test_unsupported_document_is_rejected_before_worker(
@@ -115,7 +139,13 @@ def test_code_source_is_fenced_with_language(client: TestClient, auth_headers: d
 
     body = response.json()
     assert response.status_code == 200
-    assert body['markdown'].startswith('```python\nimport os\n')
-    assert body['markdown'].endswith('```\n')
-    assert body['title'] is None
-    assert body['source_type'] == {'mime_type': 'text/x-python', 'extension': 'py', 'label': 'python', 'group': 'code'}
+    assert body['result']['content'].startswith('```python\nimport os\n')
+    assert body['result']['content'].endswith('```\n')
+    source = body['source']
+    assert 'title' not in source
+    assert (source['mimeType'], source['extension'], source['label'], source['group']) == (
+        'text/x-python',
+        'py',
+        'python',
+        'code',
+    )

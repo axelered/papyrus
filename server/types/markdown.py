@@ -1,9 +1,9 @@
 from enum import StrEnum
 from typing import Self
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import Field, model_validator
 
-from server.types.common import OpRequest, OutputMode, SourceType
+from server.types.common import ApiModel, OpRequest, OpResponse, OptionsModel, OutputMode
 
 
 class Tokenizer(StrEnum):
@@ -53,9 +53,7 @@ class CodeLanguage(StrEnum):
     HCL = 'hcl'
 
 
-class ChunkingOptions(BaseModel):
-    model_config = ConfigDict(extra='forbid')
-
+class ChunkingOptions(OptionsModel):
     max_tokens: int = Field(default=512, ge=64, le=8192, description='Token budget of every chunk')
     overlap: int = Field(default=0, ge=0, description='Tokens of the next prose chunk appended to each prose chunk')
     tokenizer: Tokenizer = Tokenizer.O200K_BASE
@@ -67,37 +65,31 @@ class ChunkingOptions(BaseModel):
         return self
 
 
-class MarkdownOptions(BaseModel):
-    model_config = ConfigDict(extra='forbid')
-
-    chunking: ChunkingOptions | None = Field(default=None, description='Structure-aware chunks, requires output=json')
+class MarkdownOptions(OptionsModel):
+    chunking: ChunkingOptions | None = Field(
+        default=None, description='Structure-aware chunks; the file and destination output become the JSON document'
+    )
 
 
 class MarkdownRequest(OpRequest):
     output: OutputMode = OutputMode.JSON
     options: MarkdownOptions = Field(default_factory=MarkdownOptions)
 
-    @model_validator(mode='after')
-    def _chunking_requires_json(self) -> Self:
-        if self.options.chunking is not None and self.output != OutputMode.JSON:
-            raise ValueError('options.chunking requires output=json')
-        return self
 
-
-class Chunk(BaseModel):
+class Chunk(ApiModel):
     index: int
     kind: ChunkKind
     text: str
-    language: CodeLanguage | None
+    language: CodeLanguage | None = Field(default=None, description='Code chunks only, omitted if not curated')
     headings: list[str]
-    slide: int | None
-    start: int = Field(description='Offset of the chunk span in `markdown` (overlap not included)')
+    slide: int | None = Field(default=None, description='pptx only')
+    start: int = Field(description='Offset of the chunk span in `result.content` (overlap not included)')
     end: int
     tokens: int
 
 
-class MarkdownResult(BaseModel):
-    markdown: str
-    title: str | None
-    source_type: SourceType
-    chunks: list[Chunk] | None = Field(default=None, description='Present only when options.chunking is set')
+class MarkdownResponse(OpResponse):
+    options: MarkdownOptions
+    chunks: list[Chunk] | None = Field(
+        default=None, description='Present when options.chunking is set, omitted with a destination'
+    )

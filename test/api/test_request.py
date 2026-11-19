@@ -7,17 +7,17 @@ import pytest
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 from fsspec import AbstractFileSystem
-from pydantic import BaseModel
 
-from server.api.output import respond
+from server.api.output import respond, result_of
 from server.api.request import op_context, openapi_body
 from server.config import Config, LimitsConfig
-from server.types.common import OpRequest, OutputMode
+from server.types.common import Encoding, FormatLabel, OpRequest, OpResponse, OptionsModel, OutputMode, Source
 
 
-class EchoOptions(BaseModel):
+class EchoOptions(OptionsModel):
     delay: float = 0
     fail: bool = False
+    upper_case: bool = False
 
 
 class EchoRequest(OpRequest):
@@ -25,9 +25,8 @@ class EchoRequest(OpRequest):
     options: EchoOptions = EchoOptions()
 
 
-class EchoResult(BaseModel):
-    text: str
-    parts: list[str]
+class EchoResponse(OpResponse):
+    options: EchoOptions
 
 
 @pytest.fixture
@@ -49,14 +48,14 @@ def echo(app: FastAPI, calls: list[str]) -> Iterator[TestClient]:
             if op.model.options.fail:
                 raise RuntimeError('boom')
             target = op.workspace.new_file(f'{source.stem}.txt')
-            target.write_bytes(source.read_bytes())
-            return await respond(
-                request,
-                op,
-                target,
-                'text/plain',
-                lambda: EchoResult(text=target.read_text(), parts=sorted(op.parts)),
+            content = source.read_bytes()
+            target.write_bytes(content.upper() if op.model.options.upper_case else content)
+            response = EchoResponse(
+                source=Source(uri=op.model.source, name=source.name),
+                options=op.model.options,
+                result=result_of(target, FormatLabel.TXT),
             )
+            return await respond(request, op, response, target, Encoding.UTF8)
 
     with TestClient(app, raise_server_exceptions=False) as client:
         yield client
@@ -87,7 +86,22 @@ def test_multipart_metadata_references_named_part(echo: TestClient):
         files={'doc': ('a.txt', b'named'), 'file': ('b.txt', b'other')},
     )
 
-    assert response.json() == {'text': 'named', 'parts': ['doc', 'file']}
+    assert response.json()['source'] == {'uri': 'file://doc', 'name': 'a.txt'}
+    assert response.json()['result']['content'] == 'named'
+
+
+def test_wire_keys_are_camel_case(echo: TestClient):
+    response = echo.post('/echo', data=_metadata(output='json', options={'upperCase': True}), files={'file': b'ab'})
+
+    assert response.json()['options'] == {'delay': 0, 'fail': False, 'upperCase': True}
+    assert response.json()['result']['content'] == 'AB'
+
+
+def test_snake_case_keys_are_rejected(echo: TestClient):
+    response = echo.post('/echo', data=_metadata(options={'upper_case': True}), files={'file': b'ab'})
+
+    assert response.status_code == 422
+    assert response.json()['errors'][0]['loc'] == ['options', 'upper_case']
 
 
 def test_json_body_with_connector_source(echo: TestClient, memory_fs: AbstractFileSystem, work_dir: Path):
@@ -95,14 +109,35 @@ def test_json_body_with_connector_source(echo: TestClient, memory_fs: AbstractFi
 
     response = echo.post('/echo', json={'source': 'memory://mem/bucket/in.html', 'output': 'json'})
 
-    assert response.json() == {'text': '<b>x</b>', 'parts': []}
+    assert response.json()['result'] == {
+        'name': 'in.txt',
+        'size': 8,
+        'mimeType': 'text/plain',
+        'extension': 'txt',
+        'label': 'txt',
+        'group': 'text',
+        'encoding': 'utf-8',
+        'content': '<b>x</b>',
+    }
     assert _leftovers(work_dir) == []
 
 
-def test_destination_writes_result_and_returns_receipt(echo: TestClient, memory_fs: AbstractFileSystem):
+def test_destination_writes_result_and_returns_light_envelope(echo: TestClient, memory_fs: AbstractFileSystem):
     response = echo.post('/echo', data=_metadata(destination='memory://mem/out/r.txt'), files={'file': b'stored'})
 
-    assert response.json() == {'destination': 'memory://mem/out/r.txt', 'content_type': 'text/plain', 'size': 6}
+    assert response.json() == {
+        'source': {'uri': 'file://file', 'name': 'upload'},
+        'options': {'delay': 0, 'fail': False, 'upperCase': False},
+        'result': {
+            'uri': 'memory://mem/out/r.txt',
+            'name': 'upload.txt',
+            'size': 6,
+            'mimeType': 'text/plain',
+            'extension': 'txt',
+            'label': 'txt',
+            'group': 'text',
+        },
+    }
     assert memory_fs.cat('out/r.txt') == b'stored'
 
 

@@ -1,9 +1,9 @@
 from enum import StrEnum
 from typing import Self
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import Field, model_validator
 
-from server.types.common import MAX_IMAGE_SIDE, ImageFormat, OpRequest, OutputMode
+from server.types.common import MAX_IMAGE_SIDE, ImageFormat, OpRequest, OpResponse, OptionsModel, OutputMode
 
 
 class WaitUntil(StrEnum):
@@ -14,9 +14,7 @@ class WaitUntil(StrEnum):
     NETWORKIDLE = 'networkidle'
 
 
-class ScreenshotOptions(BaseModel):
-    model_config = ConfigDict(extra='forbid')
-
+class ScreenshotOptions(OptionsModel):
     width: int = Field(default=1280, ge=320, le=3840, description='Viewport width in CSS pixels')
     height: int = Field(default=800, ge=200, le=2160, description='Viewport height in CSS pixels')
     full_page: bool = Field(default=False, description=f'Capture the whole page, cut at {MAX_IMAGE_SIDE} px height')
@@ -38,10 +36,5 @@ class ScreenshotRequest(OpRequest):
     options: ScreenshotOptions = Field(default_factory=ScreenshotOptions)
 
 
-class ScreenshotResult(BaseModel):
-    data: str = Field(description='Base64 encoded image')
-    content_type: str
-    width: int = Field(description='Image width in pixels')
-    height: int = Field(description='Image height in pixels')
-    url: str = Field(description='Final URL after redirects')
-    status: int | None = Field(description='HTTP status of the main document, null when the page sent none')
+class ScreenshotResponse(OpResponse):
+    options: ScreenshotOptions

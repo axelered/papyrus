@@ -21,7 +21,7 @@ def _post(client: TestClient, headers: dict[str, str], name: str, content: bytes
 
 
 def test_returns_structured_chunks(client: TestClient, auth_headers: dict[str, str]):
-    response = _post(client, auth_headers, 'report.html', REPORT, options={'chunking': {'max_tokens': 64}})
+    response = _post(client, auth_headers, 'report.html', REPORT, options={'chunking': {'maxTokens': 64}})
 
     body = response.json()
     assert response.status_code == 200
@@ -29,8 +29,9 @@ def test_returns_structured_chunks(client: TestClient, auth_headers: dict[str, s
     assert [chunk['index'] for chunk in body['chunks']] == list(range(len(body['chunks'])))
     revenue = next(chunk for chunk in body['chunks'] if 'Revenue grew' in chunk['text'])
     assert revenue['headings'] == ['Report', 'Revenue']
-    assert body['markdown'][revenue['start'] : revenue['end']] == revenue['text']
-    assert set(revenue) == {'index', 'kind', 'text', 'language', 'headings', 'slide', 'start', 'end', 'tokens'}
+    assert body['result']['content'][revenue['start'] : revenue['end']] == revenue['text']
+    assert set(revenue) == {'index', 'kind', 'text', 'headings', 'start', 'end', 'tokens'}
+    assert body['options'] == {'chunking': {'maxTokens': 64, 'overlap': 0, 'tokenizer': 'o200k_base'}}
 
 
 def test_without_chunking_has_no_chunks_key(client: TestClient, auth_headers: dict[str, str]):
@@ -38,7 +39,7 @@ def test_without_chunking_has_no_chunks_key(client: TestClient, auth_headers: di
 
 
 def test_code_source_chunks_carry_language(client: TestClient, auth_headers: dict[str, str]):
-    response = _post(client, auth_headers, 'loader.py', PYTHON, options={'chunking': {'max_tokens': 64}})
+    response = _post(client, auth_headers, 'loader.py', PYTHON, options={'chunking': {'maxTokens': 64}})
 
     chunks = response.json()['chunks']
     assert chunks
@@ -46,7 +47,7 @@ def test_code_source_chunks_carry_language(client: TestClient, auth_headers: dic
     assert all(chunk['text'].startswith('```python\n') for chunk in chunks)
 
 
-def test_destination_receives_full_json_body(
+def test_destination_receives_the_json_document(
     client: TestClient, auth_headers: dict[str, str], memory_fs: AbstractFileSystem
 ):
     response = _post(
@@ -55,20 +56,35 @@ def test_destination_receives_full_json_body(
         'report.html',
         REPORT,
         destination='memory://mem/out/report.json',
-        options={'chunking': {'tokenizer': 'word', 'max_tokens': 64}},
+        options={'chunking': {'tokenizer': 'word', 'maxTokens': 64}},
     )
 
-    assert response.json()['content_type'] == 'application/json'
+    body = response.json()
+    assert set(body) == {'source', 'options', 'result'}
+    assert body['result']['uri'] == 'memory://mem/out/report.json'
+    assert (body['result']['name'], body['result']['mimeType']) == ('report.json', 'application/json')
+    assert 'content' not in body['result']
     stored = json.loads(memory_fs.cat('out/report.json'))
-    assert stored['chunks'] and stored['source_type']['label'] == 'html'
+    assert body['result']['size'] == len(memory_fs.cat('out/report.json'))
+    assert stored['chunks'] and stored['source']['label'] == 'html'
+    assert stored['result']['name'] == 'report.md' and stored['result']['content'].startswith('# Report')
+
+
+def test_file_output_returns_the_json_document(client: TestClient, auth_headers: dict[str, str]):
+    response = _post(client, auth_headers, 'report.html', REPORT, output='file', options={'chunking': {}})
+
+    assert response.status_code == 200
+    assert response.headers['content-type'] == 'application/json'
+    assert 'filename="report.json"' in response.headers['content-disposition']
+    assert response.json()['chunks'] and response.json()['result']['encoding'] == 'utf-8'
 
 
 @pytest.mark.parametrize(
     ('fields', 'loc'),
     [
-        ({'output': 'file', 'options': {'chunking': {}}}, []),
-        ({'options': {'chunking': {'max_tokens': 10}}}, ['options', 'chunking', 'max_tokens']),
-        ({'options': {'chunking': {'max_tokens': 64, 'overlap': 64}}}, ['options', 'chunking']),
+        ({'options': {'chunking': {'maxTokens': 10}}}, ['options', 'chunking', 'maxTokens']),
+        ({'options': {'chunking': {'maxTokens': 64, 'overlap': 64}}}, ['options', 'chunking']),
+        ({'options': {'chunking': {'max_tokens': 64}}}, ['options', 'chunking', 'max_tokens']),
         ({'options': {'chunking': {'tokenizer': 'gpt2'}}}, ['options', 'chunking', 'tokenizer']),
         ({'options': {'chunking': {'size': 1}}}, ['options', 'chunking', 'size']),
         ({'options': {'other': True}}, ['options', 'other']),

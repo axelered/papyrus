@@ -57,9 +57,9 @@ def test_office_and_html_render_through_a_single_page_pdf(
     assert response.status_code == 200, response.text
     body = response.json()
     assert fake.calls == [(suffix, ConvertFormat.PDF, 3)]
-    assert body['page'] == 3
-    assert 'page_count' not in body
-    assert (body['width'], body['height']) == (1240, 1755)
+    assert body['options']['page'] == 3
+    assert 'pageCount' not in body['source']
+    assert (body['result']['width'], body['result']['height']) == (1240, 1755)
 
 
 def test_office_thumbnail_file(client: TestClient, auth_headers: dict[str, str]):
@@ -97,8 +97,8 @@ def test_renders_real_office_pages(client: TestClient, auth_headers: dict[str, s
 
     assert response.status_code == 200, response.text
     body = response.json()
-    assert max(body['width'], body['height']) == 256
-    assert Image.open(io.BytesIO(base64.b64decode(body['data']))).format == 'WEBP'
+    assert max(body['result']['width'], body['result']['height']) == 256
+    assert Image.open(io.BytesIO(base64.b64decode(body['result']['content']))).format == 'WEBP'
 
 
 @pytest.mark.full

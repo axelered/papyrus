@@ -49,9 +49,9 @@ def test_screenshots_a_live_page(client: TestClient, auth_headers: dict[str, str
 
     assert response.status_code == 200, response.text
     body = response.json()
-    image = base64.b64decode(body['data'])
-    assert struct.unpack('>II', image[16:24]) == (640, 480) == (body['width'], body['height'])
-    assert (body['url'], body['status']) == (page_url, 200)
+    image = base64.b64decode(body['result']['content'])
+    assert struct.unpack('>II', image[16:24]) == (640, 480) == (body['result']['width'], body['result']['height'])
+    assert body['source'] == {'uri': page_url, 'fetch': {'url': page_url, 'status': 200}}
 
 
 def test_file_output_streams_the_image(client: TestClient, auth_headers: dict[str, str], page_url: str):

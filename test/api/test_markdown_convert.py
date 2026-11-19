@@ -49,8 +49,8 @@ def test_routes_documents_through_docx(
     response = client.post('/v1/markdown', headers=auth_headers, files={'file': (name, content)})
 
     assert response.status_code == 200
-    assert response.json()['markdown'].startswith('# Report')
-    assert response.json()['source_type']['label'] == label
+    assert response.json()['result']['content'].startswith('# Report')
+    assert response.json()['source']['label'] == label
     assert fake.calls == [(f'.{label}', ConvertFormat.DOCX)]
     assert _leftovers(work_dir) == []
 
@@ -93,5 +93,5 @@ def test_extracts_markdown_from_legacy_files(
     )
 
     assert response.status_code == 200
-    assert response.json()['source_type']['label'] == key
-    assert text in response.json()['markdown']
+    assert response.json()['source']['label'] == key
+    assert text in response.json()['result']['content']
