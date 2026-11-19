@@ -1,0 +1,76 @@
+---
+title: Web page screenshots
+description: Capture web pages in a headless browser, including content built by JavaScript
+---
+
+`POST /v1/screenshot` opens a URL in headless Chromium and captures what a visitor sees, after scripts run. Use it to archive pages, check how they render, or give a vision model the page as it looks.
+
+```shell
+curl http://127.0.0.1:8000/v1/screenshot \
+  -H 'Authorization: Bearer dev' \
+  -H 'Content-Type: application/json' \
+  -d '{"source": "https://axelered.com"}' \
+  -o axelered.com.png
+```
+
+The default is a PNG of the 1280 × 800 viewport. With `output: json`, `source.fetch` reports the final URL after redirects and the HTTP status of the page:
+
+```json
+{
+  "source": {
+    "uri": "https://axelered.com",
+    "fetch": {"url": "https://axelered.com/", "status": 200}
+  },
+  "result": {
+    "name": "axelered.com.png",
+    "size": 29654,
+    "mimeType": "image/png",
+    "extension": "png",
+    "label": "png",
+    "group": "image",
+    "width": 1280,
+    "height": 800,
+    "encoding": "base64",
+    "content": "iVBORw0KGgo…"
+  },
+  "options": {"width": 1280, "height": 800, "fullPage": false, "scale": 1, "waitUntil": "load", "delay": 0, "format": "png"}
+}
+```
+
+## Capture what you need
+
+| Goal | Options |
+|---|---|
+| A mobile layout | `{"width": 390, "height": 844, "scale": 3}` |
+| The whole page, not only the viewport | `{"fullPage": true}`, cut at 4096 px height |
+| A sharp image for high density screens | `{"scale": 2}` |
+| A smaller file | `{"format": "webp"}` or `{"format": "jpeg"}` |
+
+`width` is `320` to `3840` and `height` `200` to `2160`, in CSS pixels. The output is the viewport times `scale`, which must stay within 4096 px per side: `width: 1920` allows `scale: 2`, not `3`.
+
+## Wait for the right moment
+
+| `waitUntil` | Captures when |
+|---|---|
+| `load` (default) | The page and its images have loaded |
+| `domcontentloaded` | The HTML is parsed, before images finish; fastest |
+| `networkidle` | No network requests for 500 ms; best for pages that load content after the first render |
+
+Add `delay`, up to `10000` ms, to wait for animations or cookie banners to settle after the event. Pages that keep polling the network never become idle and fail with `504 processing_timeout` after 30 seconds; use `load` with a `delay` for them.
+
+## What the browser can reach
+
+The page and every request it makes, images, scripts and frames included, follow the server fetch policy. Private and internal addresses are blocked unless the operator allows them, so a public page cannot make the browser reach your internal services. When the operator sets an allowed host list, resources from other hosts do not load and the page renders without them.
+
+A page that answers with an error status, such as `404`, is still captured; check `source.fetch.status` to tell a real page from an error page.
+
+## Limits
+
+- Only `http(s)://` URLs. Uploads fail with `422 unsupported_uri`; use [thumbnail](./images) to capture uploaded HTML.
+- One capture per request, at most 4096 px per side.
+- Sites that block headless browsers or require a login are captured as they answer an anonymous visitor.
+
+## Next steps
+
+- [Thumbnails and renders](./images): website previews in a fixed box.
+- [Deploy security](../deploy/security): how the browser is isolated.

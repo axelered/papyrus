@@ -1,0 +1,107 @@
+---
+title: Chunk for RAG
+description: Split documents into structure-aware chunks sized for your embedding model
+---
+
+Add `options.chunking` to a Markdown request to get the document split into chunks that fit your embedding model, each with the headings it sits under and its position in the Markdown. One request replaces a parser, a splitter and a token counter in your pipeline.
+
+```shell
+curl http://127.0.0.1:8000/v1/markdown \
+  -H 'Authorization: Bearer dev' \
+  -F 'metadata={"options": {"chunking": {"maxTokens": 64}}};type=application/json' \
+  -F file=@pricing.html
+```
+
+```json
+{
+  "source": {"uri": "file://file", "name": "pricing.html", "size": 610, "mimeType": "text/html", "extension": "html", "label": "html", "group": "markup", "title": "Service levels"},
+  "result": {"name": "pricing.md", "size": 412, "mimeType": "text/markdown", "extension": "md", "label": "markdown", "group": "markup", "encoding": "utf-8", "content": "# Service levels\n\n…"},
+  "options": {
+    "chunking": {"maxTokens": 64, "overlap": 0, "tokenizer": "o200k_base"}
+  },
+  "chunks": [
+    {
+      "index": 0,
+      "kind": "text",
+      "text": "# Service levels\n\nEvery plan includes monitoring, incident response and a named engineer.\n\n",
+      "headings": ["Service levels"],
+      "start": 0,
+      "end": 91,
+      "tokens": 16
+    },
+    {
+      "index": 1,
+      "kind": "text",
+      "text": "## Response times\n\n",
+      "headings": ["Service levels", "Response times"],
+      "start": 91,
+      "end": 110,
+      "tokens": 4
+    },
+    {
+      "index": 2,
+      "kind": "table",
+      "text": "| Severity | First response | Resolution target |\n| --- | --- | --- |\n| Critical | 15 minutes | 4 hours |\n| High | 1 hour | 1 business day |\n| Normal | 4 hours | 5 business days |\n",
+      "headings": ["Service levels", "Response times"],
+      "start": 110,
+      "end": 290,
+      "tokens": 51
+    },
+    {
+      "index": 3,
+      "kind": "text",
+      "text": "\n## Escalation\n\nUnresolved critical incidents escalate to the engineering lead after 2 hours and to the CTO after 4 hours.",
+      "headings": ["Service levels", "Escalation"],
+      "start": 290,
+      "end": 412,
+      "tokens": 28
+    }
+  ]
+}
+```
+
+## How documents are split
+
+- **Sections first.** A chunk never spans two headings or two slides, so every chunk is about one topic.
+- **Tables by rows.** A table larger than the budget splits between rows, and every part repeats the header row, so each chunk stays readable on its own.
+- **Code by structure.** Code splits along functions and classes, and every chunk is a complete fenced block with its `language`.
+- **Prose by size.** Long sections split into chunks of at most `maxTokens`.
+
+Every chunk reports:
+
+| Field | Use it to |
+|---|---|
+| `kind` | Treat `text`, `table` and `code` differently, for example a different embedding prompt per kind |
+| `headings` | Prefix the chunk with its section path before embedding, or show it as a breadcrumb in results |
+| `start`, `end` | Highlight the hit in `result.content`; the span excludes any overlap |
+| `tokens` | Check the budget, or sum the cost of an index before you send it |
+| `slide` | Link a hit to its slide, for PowerPoint sources |
+
+## Pick the options
+
+| Option | Default | How to choose |
+|---|---|---|
+| `maxTokens` | `512` | Your embedding model's input limit or your retrieval sweet spot, `64` to `8192` |
+| `tokenizer` | `o200k_base` | The tokenizer of your model: `o200k_base` for GPT-4o and later, `cl100k_base` for GPT-4 and `text-embedding-3`, `word` or `character` for other models |
+| `overlap` | `0` | Tokens of the next prose chunk appended to each prose chunk, so sentences cut at a boundary appear in both; must be below `maxTokens` |
+
+`"chunking": {}` turns chunking on with every default. When your model has no listed tokenizer, `word` with a `maxTokens` well below its limit is a safe start.
+
+## What to expect
+
+- A heading directly followed by a table becomes its own small text chunk, as `## Response times` above. The table chunk still lists the heading in `headings`, so filter chunks with only a heading line if they add noise to your index.
+- Overlap applies to prose only and is taken from the next prose chunk, which may come after a table.
+- Content without headings, such as most PDFs, splits by size only and every chunk has empty `headings`.
+
+## Store or download the chunks
+
+With chunking, `output: file` returns the full JSON document, envelope and chunks, as `application/json` instead of the bare Markdown. With a `destination`, the same JSON document is uploaded and the response omits `content` and `chunks`:
+
+```json
+{"source": "s3://prod/handbook/sla.html", "destination": "s3://prod/chunks/sla.json", "options": {"chunking": {"maxTokens": 512}}}
+```
+
+## Next steps
+
+- [Storage](./storage): chunk a whole bucket into your index pipeline.
+- [Errors](../concepts/errors): `validation_error` when `overlap` is not below `maxTokens`.

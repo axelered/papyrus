@@ -1,0 +1,91 @@
+---
+title: Thumbnails and renders
+description: Turn document pages, images and web pages into previews and page images
+---
+
+Papyrus turns any page of a document or image into a picture: `POST /v1/thumbnail` for fixed size previews in your UI, `POST /v1/render` for pages at reading size, for viewers and vision models. Both return the image file by default.
+
+```shell
+curl http://127.0.0.1:8000/v1/thumbnail \
+  -H 'Authorization: Bearer dev' \
+  -F file=@sample.pdf \
+  -o sample.webp
+```
+
+The result is a WebP of at most 256 × 256 px, here 198 × 256 for a portrait page.
+
+## Pick the endpoint
+
+| You need | Use | Default output |
+|---|---|---|
+| The same box for every file, in a list or grid | thumbnail | WebP inside 256 × 256 |
+| A link preview for a website | thumbnail with a URL | WebP of the page top, as on a desktop screen |
+| A page to read, zoom or send to a vision model | render | PNG at 150 dpi |
+| A page at an exact width for a layout | render with `width` | PNG |
+
+## Thumbnails
+
+Set the box with `width` and `height` (default `256`, up to `4096`) and choose how the page fills it:
+
+| `fit` | Result |
+|---|---|
+| `contain` (default) | The whole page fits in the box; one side can come out shorter |
+| `cover` | The page fills the box and the center is cropped; the output is exactly the box |
+
+```shell
+curl http://127.0.0.1:8000/v1/thumbnail \
+  -H 'Authorization: Bearer dev' \
+  -H 'Content-Type: application/json' \
+  -d '{"source": "https://axelered.com/_og/platform.png", "options": {"width": 320, "height": 200, "fit": "cover"}}' \
+  -o card.webp
+```
+
+### Website previews
+
+A URL that serves HTML is captured in a headless browser instead of being paginated: Papyrus loads the page at 1280 px wide, with a viewport height that matches your box shape (between 400 and 2160 px), and scales the capture into the box. A 400 × 300 box captures a 1280 × 960 viewport.
+
+```shell
+curl http://127.0.0.1:8000/v1/thumbnail \
+  -H 'Authorization: Bearer dev' \
+  -H 'Content-Type: application/json' \
+  -d '{"source": "https://axelered.com", "options": {"width": 400, "height": 300}}' \
+  -o axelered.webp
+```
+
+An uploaded HTML file is captured the same way, but without the images and stylesheets it references by relative path, since there is no site to load them from.
+
+## Renders
+
+Size the page one way only:
+
+| Options | Result |
+|---|---|
+| none | Document pages at 150 dpi, images at their own size |
+| `dpi` | `1` to `600`; images ignore it |
+| `width` or `height` | `1` to `4096`; the other side follows the aspect ratio |
+| `width` and `height` | The page fits inside the box |
+
+```shell
+curl http://127.0.0.1:8000/v1/render \
+  -H 'Authorization: Bearer dev' \
+  -F 'metadata={"options": {"page": 1, "width": 800, "format": "webp"}};type=application/json' \
+  -F file=@sample.pdf \
+  -o sample-1.webp
+```
+
+The file is named `<source name>-<page>.<ext>`. With `output: json`, `source.pageCount` tells you how many pages to request for a PDF or image.
+
+## Formats and limits
+
+- **Inputs**: PDF, PNG, JPEG, WebP, GIF, BMP, TIFF, AVIF, Word, PowerPoint, Excel, OpenDocument, RTF and HTML. `page` picks the frame of a GIF, TIFF or animated WebP.
+- **Outputs**: `format` is `png`, `jpeg` or `webp`.
+- **One page per request.** Request pages in parallel when you need several; the server processes them concurrently.
+- **Office files** are exported one page at a time through LibreOffice, so they are slower than PDFs and report no `pageCount`. If you render many pages of one office document, export it to PDF once in your own pipeline and render the PDF.
+- **Never enlarged.** Images are not scaled above their own size, and no output side exceeds 4096 px.
+- **Pixel guard.** Images with more pixels than the decompression guard allows fail with `413 image_too_large`.
+- `page` past the end fails with `422 page_out_of_range`, and `dpi` combined with `width` or `height` with `422 validation_error`.
+
+## Next steps
+
+- [Web page screenshots](./screenshots): full pages, custom viewports and wait conditions.
+- [Storage](./storage): write previews straight to your bucket.

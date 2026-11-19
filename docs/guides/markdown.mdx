@@ -1,0 +1,85 @@
+---
+title: Extract Markdown
+description: Turn documents and web pages into Markdown for LLM context and indexing
+---
+
+`POST /v1/markdown` returns the content of a document as Markdown: headings, lists, tables and links, without layout noise. Pass it to an LLM as context, store it for search, or split it into chunks in the same request.
+
+```shell
+curl http://127.0.0.1:8000/v1/markdown \
+  -H 'Authorization: Bearer dev' \
+  -F file=@pricing.html
+```
+
+```json
+{
+  "source": {
+    "uri": "file://file",
+    "name": "pricing.html",
+    "size": 610,
+    "mimeType": "text/html",
+    "extension": "html",
+    "label": "html",
+    "group": "markup",
+    "title": "Service levels"
+  },
+  "result": {
+    "name": "pricing.md",
+    "size": 412,
+    "mimeType": "text/markdown",
+    "extension": "md",
+    "label": "markdown",
+    "group": "markup",
+    "encoding": "utf-8",
+    "content": "# Service levels\n\nEvery plan includes monitoring, incident response and a named engineer.\n\n## Response times\n\n| Severity | First response | Resolution target |\n| --- | --- | --- |\n| Critical | 15 minutes | 4 hours |\n…"
+  },
+  "options": {}
+}
+```
+
+`source.title` is the document title when the converter finds one, such as an HTML `<title>`; it is omitted otherwise. Use it as the display name of the document in your index.
+
+## Pick how you send the document
+
+| You have | Send |
+|---|---|
+| A file in your service | A multipart upload, as above |
+| A public URL | `{"source": "https://…"}` as JSON |
+| An object in a bucket | `{"source": "s3://<connector>/<key>"}`; see [storage](./storage) |
+
+## Get a file instead of JSON
+
+Set `output` to `file` to receive the Markdown itself, named after the source:
+
+```shell
+curl http://127.0.0.1:8000/v1/markdown \
+  -H 'Authorization: Bearer dev' \
+  -F 'metadata={"output": "file"};type=application/json' \
+  -F file=@pricing.html \
+  -o pricing.md
+```
+
+The response is `text/markdown; charset=utf-8` with `Content-Disposition: attachment; filename="pricing.md"`.
+
+## What each format gives you
+
+- **PDF**: the text layer. Scanned pages have no text layer and come back empty; render them and use an OCR or vision model instead.
+- **Word, PowerPoint, Excel**: headings, lists and tables. Slides keep their text, tables and notes; spreadsheets become one table per sheet.
+- **Legacy and OpenDocument** (`.doc`, `.ppt`, `.rtf`, `.odt`, `.odp`, `.ods`): converted with LibreOffice first, so expect a slower response than the OOXML equivalents.
+- **HTML and web pages**: the page as Markdown, including navigation and footer text. Links stay relative when the page uses relative links.
+- **Email** (`.msg`): headers and body.
+- **Code and config**: one fenced block tagged with the detected language, so a model sees exactly where code starts and ends.
+- **ZIP**: every entry converted.
+
+The full list is in [supported formats](../concepts/formats).
+
+## Handle failures
+
+- `415 unsupported_format`: the detected format cannot become Markdown, for example an image. Check `group` before sending, or route images to [render](./images).
+- `413 payload_too_large` or `source_too_large`: the document exceeds the server limit, 100 MB by default.
+- `504 deadline_exceeded`: the conversion took longer than the server deadline, 300 seconds by default.
+
+## Next steps
+
+- [Chunk for RAG](./chunking): split the Markdown for an embedding model.
+- [Storage](./storage): process documents from a bucket into a bucket.
