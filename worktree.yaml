@@ -1,0 +1,4 @@
+location: "worktrees"
+base: "main"
+initialize: []
+destroy: []

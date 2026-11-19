@@ -235,6 +235,10 @@ Test, tests marked `full` need the image and are deselected on the host (run the
 uv run pytest
 ```
 
+## 🤖 Agents
+
+This repository s configured to use `work3` to manage high performance agentic development. Install via `bun install -g @svara/work3`.
+
 ## 🐳 Docker
 
 ```shell

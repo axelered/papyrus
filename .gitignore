@@ -6,6 +6,9 @@
 *.local*
 *.nogit*
 
+# worktrees
+worktree
+
 # environment variable files
 .env
 config.yml
@@ -24,3 +27,4 @@ htmlcov/
 
 # prefetched chunking assets (grammars, tokenizers)
 .assets/
+/worktrees/
