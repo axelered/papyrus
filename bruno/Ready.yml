@@ -17,9 +17,9 @@ settings:
 
 docs:
   content: |-
-    Readiness probe: returns `200` while the server can accept another request, and `503 not_ready` once every slot of `workers.max_queue` is in use. No API key needed.
+    Readiness probe: returns `200` while the server can accept another request, and `503 not_ready` while every `workers.max_queue` slot is in use. No API key needed.
 
-    Point your load balancer's readiness check here, so traffic moves to other replicas while one is at capacity and returns once it recovers. A busy replica is not restarted: `/health` still answers `200`.
+    Point your load balancer's readiness check here to route traffic away from a replica at capacity. `/health` keeps answering `200`, so the replica is not restarted.
   type: text/markdown
 
 examples:

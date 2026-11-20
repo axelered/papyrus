@@ -19,7 +19,7 @@ docs:
   content: |-
     Liveness probe: returns `200` while the server process is up, however busy it is. No API key needed.
 
-    Point your orchestrator's liveness check here, so a replica is restarted only when it stops answering. The Docker image already uses it as its `HEALTHCHECK`. For routing traffic use ready instead.
+    Point your orchestrator's liveness check here, so a replica is restarted only when it stops answering. Route traffic with `/ready` instead.
   type: text/markdown
 
 examples:

@@ -55,6 +55,8 @@ The site renders two tabs per version (see `axelered-docs`).
 Flat: every page sits in `docs/`, and the single `docs/meta.json` orders them and groups them with
 `---Group---` separators. Every page has a lucide icon name in its `icon` frontmatter.
 No "Next steps" section at the end of pages: the site renders previous and next page links.
+Titles are short noun phrases, one to three words, because they are also the sidebar labels; the `description`
+carries the rest.
 
 | Group        | Reader  | Pages                                                                              |
 |--------------|---------|------------------------------------------------------------------------------------|
@@ -73,6 +75,11 @@ No "Next steps" section at the end of pages: the site renders previous and next 
   Markdown, Render, Thumbnail, Screenshot, Root, Health, Ready.
 - `opencollection.yml` docs are the API overview: what the API does, auth, variables, request and response
   conventions, errors.
+- Endpoint docs are one, at most two, paragraphs of framing: what the endpoint returns and what for, then when to
+  pick it over its siblings and the one caveat the reader will hit, in the imperative. No sections, option tables
+  or error lists: fields are documented by the schema, requests and responses by the examples, workflows by the
+  guides.
+- Examples carry a `name` that states the outcome and a one-sentence `description`.
 
 ### README
 

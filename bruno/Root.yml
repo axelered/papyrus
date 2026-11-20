@@ -19,7 +19,7 @@ docs:
   content: |-
     Returns the product name, the release version and the build watermark of the server. No API key needed.
 
-    Use it to confirm which release a deployment runs before you compare its behavior with these docs, or to check a rollout reached every replica. `watermark` is omitted when the server runs from source.
+    Use it to confirm which release a replica runs, or that a rollout reached every replica. `watermark` is omitted when the server runs from source.
   type: text/markdown
 
 examples:

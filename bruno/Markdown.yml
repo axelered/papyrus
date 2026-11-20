@@ -23,44 +23,9 @@ settings:
 
 docs:
   content: |-
-    Extracts Markdown from a document or web page, ready to pass to an LLM or index for retrieval. Add `options.chunking` to also get structure-aware chunks sized for your embedding model.
+    Extracts Markdown from a document or web page, ready to pass to an LLM or index for retrieval. The format is detected from the content, and `options.chunking` adds structure-aware chunks sized for your embedding model, with the headings they sit under and their offsets in the Markdown.
 
-    ## When to use it
-
-    - Feed documents to an LLM as context: PDFs, Office files, emails, web pages, notebooks, feeds and code.
-    - Build a RAG index: one request returns the Markdown and its chunks, with offsets back into the Markdown.
-    - Normalize mixed uploads: the format is detected from the content, so a mislabeled file is processed as what it really is and `source` reports the detected type.
-
-    ## Inputs
-
-    PDF (text layer only), Word, PowerPoint, Excel, OpenDocument, RTF, Outlook `.msg`, HTML, CSV and TSV, Jupyter, EPUB, RSS and Atom, JSON and JSON Lines, ZIP archives (every entry converted), plain text, Markdown and source code. Legacy formats (`.doc`, `.ppt`, `.rtf`, `.odt`, `.odp`, `.ods`) are converted with LibreOffice first and take longer. Code and config files come back as one fenced block tagged with the detected language. Images are rejected with `415 unsupported_format`: Papyrus does not run OCR, so scanned PDFs return little or no text.
-
-    ## Chunking
-
-    `options.chunking` splits the Markdown along its structure: chunks never cross a heading or slide, tables split by rows with the header repeated, and code splits along functions and classes. Each chunk reports its `kind` (`text`, `table`, `code`), the `headings` it sits under, its `tokens` and the `start`/`end` offsets of its span in `result.content`.
-
-    | Option | Default | Notes |
-    |---|---|---|
-    | `maxTokens` | `512` | `64` to `8192`, the budget of every chunk |
-    | `overlap` | `0` | tokens of the next prose chunk appended to each prose chunk, below `maxTokens` |
-    | `tokenizer` | `o200k_base` | match your embedding model: `o200k_base`, `cl100k_base`, `word` or `character` |
-
-    `chunking: {}` turns chunking on with every default.
-
-    ## Output
-
-    | Request | Response |
-    |---|---|
-    | `output: json` (default) | The envelope, with the Markdown in `result.content` |
-    | `output: file` | The Markdown as `text/markdown`, named `<source name>.md` |
-    | `chunking` with `output: file` | The full JSON document (envelope and `chunks`) as `application/json` |
-    | `destination` | The Markdown, or the JSON document when chunking, is uploaded; the response omits `content` and `chunks` |
-
-    ## Limits and errors
-
-    - Sources over `limits.max_file_size` (100 MB by default) fail with `413 payload_too_large` for uploads and `413 source_too_large` for URLs and storage.
-    - URLs on private or internal addresses fail with `403 source_forbidden` unless the server allows them.
-    - A request running longer than `limits.deadline` (300 s by default) fails with `504 deadline_exceeded`.
+    Papyrus does not run OCR: images fail with `415 unsupported_format` and scanned PDFs return little or no text. Legacy formats such as `.doc` and `.ppt` are converted with LibreOffice first and take longer.
   type: text/markdown
 
 examples:

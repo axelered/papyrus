@@ -25,31 +25,9 @@ settings:
 
 docs:
   content: |-
-    Fits one page, image or web page into a fixed box, for file lists, search results and link previews. By default the response body is a WebP file named `<source name>.webp`, at most 256 × 256 px.
+    Fits one page, image or web page into a fixed box, a 256 × 256 px WebP by default, for file lists, search results and link previews. A URL that serves HTML is captured in a browser at desktop width, so `https://axelered.com` gives a picture of the site.
 
-    ## When to use it
-
-    - Show a preview next to every uploaded file, whatever its format.
-    - Build link previews: a URL that serves HTML is captured in a browser, so `https://axelered.com` gives a picture of the site.
-
-    Use render instead when you need a page at reading size.
-
-    ## Inputs
-
-    Everything render accepts: PDF, images, Word, PowerPoint, Excel, OpenDocument and RTF. HTML is the exception: it is captured as a browser shows it on a desktop screen, 1280 px wide and as tall as the box shape asks for (between 400 and 2160 px). HTML has a single page, so `page` above 1 fails with `page_out_of_range`. An uploaded HTML file is shown without the images and styles it references by relative path.
-
-    ## Fit
-
-    | `fit` | Result |
-    |---|---|
-    | `contain` (default) | The whole page fits inside the box; one side can be shorter than the box |
-    | `cover` | The page fills the box and the center is cropped; the output is exactly `width` × `height` |
-
-    `width` and `height` are `1` to `4096`, both default to `256`. Images are never enlarged.
-
-    ## Errors
-
-    The same as render: `422 page_out_of_range`, `413 image_too_large` and `415 unsupported_format`.
+    Use render when you need a page at reading size.
   type: text/markdown
 
 examples:

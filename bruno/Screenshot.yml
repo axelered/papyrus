@@ -23,40 +23,9 @@ settings:
 
 docs:
   content: |-
-    Loads a web page in headless Chromium and captures it as an image. By default the response body is a PNG of the 1280 × 800 viewport, named `<host>.png`.
+    Loads a web page in headless Chromium and captures it as an image, including content built by JavaScript. The page and every request it makes follow the server fetch policy.
 
-    ## When to use it
-
-    - Archive or audit how a page looked at a point in time.
-    - Give a vision model the rendered page, including content built by JavaScript.
-    - Capture long pages with `fullPage`.
-
-    Use thumbnail for small link previews, which handles sizing for you.
-
-    ## Inputs
-
-    `source` must be an `http(s)://` URL; uploads and storage URIs fail with `422 unsupported_uri`. The page and every request it makes follow the server fetch policy: private addresses are blocked unless the server allows them, and an allowed host list applies to every image, script and frame. Pages that answer with an error status are still captured, and `source.fetch.status` reports the status.
-
-    ## Options
-
-    | Option | Default | Notes |
-    |---|---|---|
-    | `width` | `1280` | viewport width in CSS pixels, `320` to `3840` |
-    | `height` | `800` | viewport height in CSS pixels, `200` to `2160` |
-    | `fullPage` | `false` | capture the whole page, cut at 4096 px height |
-    | `scale` | `1` | device scale factor, `1` to `3`; multiplies the output pixels |
-    | `waitUntil` | `load` | `load`, `domcontentloaded` or `networkidle` |
-    | `delay` | `0` | milliseconds to wait after `waitUntil`, up to `10000`, for animations and late content |
-    | `format` | `png` | `png`, `jpeg` or `webp` |
-
-    The viewport times `scale` must stay within 4096 px per side, so `width: 1920` allows `scale: 2` but not `3`.
-
-    ## Errors
-
-    - `422 validation_error`: options out of range, including the 4096 px bound.
-    - `403 source_forbidden`: the URL is blocked by the fetch policy.
-    - `502 source_fetch_failed`: the host does not resolve or the navigation fails.
-    - `504 processing_timeout`: the page did not reach `waitUntil` within 30 s. Pages that keep polling the network never reach `networkidle`; use `load` with a `delay` instead.
+    Use thumbnail for small link previews. Pages that keep polling the network never reach `networkidle`; use `load` with a `delay` instead.
   type: text/markdown
 
 examples:
