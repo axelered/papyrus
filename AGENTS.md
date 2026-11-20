@@ -76,7 +76,7 @@
 
 ### Helm Chart (spec: `adr/chart.md`)
 
-- [ ] Chart in `chart/`: ConfigMap, Secret with generated key, Deployment, Service, Ingress, PDB, opt-in NetworkPolicy
+- [x] Chart in `chart/`: ConfigMap, Secret with generated key, Deployment, Service, Ingress, PDB, opt-in NetworkPolicy
 - [ ] Move stage to `chart/values.stage.nogit.yml` and delete `chart/deploy.nogit.yml`
 - [!] `helm lint` and `helm template` in the check job
 - [!] Package and push the chart to `oci://ghcr.io/axelered/charts` on release

@@ -20,7 +20,7 @@ imagePullSecrets: []
 
 # API keys accepted by the server (PAPYRUS_API_KEY). The first match wins:
 #   1. existingSecret: a Secret you manage, read from its `api-key` key
-#   2. value: the chart creates the Secret from these comma separated keys (escape commas in --set: k1,k2)
+#   2. value: the chart creates the Secret from these comma separated keys (escape commas in --set: k1\,k2)
 #   3. neither: the chart generates a key on install and reuses it on every upgrade. Read it with the command
 #      printed after install. The Secret is kept on uninstall, so a reinstall keeps the same key.
 # With Argo CD or `helm template`, set existingSecret: the generated key can't be looked up there and would change
@@ -63,6 +63,39 @@ resources:
 # Size of /tmp, which holds request workspaces and LibreOffice profiles.
 # The worst case is config.workers.max_queue times config.limits.max_file_size.
 tmpSizeLimit: 2Gi
+
+# Public access through an Ingress controller. Two limits depend on the controller, set them through annotations:
+# - request body size at least config.limits.max_file_size (100MB by default), e.g. for ingress-nginx
+#   nginx.ingress.kubernetes.io/proxy-body-size: 100m. Papyrus parses the whole upload before its own size check.
+# - read timeout above config.limits.deadline (300 seconds by default), e.g. for ingress-nginx
+#   nginx.ingress.kubernetes.io/proxy-read-timeout: "330". Traefik has no read timeout by default.
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  # - host: papyrus.example.com
+  #   paths: [/]
+  hosts: []
+  # - hosts: [papyrus.example.com]
+  #   secretName: papyrus-tls
+  tls: []
+
+# A PodDisruptionBudget with maxUnavailable 1 is created when replicaCount is above 1, so node drains keep the
+# service up.
+
+# Restrict pod traffic, defense in depth for untrusted documents and web pages. Needs a CNI that enforces
+# NetworkPolicy (Calico, Cilium, kube-router; not plain Flannel).
+# Ingress is limited to the http port. Egress allows DNS to the cluster DNS (kube-system pods labelled
+# k8s-app=kube-dns) and the public internet, and blocks private, loopback, link-local (cloud metadata) and CGNAT
+# addresses. Connectors to in-cluster or private storage need an extra rule, e.g. for an S3 service in the cluster:
+#   - to:
+#       - namespaceSelector:
+#           matchLabels: { kubernetes.io/metadata.name: storage }
+#     ports:
+#       - port: 9000
+networkPolicy:
+  enabled: false
+  extraEgress: []
 
 podAnnotations: {}
 podLabels: {}
