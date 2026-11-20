@@ -74,6 +74,14 @@
 - [ ] Tag `v0.3.0` and announce the breaking change in the release notes
 - [!] Metadata for `output=file` responses, opt-in data URI content
 
+### Helm Chart (spec: `adr/chart.md`)
+
+- [ ] Chart in `chart/`: ConfigMap, Secret with generated key, Deployment, Service, Ingress, PDB, opt-in NetworkPolicy
+- [ ] Move stage to `chart/values.stage.nogit.yml` and delete `chart/deploy.nogit.yml`
+- [!] `helm lint` and `helm template` in the check job
+- [!] Package and push the chart to `oci://ghcr.io/axelered/charts` on release
+- [!] `docs/kubernetes.mdx` guide
+
 ### Documentation (spec: `adr/docs.md`)
 
 - [x] Docs spec: readers, language, structure; `/document` command and `axelered-docs` skill
