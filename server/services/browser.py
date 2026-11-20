@@ -29,6 +29,8 @@ _CLOSE_TIMEOUT = 5
 _SCHEMES = frozenset({'http', 'https'})
 # defense in depth over Chromium's own web to file: block for served documents
 _DOCUMENT_SCHEMES = frozenset({'http', 'https', 'data', 'blob'})
+# resolves once two frames were rendered after load, so the compositor has a frame to capture
+_TWO_FRAMES = '() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))'
 
 ARGS = (
     # every connection goes through the pinning proxy: no QUIC, no WebRTC UDP outside the proxy
@@ -281,6 +283,11 @@ class BrowserService(Service):
             _raise_rejected(navigation)
         if options.delay:
             await asyncio.sleep(options.delay / 1000)
+        # a capture before the compositor produced a frame fails with "Unable to capture screenshot" on loaded hosts;
+        # a page overriding requestAnimationFrame can stall this, bounded by the capture timeout
+        # todo: retry the capture once on "Unable to capture screenshot" if CI or production still hit it
+        with stage('browser.frames'):
+            await page.evaluate(_TWO_FRAMES)
 
         # raw CDP because Playwright cannot encode webp; the capture resets Playwright's device metrics emulation,
         # so the clip carries the scale (layout already ran at the emulated ratio) and the page is discarded after
