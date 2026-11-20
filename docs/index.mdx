@@ -1,47 +1,52 @@
 ---
 title: Introduction
-description: LLM-ready Markdown, chunks and images from any document or web page
+description: Self-hosted API that converts documents and web pages into Markdown, chunks and images for LLMs
 icon: BookOpen
+footer: false
 ---
 
-Papyrus turns documents and web pages into LLM-ready Markdown, chunks and images through one HTTP API that runs on your own infrastructure. Send a file, a URL or a storage object, and get back text your model can read or images your users can see.
+import { Camera, FileText, ImageIcon, Scissors } from 'lucide-react'
 
-## What you can do
+Papyrus is a self-hosted HTTP API that converts documents and web pages into Markdown, chunks and images for LLM and Agentic pipelines. It reads PDFs, Office files, emails, HTML pages and other formats listed in [File formats](./formats), and returns content in a shape that models and retrieval systems can use directly.
 
-| You need | Endpoint | Guide |
-|---|---|---|
-| Text from a PDF, Office file, email or web page for an LLM | `POST /v1/markdown` | [Markdown extraction](./markdown) |
-| Chunks sized for your embedding model, with headings and offsets | `POST /v1/markdown` with `chunking` | [RAG chunking](./chunking) |
-| A page image at reading size, or a fixed size preview | `POST /v1/render`, `POST /v1/thumbnail` | [Image rendering](./images) |
-| A web page as a browser shows it | `POST /v1/screenshot` | [Web screenshots](./screenshots) |
-| Results written straight to your bucket | any endpoint with `destination` | [Remote storage](./storage) |
+<br/>
+<Cards>
+  <Card icon={<FileText />} title="Markdown extraction" description="PDF, Office, email and HTML to Markdown" href="./markdown" />
+  <Card icon={<Scissors />} title="RAG chunking" description="Structure-aware chunks with headings, token counts and offsets" href="./chunking" />
+  <Card icon={<ImageIcon />} title="Image rendering" description="Page renders and fixed-size thumbnails" href="./images" />
+  <Card icon={<Camera />} title="Web screenshots" description="Web page capture in headless Chromium" href="./screenshots" />
+</Cards>
+<br/>
 
 ## How it works
 
+Papyrus takes a document from an upload, a URL or an object in your S3 bucket. It detects the format from the file content, converts or renders it, and returns Markdown, chunks or images in the response, or writes them back to your bucket.
+
+<br/>
 ```mermaid
 flowchart LR
-    upload[Upload] --> detect
-    url[URL] --> detect
-    bucket[Bucket object] --> detect
-    detect[Detect format from content] --> process[Convert, render or capture]
-    process --> response[JSON or file response]
-    process --> destination[Your bucket]
+    upload[Upload] --> api
+    url[URL] --> api
+    bucket[S3 object] --> api
+    api[Papyrus]
+    api --> markdown[Markdown]
+    api --> chunks[Chunks]
+    api --> images[Images]
+
+    style api fill:#ff3d0010,stroke:#ff3d00
 ```
+<br/>
 
-- **One request shape for every operation.** Every endpoint takes `source`, `options`, `output` and `destination`, and returns the same `source`, `options`, `result` envelope. Learn it once in [request format](./requests).
-- **Formats are detected from the content.** A PDF named `report.docx` is processed as a PDF, and the response tells you what it really was.
-- **The heavy tools ship in the image.** LibreOffice for legacy office formats and Chromium for web pages run inside Papyrus, so your services do not install or sandbox them.
-- **Your documents stay in your network.** Papyrus runs as one Docker image next to your services. It fetches only the URLs you send and what those pages load, and blocks private addresses by default.
+Behind that single API sits the machinery document processing needs: LibreOffice for Office formats, PDFium for PDF rendering, headless Chromium for web pages, content-based format detection and structure-aware chunking. Papyrus runs each of these in its own worker processes, keeps them warm, and applies [production hardened Security](./security) for untrusted documents and websites. Your agents call one endpoint and receive clean content, and none of these tools has to be installed, patched or scaled inside your own services.
 
-## Limits to know up front
+## Deployment
 
-- Papyrus reads the text layer of PDFs and does not run OCR: scanned documents return little or no text.
-- One request processes one document, up to 100 MB and 300 seconds by default.
-- Render and thumbnail return one page per request.
+Papyrus ships as a single stateless Docker image with every component included. It stores nothing between requests, and throughput scales horizontally by adding replicas behind a load balancer. [Docker setup](./docker) and [Sizing](./sizing) describe the configuration and capacity planning.
 
 Papyrus is built by [Axelered](https://axelered.com).
 
+<br/>
 <Cards>
-  <Card title="Quickstart" description="Run Papyrus and extract your first document in five minutes" href="./quickstart" />
-  <Card title="API reference" description="Every endpoint, field and error, with examples" href="./api" />
+  <Card title="Quickstart" description="Run Papyrus and convert a first document" href="./quickstart" />
+  <Card title="API reference" description="Endpoints, fields, errors and examples" href="./api" />
 </Cards>
