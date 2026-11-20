@@ -1,7 +1,7 @@
 ---
 title: Papyrus
 description: LLM-ready Markdown, chunks and images from any document or web page
-icon: FileText
+icon: BookOpen
 ---
 
 Papyrus turns documents and web pages into LLM-ready Markdown, chunks and images through one HTTP API that runs on your own infrastructure. Send a file, a URL or a storage object, and get back text your model can read or images your users can see.
@@ -10,11 +10,11 @@ Papyrus turns documents and web pages into LLM-ready Markdown, chunks and images
 
 | You need | Endpoint | Guide |
 |---|---|---|
-| Text from a PDF, Office file, email or web page for an LLM | `POST /v1/markdown` | [Extract Markdown](./guides/markdown) |
-| Chunks sized for your embedding model, with headings and offsets | `POST /v1/markdown` with `chunking` | [Chunk for RAG](./guides/chunking) |
-| A page image at reading size, or a fixed size preview | `POST /v1/render`, `POST /v1/thumbnail` | [Thumbnails and renders](./guides/images) |
-| A web page as a browser shows it | `POST /v1/screenshot` | [Web page screenshots](./guides/screenshots) |
-| Results written straight to your bucket | any endpoint with `destination` | [Storage](./guides/storage) |
+| Text from a PDF, Office file, email or web page for an LLM | `POST /v1/markdown` | [Extract Markdown](./markdown) |
+| Chunks sized for your embedding model, with headings and offsets | `POST /v1/markdown` with `chunking` | [Chunk for RAG](./chunking) |
+| A page image at reading size, or a fixed size preview | `POST /v1/render`, `POST /v1/thumbnail` | [Thumbnails and renders](./images) |
+| A web page as a browser shows it | `POST /v1/screenshot` | [Web page screenshots](./screenshots) |
+| Results written straight to your bucket | any endpoint with `destination` | [Storage](./storage) |
 
 ## How it works
 
@@ -28,7 +28,7 @@ flowchart LR
     process --> destination[Your bucket]
 ```
 
-- **One request shape for every operation.** Every endpoint takes `source`, `options`, `output` and `destination`, and returns the same `source`, `options`, `result` envelope. Learn it once in [request format](./concepts/requests).
+- **One request shape for every operation.** Every endpoint takes `source`, `options`, `output` and `destination`, and returns the same `source`, `options`, `result` envelope. Learn it once in [request format](./requests).
 - **Formats are detected from the content.** A PDF named `report.docx` is processed as a PDF, and the response tells you what it really was.
 - **The heavy tools ship in the image.** LibreOffice for legacy office formats and Chromium for web pages run inside Papyrus, so your services do not install or sandbox them.
 - **Your documents stay in your network.** Papyrus runs as one Docker image next to your services. It fetches only the URLs you send and what those pages load, and blocks private addresses by default.

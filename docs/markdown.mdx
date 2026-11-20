@@ -1,6 +1,7 @@
 ---
 title: Extract Markdown
 description: Turn documents and web pages into Markdown for LLM context and indexing
+icon: FileText
 ---
 
 `POST /v1/markdown` returns the content of a document as Markdown: headings, lists, tables and links, without layout noise. Pass it to an LLM as context, store it for search, or split it into chunks in the same request.
@@ -71,7 +72,7 @@ The response is `text/markdown; charset=utf-8` with `Content-Disposition: attach
 - **Code and config**: one fenced block tagged with the detected language, so a model sees exactly where code starts and ends.
 - **ZIP**: every entry converted.
 
-The full list is in [supported formats](../concepts/formats).
+The full list is in [supported formats](./formats).
 
 ## Handle failures
 

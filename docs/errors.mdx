@@ -1,6 +1,7 @@
 ---
 title: Errors
 description: Error codes, what causes them and how your client should react
+icon: CircleX
 ---
 
 Every error is an `application/problem+json` body with a stable `code`. Branch on `code` in your client; `detail` is for people and its wording can change between releases.
@@ -77,4 +78,4 @@ If `processing_failed` repeats for a document that opens in its own application,
 ## Next steps
 
 - [Request format](./requests): the fields these errors refer to.
-- [API reference](../api): the errors each endpoint can return.
+- [API reference](./api): the errors each endpoint can return.

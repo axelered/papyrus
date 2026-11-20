@@ -1,6 +1,7 @@
 ---
 title: Storage sources and destinations
 description: Read documents from your bucket and write results back, without moving files through your service
+icon: Database
 ---
 
 Point `source` and `destination` at a storage connector and Papyrus reads the document from your bucket and writes the result back. Your service sends two URIs instead of uploading and downloading files, and the response carries only the facts about the stored result.
@@ -36,7 +37,7 @@ curl http://127.0.0.1:8000/v1/markdown \
 }
 ```
 
-`result.uri` is where the file was written; `content` is omitted. This example assumes an operator configured an S3 connector named `prod`; see [configuration](../deploy/configuration).
+`result.uri` is where the file was written; `content` is omitted. This example assumes an operator configured an S3 connector named `prod`; see [configuration](./configuration).
 
 ## Combine sources and destinations
 
@@ -69,5 +70,5 @@ Papyrus writes to the exact key you give and overwrites an existing object. It d
 
 ## Next steps
 
-- [Source and destination URIs](../concepts/uris): the URI rules in full.
-- [Configuration](../deploy/configuration): add a connector.
+- [Source and destination URIs](./uris): the URI rules in full.
+- [Configuration](./configuration): add a connector.

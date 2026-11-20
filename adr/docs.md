@@ -52,11 +52,12 @@ The site renders two tabs per version (see `axelered-docs`).
 
 ### Guides (`docs/`)
 
-Ordered with `meta.json`, one folder per group.
+Flat: every page sits in `docs/`, and the single `docs/meta.json` orders them and groups them with
+`---Group---` separators. Every page has a lucide icon name in its `icon` frontmatter.
 
 | Group        | Reader  | Pages                                                                              |
 |--------------|---------|------------------------------------------------------------------------------------|
-| (root)       | builder | Introduction (`index`): what Papyrus does, one diagram · Quickstart: Docker run, first Markdown request, first chunked request |
+| (top)        | builder | Introduction (`index`): what Papyrus does, one diagram · Quickstart: Docker run, first Markdown request, first chunked request |
 | Guides       | builder | Extract Markdown · Chunk for RAG · Thumbnails and renders · Web page screenshots · Storage sources and destinations |
 | Concepts     | both    | Request format (`source`, `options`, `result`) · Source and destination URIs · Supported formats · Errors |
 | Deploy       | operator | Run with Docker · Configuration · Security (SSRF, sandbox, limits, reverse proxy) · Sizing and performance |

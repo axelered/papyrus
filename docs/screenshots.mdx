@@ -1,6 +1,7 @@
 ---
 title: Web page screenshots
 description: Capture web pages in a headless browser, including content built by JavaScript
+icon: Camera
 ---
 
 `POST /v1/screenshot` opens a URL in headless Chromium and captures what a visitor sees, after scripts run. Use it to archive pages, check how they render, or give a vision model the page as it looks.
@@ -73,4 +74,4 @@ A page that answers with an error status, such as `404`, is still captured; chec
 ## Next steps
 
 - [Thumbnails and renders](./images): website previews in a fixed box.
-- [Deploy security](../deploy/security): how the browser is isolated.
+- [Deploy security](./security): how the browser is isolated.

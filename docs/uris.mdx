@@ -1,6 +1,7 @@
 ---
 title: Source and destination URIs
 description: Point Papyrus at uploads, web URLs and storage buckets
+icon: Link
 ---
 
 `source` and `destination` are URIs, so one field covers uploads, web pages and storage objects. The scheme decides where Papyrus reads from or writes to.
@@ -41,9 +42,9 @@ curl http://127.0.0.1:8000/v1/markdown \
 - A missing object fails with `404 source_not_found`; a failed upload with `502 destination_failed`.
 - The destination is checked before any processing starts, so a typo fails in milliseconds instead of after a long conversion.
 
-Operators add connectors in [configuration](../deploy/configuration).
+Operators add connectors in [configuration](./configuration).
 
 ## Next steps
 
-- [Storage guide](../guides/storage): batch documents from a bucket into a bucket.
+- [Storage guide](./storage): batch documents from a bucket into a bucket.
 - [Supported formats](./formats): what each operation accepts.

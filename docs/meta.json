@@ -1,3 +1,22 @@
 {
-  "pages": ["index", "quickstart", "guides", "concepts", "deploy"]
+  "pages": [
+    "index",
+    "quickstart",
+    "---Guides---",
+    "markdown",
+    "chunking",
+    "images",
+    "screenshots",
+    "storage",
+    "---Concepts---",
+    "requests",
+    "uris",
+    "formats",
+    "errors",
+    "---Deploy---",
+    "docker",
+    "configuration",
+    "security",
+    "sizing"
+  ]
 }

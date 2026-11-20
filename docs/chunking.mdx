@@ -1,6 +1,7 @@
 ---
 title: Chunk for RAG
 description: Split documents into structure-aware chunks sized for your embedding model
+icon: Scissors
 ---
 
 Add `options.chunking` to a Markdown request to get the document split into chunks that fit your embedding model, each with the headings it sits under and its position in the Markdown. One request replaces a parser, a splitter and a token counter in your pipeline.
@@ -104,4 +105,4 @@ With chunking, `output: file` returns the full JSON document, envelope and chunk
 ## Next steps
 
 - [Storage](./storage): chunk a whole bucket into your index pipeline.
-- [Errors](../concepts/errors): `validation_error` when `overlap` is not below `maxTokens`.
+- [Errors](./errors): `validation_error` when `overlap` is not below `maxTokens`.

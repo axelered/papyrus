@@ -64,7 +64,7 @@ JSON responses are the `{source, result, options}` envelope, plus data sections 
 }
 ```
 
-Errors are `application/problem+json` with a stable `code`, listed in the [errors page](https://docs.axelered.com/papyrus/concepts/errors). Interactive docs are served at `/docs`.
+Errors are `application/problem+json` with a stable `code`, listed in the [errors page](https://docs.axelered.com/papyrus/errors). Interactive docs are served at `/docs`.
 
 ## 🧑🏼‍💻 Development
 
@@ -142,4 +142,4 @@ docker run -p 8000:8000 -e PAPYRUS_API_KEY=<key> -v ./config.yml:/etc/papyrus/co
 ```
 
 Copy `config.example.yml` to `config.yml` and change what you need; every key is optional and shows its default. Configuration
-reference: [docs.axelered.com/papyrus/deploy/configuration](https://docs.axelered.com/papyrus/deploy/configuration).
+reference: [docs.axelered.com/papyrus/configuration](https://docs.axelered.com/papyrus/configuration).

@@ -1,6 +1,7 @@
 ---
 title: Sizing and performance
 description: Choose CPU, memory, worker processes and replica count for your load
+icon: Gauge
 ---
 
 One Papyrus container processes as many documents in parallel as it has worker processes, and accepts up to `workers.max_queue` requests at once. Size it by CPU, give it memory for its pools, and add replicas behind a load balancer for more throughput.
