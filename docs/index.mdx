@@ -1,5 +1,5 @@
 ---
-title: Papyrus
+title: Introduction
 description: LLM-ready Markdown, chunks and images from any document or web page
 icon: BookOpen
 ---
@@ -10,11 +10,11 @@ Papyrus turns documents and web pages into LLM-ready Markdown, chunks and images
 
 | You need | Endpoint | Guide |
 |---|---|---|
-| Text from a PDF, Office file, email or web page for an LLM | `POST /v1/markdown` | [Extract Markdown](./markdown) |
-| Chunks sized for your embedding model, with headings and offsets | `POST /v1/markdown` with `chunking` | [Chunk for RAG](./chunking) |
-| A page image at reading size, or a fixed size preview | `POST /v1/render`, `POST /v1/thumbnail` | [Thumbnails and renders](./images) |
-| A web page as a browser shows it | `POST /v1/screenshot` | [Web page screenshots](./screenshots) |
-| Results written straight to your bucket | any endpoint with `destination` | [Storage](./storage) |
+| Text from a PDF, Office file, email or web page for an LLM | `POST /v1/markdown` | [Markdown extraction](./markdown) |
+| Chunks sized for your embedding model, with headings and offsets | `POST /v1/markdown` with `chunking` | [RAG chunking](./chunking) |
+| A page image at reading size, or a fixed size preview | `POST /v1/render`, `POST /v1/thumbnail` | [Image rendering](./images) |
+| A web page as a browser shows it | `POST /v1/screenshot` | [Web screenshots](./screenshots) |
+| Results written straight to your bucket | any endpoint with `destination` | [Remote storage](./storage) |
 
 ## How it works
 

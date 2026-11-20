@@ -1,5 +1,5 @@
 ---
-title: Sizing and performance
+title: Sizing
 description: Choose CPU, memory, worker processes and replica count for your load
 icon: Gauge
 ---
@@ -50,8 +50,3 @@ Each container is independent and keeps no state between requests, so add replic
 ## Measure
 
 Set `PAPYRUS_TIMING=true` on a test deployment to add a `Server-Timing` header to every response, with the duration of each stage such as `parse`, `materialize`, `detect`, `convert`, `render` and `markdown`. The same values are logged once per request. Keep it off in production: the header reveals internal timings.
-
-## Next steps
-
-- [Configuration](./configuration): every worker and limit setting.
-- [Run with Docker](./docker): probes and graceful shutdown.

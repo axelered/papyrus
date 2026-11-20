@@ -1,5 +1,5 @@
 ---
-title: Storage sources and destinations
+title: Remote storage
 description: Read documents from your bucket and write results back, without moving files through your service
 icon: Database
 ---
@@ -67,8 +67,3 @@ Papyrus writes to the exact key you give and overwrites an existing object. It d
 - `404 source_not_found`: the source object does not exist.
 - `502 source_fetch_failed`: reading from storage failed, for example a permission error.
 - `502 destination_failed`: the upload failed after processing; nothing was stored, retry the request.
-
-## Next steps
-
-- [Source and destination URIs](./uris): the URI rules in full.
-- [Configuration](./configuration): add a connector.

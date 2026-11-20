@@ -1,5 +1,5 @@
 ---
-title: Chunk for RAG
+title: RAG chunking
 description: Split documents into structure-aware chunks sized for your embedding model
 icon: Scissors
 ---
@@ -101,8 +101,3 @@ With chunking, `output: file` returns the full JSON document, envelope and chunk
 ```json
 {"source": "s3://prod/handbook/sla.html", "destination": "s3://prod/chunks/sla.json", "options": {"chunking": {"maxTokens": 512}}}
 ```
-
-## Next steps
-
-- [Storage](./storage): chunk a whole bucket into your index pipeline.
-- [Errors](./errors): `validation_error` when `overlap` is not below `maxTokens`.

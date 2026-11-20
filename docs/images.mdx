@@ -1,5 +1,5 @@
 ---
-title: Thumbnails and renders
+title: Image rendering
 description: Turn document pages, images and web pages into previews and page images
 icon: Image
 ---
@@ -85,8 +85,3 @@ The file is named `<source name>-<page>.<ext>`. With `output: json`, `source.pag
 - **Never enlarged.** Images are not scaled above their own size, and no output side exceeds 4096 px.
 - **Pixel guard.** Images with more pixels than the decompression guard allows fail with `413 image_too_large`.
 - `page` past the end fails with `422 page_out_of_range`, and `dpi` combined with `width` or `height` with `422 validation_error`.
-
-## Next steps
-
-- [Web page screenshots](./screenshots): full pages, custom viewports and wait conditions.
-- [Storage](./storage): write previews straight to your bucket.

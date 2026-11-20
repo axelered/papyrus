@@ -1,5 +1,5 @@
 ---
-title: Run with Docker
+title: Docker setup
 description: Run the Papyrus image in production with keys, configuration, probes and logs
 icon: Container
 ---
@@ -79,8 +79,3 @@ At startup the server logs what it runs: version, limits, worker pools, fetch po
 ## One process per container
 
 The image runs a single server process that manages its own worker pools. Scale with more containers, not with `uvicorn --workers`: extra server processes multiply the pools and split the request limit. See [sizing](./sizing).
-
-## Next steps
-
-- [Configuration](./configuration): limits, fetch policy and storage connectors.
-- [Security](./security): what to lock down before exposing Papyrus.

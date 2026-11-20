@@ -1,5 +1,5 @@
 ---
-title: Errors
+title: Error codes
 description: Error codes, what causes them and how your client should react
 icon: CircleX
 ---
@@ -42,7 +42,7 @@ Retrying these returns the same error.
 | 413 | `source_too_large` | The URL or storage object exceeds `limits.max_file_size` |
 | 413 | `image_too_large` | The image has more pixels than the decompression guard allows |
 | 415 | `unsupported_media_type` | The request is neither `application/json` nor `multipart/form-data` |
-| 415 | `unsupported_format` | The operation does not accept the detected format. See [supported formats](./formats) |
+| 415 | `unsupported_format` | The operation does not accept the detected format. See [file formats](./formats) |
 | 422 | `validation_error` | The body or `metadata` is not a JSON object, or a field is missing, unknown or out of range; see `errors` |
 | 422 | `unsupported_uri` | The URI is malformed or not allowed there, for example `file://` in a JSON request |
 | 422 | `unknown_connector` | The storage URI names a connector the server does not have |
@@ -74,8 +74,3 @@ Retrying these returns the same error.
 | 500 | `internal_error` | An unexpected error; the server logs it, the response never includes internals |
 
 If `processing_failed` repeats for a document that opens in its own application, keep the file and the request: it is the fastest way to get it fixed.
-
-## Next steps
-
-- [Request format](./requests): the fields these errors refer to.
-- [API reference](./api): the errors each endpoint can return.

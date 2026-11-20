@@ -54,8 +54,3 @@ With `sandbox: true` on a runtime that does not allow it, screenshots and HTML t
 ## Request size
 
 The server parses multipart uploads before it checks their size, so an oversized upload uses disk and time before it is refused. Enforce a body limit slightly above `limits.max_file_size` at your reverse proxy, for example `client_max_body_size 110m;` in nginx.
-
-## Next steps
-
-- [Configuration](./configuration): the fetch policy and browser keys.
-- [Sizing](./sizing): limits that keep one client from starving the others.

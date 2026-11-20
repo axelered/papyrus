@@ -54,13 +54,14 @@ The site renders two tabs per version (see `axelered-docs`).
 
 Flat: every page sits in `docs/`, and the single `docs/meta.json` orders them and groups them with
 `---Group---` separators. Every page has a lucide icon name in its `icon` frontmatter.
+No "Next steps" section at the end of pages: the site renders previous and next page links.
 
 | Group        | Reader  | Pages                                                                              |
 |--------------|---------|------------------------------------------------------------------------------------|
 | (top)        | builder | Introduction (`index`): what Papyrus does, one diagram · Quickstart: Docker run, first Markdown request, first chunked request |
-| Guides       | builder | Extract Markdown · Chunk for RAG · Thumbnails and renders · Web page screenshots · Storage sources and destinations |
-| Concepts     | both    | Request format (`source`, `options`, `result`) · Source and destination URIs · Supported formats · Errors |
-| Deploy       | operator | Run with Docker · Configuration · Security (SSRF, sandbox, limits, reverse proxy) · Sizing and performance |
+| Guides       | builder | Markdown extraction · RAG chunking · Image rendering · Web screenshots · Remote storage |
+| Concepts     | both    | Request format (`source`, `options`, `result`) · URI formats · File formats · Error codes |
+| Deploy       | operator | Docker setup · Configuration · Security (SSRF, sandbox, limits, reverse proxy) · Sizing |
 
 - Guides explain workflows and link to the API reference; they never list endpoint fields.
 - `docs/*.nogit.*` files are local notes and never part of the docs.

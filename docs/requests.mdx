@@ -10,7 +10,7 @@ Every Papyrus operation takes the same four fields and returns the same three-ke
 
 | Field | Required | Meaning |
 |---|---|---|
-| `source` | yes, except for uploads | What to process: an upload, a URL or a storage object. See [source and destination URIs](./uris) |
+| `source` | yes, except for uploads | What to process: an upload, a URL or a storage object. See [URI formats](./uris) |
 | `options` | no | Operation options. Omitted fields take their defaults |
 | `output` | no | `json` for the envelope, `file` for the artifact as the response body |
 | `destination` | no | A storage URI to write the result to instead of returning it |
@@ -86,8 +86,3 @@ Operation data such as `chunks` sits next to these three keys. Fields Papyrus do
 | `destination` set | The envelope without `content`; `result.uri` is where the file was written |
 
 Markdown defaults to `json`; render, thumbnail and screenshot default to `file`. When the response carries operation data, such as chunks, `output: file` and `destination` deliver the full JSON document instead of the bare artifact, so nothing is lost.
-
-## Next steps
-
-- [Source and destination URIs](./uris): uploads, URLs and storage connectors.
-- [Errors](./errors): the codes to handle in your client.
