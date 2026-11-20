@@ -8,7 +8,13 @@ from openapi_spec_validator import validate
 from server.utils.problem import PROBLEM_JSON
 
 OPS = ['/v1/markdown', '/v1/thumbnail', '/v1/render', '/v1/screenshot']
-BASE_STATUSES = {'400', '401', '403', '404', '413', '415', '422', '500', '502', '503', '504'}
+# only op-specific statuses are listed, the shared catalog falls under `4XX` and `5XX` (adr/api.md)
+OP_STATUSES = {
+    '/v1/markdown': {'200', '415', '4XX', '5XX'},
+    '/v1/thumbnail': {'200', '413', '415', '422', '4XX', '5XX'},
+    '/v1/render': {'200', '413', '415', '422', '4XX', '5XX'},
+    '/v1/screenshot': {'200', '4XX', '5XX'},
+}
 
 
 @pytest.fixture
@@ -21,13 +27,17 @@ def test_spec_is_valid(spec: dict[str, Any]):
 
 
 @pytest.mark.parametrize('path', OPS)
-def test_operations_document_the_base_errors(spec: dict[str, Any], path: str):
+def test_operations_list_only_their_own_errors(spec: dict[str, Any], path: str):
     responses = spec['paths'][path]['post']['responses']
 
-    assert BASE_STATUSES <= set(responses)
-    assert all(PROBLEM_JSON in responses[status]['content'] for status in BASE_STATUSES)
-    assert 'WWW-Authenticate' in responses['401']['headers']
-    assert 'Retry-After' in responses['503']['headers']
+    assert set(responses) == OP_STATUSES[path]
+    assert all(PROBLEM_JSON in responses[status]['content'] for status in OP_STATUSES[path] - {'200'})
+
+
+def test_listed_status_keeps_its_shared_codes(spec: dict[str, Any]):
+    description = spec['paths']['/v1/render']['post']['responses']['422']['description']
+
+    assert '`page_out_of_range`' in description and '`validation_error`' in description
 
 
 @pytest.mark.parametrize(

@@ -26,7 +26,7 @@ from server.io.transfer import Materialized
 from server.io.workspace import Workspace
 from server.services.detect import Document, lookup
 from server.types.common import Encoding, Fetch, FormatLabel, ImageFormat, OpResponse, OutputMode, Result, Source
-from server.utils.openapi import problem_responses
+from server.utils.openapi import problem_ranges, problem_responses
 from server.utils.problem import (
     BadRequest,
     PayloadTooLarge,
@@ -38,7 +38,8 @@ from server.utils.timing import stage
 
 _ENVELOPE = frozenset({'source', 'options', 'result'})
 
-# errors every operation can return: transport, auth, admission, source and destination, deadline (adr/api.md)
+# errors every operation can return: transport, auth, admission, source and destination, deadline (adr/api.md);
+# documented once in the guides and covered by the `4XX` and `5XX` responses, not listed per operation
 OP_ERRORS: tuple[type[ProblemError], ...] = (
     BadRequest,
     Unauthorized,
@@ -93,7 +94,13 @@ def result_of(path: Path, label: str, **facts: Any) -> Result:
 
 
 def op_responses(files: Mapping[str, dict[str, Any]], *errors: type[ProblemError]) -> dict[int | str, dict[str, Any]]:
-    """OpenAPI responses of an operation: the JSON envelope comes from `response_model`, `files` are the op files"""
+    """OpenAPI responses of an operation: the JSON envelope comes from `response_model`, `files` are the op files
+
+    Only the statuses of the op's own `errors` are listed, each with every code it can carry (shared ones
+    included); every other error falls under the `4XX` and `5XX` ranges.
+    """
+    statuses = {error.status for error in errors}
+    shared = (error for error in OP_ERRORS if error.status in statuses)
     return {
         200: {
             'description': 'The JSON envelope (light with a destination), or the op file for `output=file`',
@@ -102,7 +109,8 @@ def op_responses(files: Mapping[str, dict[str, Any]], *errors: type[ProblemError
                 'Content-Disposition': {'description': 'File name, for `output=file`', 'schema': {'type': 'string'}}
             },
         },
-        **problem_responses(*OP_ERRORS, *errors),
+        **problem_responses(*shared, *errors),
+        **problem_ranges(),
     }
 
 

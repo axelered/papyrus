@@ -135,14 +135,18 @@ The problem+json shape of `adr/architecture.md` is unchanged except for camelCas
   `errors?: [{loc, msg, type}]`.
 - `code` is an enum generated from the `ProblemError` catalog plus the handler codes of `utils/problem.py`
   (`not_found`, `method_not_allowed`, `not_ready`, `internal_error`), so new errors appear without doc edits.
-- Every `/v1` route gets a shared base set: `400 bad_request`, `401 unauthorized`, `403 source_forbidden`,
-  `404 source_not_found`, `413 payload_too_large | source_too_large`, `415 unsupported_media_type`,
-  `422 validation_error | unsupported_uri | unknown_connector`, `500 processing_failed | internal_error`,
-  `502 source_fetch_failed | destination_failed`, `503 queue_full`, `504 processing_timeout | deadline_exceeded`.
-- Routes declare their own errors on top, as error classes: markdown `UnsupportedFormat`; thumbnail and render
-  `UnsupportedFormat`, `ImageTooLarge`, `PageOutOfRange`.
-- Each status description lists its possible `code`s. Headers come from the error classes' `headers()`:
-  `WWW-Authenticate` on `401`, `Retry-After` on `503`.
+- Every `/v1` route can return a shared base set (`OP_ERRORS`): `400 bad_request`, `401 unauthorized`,
+  `403 source_forbidden`, `404 source_not_found`, `413 payload_too_large | source_too_large`,
+  `415 unsupported_media_type`, `422 validation_error | unsupported_uri | unknown_connector`,
+  `500 processing_failed | internal_error`, `502 source_fetch_failed | destination_failed`, `503 queue_full`,
+  `504 processing_timeout | deadline_exceeded`. It is documented once, in the Error codes guide, and covered on every
+  operation by `4XX` and `5XX` Problem responses (OpenAPI status ranges; explicit statuses take precedence) instead
+  of being repeated per route, so each reference page shows the errors that matter for it.
+- Routes list only their own errors, as error classes: markdown `UnsupportedFormat`; thumbnail and render
+  `UnsupportedFormat`, `ImageTooLarge`, `PageOutOfRange`; screenshot none.
+- A listed status carries every code it can return, shared ones included (render `422`: `page_out_of_range`,
+  `validation_error`, `unsupported_uri`, `unknown_connector`). Headers come from the error classes' `headers()`;
+  shared headers (`WWW-Authenticate` on `401`, `Retry-After` on `503`) are documented in the guides.
 - Framework rejections and `/ready` have catalog classes too (`BadRequest`, `NotReady`) so they are documented;
   `/ready` renders `NotReady` without raising it, so busy replicas do not log a warning on every probe.
 
@@ -165,8 +169,8 @@ The problem+json shape of `adr/architecture.md` is unchanged except for camelCas
 ## Validation
 
 - `openapi-spec-validator` (dev dependency) validates the generated spec in a test.
-- The same test asserts every `/v1` route documents the base error set and that no operation uses an inline object
-  schema.
+- The same test asserts every `/v1` route lists exactly its own statuses plus `4XX` and `5XX`, and that no
+  operation uses an inline object schema.
 - API tests assert the envelope per op and mode: inline, `output=file`, `destination` (light, no `content`),
   chunked markdown to file and destination as the JSON document, camelCase in and out, snake_case input rejected.
 - Bruno requests and examples move to camelCase and the new shapes (`AGENTS.md` repository rules).

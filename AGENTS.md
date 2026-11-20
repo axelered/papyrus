@@ -91,5 +91,5 @@
 - LibreOffice workers keep network access; deny egress for the worker (network namespace or deployment policy)
 - LibreOffice adds about 630 MB to the image and about 330 MB RAM per convert worker, 1 GB+ spikes on large files
 - `workers.processes: auto` uses `os.cpu_count()`, which ignores container CPU limits: a 2 CPU container on a 32 core host starts 32 processes per pool
-- The docs site drops Bruno error examples: `json` bodies map to `application/json`, errors are `application/problem+json` (axelered/docs `scripts/bruno.ts`)
+- The docs site drops Bruno error examples: `json` bodies map to `application/json`, errors are `application/problem+json`, and statuses covered only by the `4XX` and `5XX` ranges are skipped as not in the contract (axelered/docs `scripts/bruno.ts`)
 - Chunking: a heading directly followed by a table becomes a heading-only chunk, and `overlap` skips the table to the next prose chunk

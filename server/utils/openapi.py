@@ -57,6 +57,14 @@ def problem_responses(*errors: type[ProblemError]) -> dict[int | str, dict[str, 
     return responses
 
 
+def problem_ranges() -> dict[str, dict[str, Any]]:
+    """`4XX` and `5XX` responses: any error not listed on the operation, catalogued in the Error codes guide"""
+    content = {PROBLEM_JSON: {'schema': components.ref(Problem)}}
+    client = 'Any other client error: fix the request, see the Error codes guide'
+    server = 'Any other server error: retry or report it, see the Error codes guide'
+    return {'4XX': {'description': client, 'content': content}, '5XX': {'description': server, 'content': content}}
+
+
 def install_openapi(app: 'FastAPI') -> None:
     """Adds the registered components to the spec FastAPI generates
 
