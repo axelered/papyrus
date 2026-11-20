@@ -100,7 +100,11 @@ runtime  FROM base: prod venv, assets, server; HEALTHCHECK and CMD as today (las
    `tags: papyrus:dev`, GHA cache in scope `dev`.
 6. Run inside `papyrus:dev` with the same mounts as dekit `docker/test` plus `ruff.toml`: `ruff format --check`,
    `ruff check`, `pytest -m "full or not full"`.
-7. `docker/build-push-action`: default target (`runtime`), `build-args: WATERMARK=<watermark>`, reads the `dev`
+7. Docs bundle (`axelered-docs` skill): `scripts/openapi.py` inside `papyrus:dev` writes `openapi.json` (`jq empty`
+   fails on stray stdout), then `docs.tar.gz` packs `bundle.json`, `openapi.json`, `docs/` and `bruno/` without
+   `bruno/environments` and `.env*`, and the step fails if either slipped in. Packed on every run, uploaded as the
+   `docs-bundle` artifact only when `publish` is true. Gitignored `*.nogit.*` notes never reach the CI checkout.
+8. `docker/build-push-action`: default target (`runtime`), `build-args: WATERMARK=<watermark>`, reads the `dev`
    and `runtime` cache scopes, writes `runtime`. This always proves the prod image builds, and it pushes only when
    `publish` is true.
 
@@ -149,7 +153,11 @@ publishing.
    `docker/metadata-action` turns `v1.2.3` into the image tags `1.2.3`, `1.2` and `latest`.
 2. Job `release` (`needs: build`, `contents: write`, the only job that can write to the repository) runs
    `softprops/action-gh-release@v2`. It creates the GitHub release named after the tag, with the changelog
-   followed by the image reference as the body. It starts only after the image push succeeded.
+   followed by the image reference as the body, and attaches `docs.tar.gz` from the `docs-bundle` artifact. It
+   starts only after the image push succeeded.
+
+- todo: notify `axelered/docs` with a `docs-release` dispatch after the release, once the `axelered-docs` GitHub App
+  and its `DOCS_APP_ID`/`DOCS_APP_PRIVATE_KEY` secrets are set up; until then a docs `deploy` run picks it up.
 
 - todo: amd64 only, add `linux/arm64` with QEMU once arm hosts need it.
 

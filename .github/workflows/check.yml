@@ -1,5 +1,5 @@
 # Builds the dev image and runs lint and the full test suite inside it (adr/development.md).
-# Release tags vX.Y.Z also publish the runtime image to GHCR and create a GitHub release.
+# Release tags vX.Y.Z also publish the runtime image to GHCR and create a GitHub release with the docs bundle.
 name: check
 
 on:
@@ -78,6 +78,27 @@ jobs:
       - name: Test
         run: docker run --rm --init -v ./server:/app/server:ro -v ./test:/app/test:ro -v ./scripts:/app/scripts:ro papyrus:dev pytest -m "full or not full"
 
+      # docs bundle for docs.axelered.com (axelered-docs skill), packed on every run so a broken export or a leaked
+      # Bruno environment fails the check, uploaded only on release
+      - name: Docs bundle
+        run: |
+          docker run --rm -v ./server:/app/server:ro -v ./scripts:/app/scripts:ro papyrus:dev \
+            python scripts/openapi.py > openapi.json
+          jq empty openapi.json
+          echo '{"format": 1}' > bundle.json
+          tar -czf docs.tar.gz --exclude='bruno/environments' --exclude='bruno/.env*' \
+            bundle.json openapi.json docs bruno
+          if tar -tzf docs.tar.gz | grep -qE '(^|/)(environments/|\.env)'; then
+            echo "::error::docs bundle contains Bruno environments or .env files"; exit 1
+          fi
+
+      - name: Upload docs bundle
+        if: steps.publish.outputs.publish == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-bundle
+          path: docs.tar.gz
+
       - name: Image metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -117,14 +138,20 @@ jobs:
     permissions:
       contents: write
     steps:
+      # the docs bundle comes from build, this job has no dev image to export OpenAPI with
+      - uses: actions/download-artifact@v4
+        with:
+          name: docs-bundle
+
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.build.outputs.tag }}
           name: ${{ needs.build.outputs.tag }}
+          files: docs.tar.gz
           body: |
-            Automated container release.
+            📦 Automated container release.
+            
+            Image: `ghcr.io/${{ github.repository }}:${{ needs.build.outputs.version }}`
             
             ### Changelog
             ${{ needs.build.outputs.changelog }}
-
-            Image: `ghcr.io/${{ github.repository }}:${{ needs.build.outputs.version }}`

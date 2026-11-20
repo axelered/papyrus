@@ -31,6 +31,7 @@
 - [x] Publish the image to GHCR on `v*` tags
 - [x] Versioning: semver stamps `server/version.py`, watermark build arg, both returned by `GET /`
 - [x] GitHub release with the semver changelog after the image push
+- [ ] Review and simplify the whole CI/CD pipeline and Dockerfile: publish gating, job split (check vs release), summary step, stage layout
 
 ### Conversion (spec: `adr/convert.md`)
 
@@ -79,7 +80,8 @@
 - [x] Guides: introduction, Docker quickstart, guides, concepts and deploy pages
 - [x] Bruno: collection overview, endpoint docs, examples and `seq` order for every public endpoint
 - [x] Complete `Field(description=…)` and route summaries in FastAPI for the API reference
-- [ ] Docs bundle in the check workflow and onboarding on `axelered/docs`
+- [x] Docs bundle in the check workflow, attached to the GitHub release
+- [ ] Onboarding on `axelered/docs`: GitHub App, secrets, `products.yml` entry, release dispatch
 - [!] Slim the README once the docs site covers its content
 
 ## Future Issues
