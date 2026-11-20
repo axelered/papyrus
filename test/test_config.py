@@ -17,6 +17,7 @@ def test_parses_sections():
 workers: { processes: 3, max_queue: 8 }
 limits: { max_file_size: 2MiB, deadline: 10 }
 http: { allowed_hosts: [Example.COM] }
+cors: { allow_origins: ['https://docs.axelered.com', 'http://localhost:3000'] }
 connectors:
   prod: { protocol: s3, options: { endpoint_url: http://minio:9000 } }
 """
@@ -28,6 +29,7 @@ connectors:
     assert config.limits.max_file_size == 2 * 1024 * 1024
     assert config.limits.deadline == 10
     assert config.http.allowed_hosts == ('example.com',)
+    assert config.cors.allow_origins == ('https://docs.axelered.com', 'http://localhost:3000')
     assert config.connectors['prod'].options == {'endpoint_url': 'http://minio:9000'}
 
 
@@ -44,6 +46,9 @@ def test_auto_processes_resolves_to_cpu_count():
         'workers: { processes: 0 }',
         'connectors: { Bad.Name: { protocol: s3 } }',
         'connectors: { prod: { options: {} } }',
+        "cors: { allow_origins: ['*', 'https://axelered.com'] }",
+        'cors: { allow_origins: [https://axelered.com/] }',
+        'cors: { allow_origins: [axelered.com] }',
     ],
 )
 def test_rejects_invalid_config(content: str):

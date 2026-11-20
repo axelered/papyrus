@@ -197,6 +197,9 @@ todo: generic `POST /v1/pipeline` with a step DSL, built on the same services.
   values cannot inject YAML) before validation; an undefined variable fails startup.
 - Unknown keys are rejected. Durations are seconds, sizes accept units (`100MB`, `2MiB`).
 - Validated once at boot (fail fast), immutable afterwards.
+- CORS (`utils/cors.py`): Starlette `CORSMiddleware`, outermost, built on the first request because the config
+  loads in the lifespan. Off by default. Methods, allowed and exposed headers are fixed in code; credentials are
+  always off, since auth is a bearer header and never a cookie.
 
 ```yaml
 workers:
@@ -217,6 +220,9 @@ http:
 
 browser:
   sandbox: false           # see adr/browser.md
+
+cors:
+  allow_origins: []        # empty: no CORS headers; ["*"] or exact scheme://host[:port]
 
 connectors:
   prod:

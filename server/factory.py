@@ -23,6 +23,7 @@ from server.services.convert import ConvertService
 from server.services.detect import DetectService
 from server.services.markdown import MarkdownService
 from server.services.render import RenderService
+from server.utils.cors import CorsMiddleware
 from server.utils.logs import RequestIdMiddleware
 from server.utils.openapi import install_openapi
 from server.utils.problem import install_problem_handlers
@@ -197,6 +198,8 @@ def create_app(settings: Settings | None = None, config: Config | None = None) -
     # added first so it runs inside RequestIdMiddleware and the timing log line carries the request id
     app.add_middleware(TimingMiddleware, enabled=lambda: app.state.settings.timing)
     app.add_middleware(RequestIdMiddleware)
+    # outermost: preflights are answered before routing and auth, and every response carries the CORS headers
+    app.add_middleware(CorsMiddleware, origins=lambda: app.state.config.cors.allow_origins)
     install_problem_handlers(app, logging.getLogger(f'{LOGGER_NAMESPACE}.errors'))
     app.include_router(health.router)
     app.include_router(markdown.router)

@@ -52,6 +52,13 @@ browser:
   # which the default Docker seccomp profile blocks. With true and no support, screenshots fail with a 500.
   sandbox: false
 
+# Browser access from web pages on other origins (CORS). Servers and agents calling the API don't need this.
+cors:
+  # Origins allowed to call the API from a browser, as scheme://host[:port] without a trailing slash,
+  # e.g. [https://app.example.com]. Empty keeps browsers on the same-origin policy.
+  # ["*"] lets any web page call the API: the API key still applies, but it has to be present in the browser.
+  allow_origins: []
+
 # Storage that requests can read from and write to, addressed as <protocol>://<name>/<path>.
 # None are configured by default. Example of an S3 bucket used as s3://prod/<path>:
 connectors: {}

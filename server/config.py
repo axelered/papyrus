@@ -12,6 +12,8 @@ from server.utils.logs import LogFormat
 DEFAULT_CONFIG_PATH = Path('/etc/papyrus/config.yml')
 
 _CONNECTOR_NAME = r'^[a-z0-9][a-z0-9_-]*$'
+# browsers send Origin as scheme://host[:port], a trailing slash or path never matches
+_ORIGIN = r'^https?://[^/\s]+$'
 
 
 class ConfigError(Exception):
@@ -57,6 +59,21 @@ class BrowserConfig(_Section):
     sandbox: bool = False
 
 
+class CorsConfig(_Section):
+    # empty keeps the browser same-origin policy, ['*'] allows any web page that holds a key
+    allow_origins: tuple[str, ...] = ()
+
+    @field_validator('allow_origins')
+    @classmethod
+    def _check_origins(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        if '*' in value and len(value) > 1:
+            raise ValueError("'*' cannot be combined with other origins")
+        invalid = [origin for origin in value if origin != '*' and not re.match(_ORIGIN, origin)]
+        if invalid:
+            raise ValueError(f'invalid origins {invalid}, expected scheme://host[:port] without a path')
+        return value
+
+
 class ConnectorConfig(_Section):
     protocol: str = Field(min_length=1)
     options: dict[str, Any] = Field(default_factory=dict)
@@ -67,6 +84,7 @@ class Config(_Section):
     limits: LimitsConfig = Field(default_factory=LimitsConfig)
     http: HttpConfig = Field(default_factory=HttpConfig)
     browser: BrowserConfig = Field(default_factory=BrowserConfig)
+    cors: CorsConfig = Field(default_factory=CorsConfig)
     connectors: dict[str, ConnectorConfig] = Field(default_factory=dict)
 
     @field_validator('connectors')
