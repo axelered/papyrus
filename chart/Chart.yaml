@@ -1,0 +1,10 @@
+apiVersion: v2
+name: papyrus
+description: Document processing API by Axelered, markdown extraction, rendering, thumbnails and screenshots
+type: application
+# Stamped from the git tag at release, like server/version.py (adr/chart.md)
+version: 0.0.0
+appVersion: "0.0.0"
+home: https://axelered.com
+sources:
+  - https://github.com/axelered/papyrus

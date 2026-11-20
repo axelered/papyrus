@@ -1,0 +1,10 @@
+# helm package does not read .gitignore: local files next to the chart hold live credentials
+*.nogit*
+.DS_Store
+.git/
+*.tgz
+*.swp
+*.bak
+*.tmp
+.idea/
+.vscode/

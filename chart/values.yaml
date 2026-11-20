@@ -1,0 +1,71 @@
+# Papyrus Helm chart
+#
+# Copy the keys you need into your own values file and leave the rest to these defaults.
+# Install from a checkout of the repository, setting the image to a released version:
+#
+#   helm install papyrus ./chart --namespace papyrus --create-namespace --set image.tag=0.3.0
+
+# Each replica runs its own worker pools and admission queue (config.workers).
+replicaCount: 2
+
+image:
+  repository: ghcr.io/axelered/papyrus
+  # Defaults to the chart appVersion. A chart installed from a checkout has appVersion 0.0.0, so set a released
+  # version here.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+# Secrets with registry credentials, e.g. [{name: ghcr}] while the GHCR package is private.
+imagePullSecrets: []
+
+# API keys accepted by the server (PAPYRUS_API_KEY). The first match wins:
+#   1. existingSecret: a Secret you manage, read from its `api-key` key
+#   2. value: the chart creates the Secret from these comma separated keys (escape commas in --set: k1,k2)
+#   3. neither: the chart generates a key on install and reuses it on every upgrade. Read it with the command
+#      printed after install. The Secret is kept on uninstall, so a reinstall keeps the same key.
+# With Argo CD or `helm template`, set existingSecret: the generated key can't be looked up there and would change
+# on every sync.
+apiKey:
+  existingSecret: ""
+  value: ""
+
+# Server configuration, same format as config.example.yml, mounted at /etc/papyrus/config.yml.
+# Keys you leave out use the server defaults. Unknown keys stop the server from starting.
+# Never put credentials here: reference env variables as ${VAR} and set them through env or envFrom.
+config:
+  workers:
+    # Keep equal to resources.limits.cpu. "auto" counts the node CPUs, not the pod limit, and starts too many workers.
+    processes: 2
+
+# Extra env variables, as a Kubernetes env list. Use it for ${VAR} references in config and for server settings
+# such as PAPYRUS_LOG_FORMAT. Example with a Secret you created for an S3 connector:
+#   - name: S3_KEY
+#     valueFrom:
+#       secretKeyRef: { name: papyrus-s3, key: S3_KEY }
+#   - name: PAPYRUS_LOG_FORMAT
+#     value: json
+env: []
+
+# Extra env variables from whole Secrets or ConfigMaps, as a Kubernetes envFrom list, e.g.
+#   - secretRef: { name: papyrus-s3 }
+envFrom: []
+
+# Each markdown worker needs a few hundred MB, each LibreOffice worker about 330 MB and more on large office files.
+# See the sizing guide before changing workers.processes.
+resources:
+  requests:
+    cpu: '1'
+    memory: 1Gi
+  limits:
+    cpu: '2'
+    memory: 2Gi
+
+# Size of /tmp, which holds request workspaces and LibreOffice profiles.
+# The worst case is config.workers.max_queue times config.limits.max_file_size.
+tmpSizeLimit: 2Gi
+
+podAnnotations: {}
+podLabels: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

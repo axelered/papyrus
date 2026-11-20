@@ -1,0 +1,14 @@
+Papyrus {{ include "papyrus.image" . }} is deployed as {{ include "papyrus.fullname" . }} in namespace {{ .Release.Namespace }}.
+
+Read the API key:
+
+  kubectl -n {{ .Release.Namespace }} get secret {{ include "papyrus.apiKeySecret" . }} -o jsonpath='{.data.api-key}' | base64 -d
+
+Try it locally:
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "papyrus.fullname" . }} 8000:80
+  curl http://localhost:8000/
+{{- if eq (.Values.image.tag | default .Chart.AppVersion) "0.0.0" }}
+
+WARNING: image tag 0.0.0 does not exist. Set image.tag to a released version.
+{{- end }}
