@@ -101,6 +101,10 @@ inline JSON body, `result.content` included). The stored file is then self-descr
 | `/v1/thumbnail`           | `pageCount`, `width`/`height` (images)  | `<stem>.<ext>`, `width`, `height`, `base64`| none       |
 | `/v1/render`              | `pageCount`, `width`/`height` (images)  | `<stem>-<page>.<ext>`, `width`, `height`, `base64` | none |
 | `/v1/screenshot`          | `uri`, `fetch` only                     | `<host>.<ext>`, `width`, `height`, `base64`| none       |
+| `/v1/inspect`             | none                                    | none                                       | `checks`   |
+
+- Ops that produce no artifact (`/v1/inspect`, `adr/inspect.md`) omit `result` and reject `output` and
+  `destination`; their findings are data sections and their response model is not an `OpResponse` subclass.
 
 - `pageCount` stays omitted for office and HTML render input (only the requested page is exported).
 - Response models are explicit subclasses of `OpResponse` per op with typed `options`: `MarkdownResponse`,

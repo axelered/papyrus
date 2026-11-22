@@ -56,8 +56,7 @@ tini (PID 1)
 
 - `tini` is required: Chromium churns short-lived processes and orphaned descendants are reparented to PID 1;
   uvicorn never reaps them. `ENTRYPOINT ["tini", "-s", "--"]` (in `base`, so dev and runtime) also forwards signals;
-  `-s` registers it as subreaper so `docker run --init` (dekit, CI) nests cleanly. It also serves the future clamd
-  multi-process entrypoint.
+  `-s` registers it as subreaper so `docker run --init` (dekit, CI) nests cleanly.
 - If Python dies hard the chain ends by pipe EOF (the driver exits on stdin close, Chromium on CDP pipe close).
 
 ### Lifecycle

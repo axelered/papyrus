@@ -141,7 +141,7 @@ MIME, gives `outlook` no extension, and groups `csv` as code). Formats magika ca
 
 ## Resolution Rules
 
-Applied in order; the file is never rejected for a mismatch (the virus scan is the safety net). magika's no-signal
+Applied in order; the file is never rejected for a mismatch. magika's no-signal
 labels (`empty`, `undefined`) count as `unknown`; a non-ok magika status (e.g. unreadable file) is a detection
 failure, never a silent `unknown`.
 

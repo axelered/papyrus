@@ -23,7 +23,6 @@ and returns the result as a file or JSON, or writes it to a configured destinati
 | Markdown extraction  | markitdown with `pdf,docx,pptx,xlsx,xls,outlook` extras        |
 | Rendering            | pypdfium2 + Pillow (PyMuPDF rejected: AGPL)                    |
 | Browser              | Playwright + chrome-headless-shell, see `adr/browser.md`       |
-| Virus scan           | ClamAV clamd inside the image (own ADR, out of scope here)     |
 | Errors               | RFC 9457 `application/problem+json`                            |
 | Packaging            | Docker, `python:3.14-slim`, uv multi-stage, non-root           |
 
@@ -64,7 +63,7 @@ backend and hides its kind from coordinators. Services compose in coordinators
 |-----------|-----------------------------------------|--------------------------------------|-------------------------|
 | Pool      | `pebble.ProcessPool`, top-level worker fn | `processes`, `timeout`, `max_tasks`  | markdown, render, convert |
 | Daemon    | N supervised long-lived processes       | async queue of instances or semaphore | browser (one Chromium, context per request) |
-| Remote    | TCP / HTTP client                       | `asyncio.Semaphore(concurrency)`     | scan (clamd), OCR API   |
+| Remote    | TCP / HTTP client                       | `asyncio.Semaphore(concurrency)`     | OCR API                 |
 | Inline    | In-process, `asyncio.to_thread`         | admission only (ms-scale, GIL-free)  | detect (magika)         |
 
 Rules:
@@ -108,7 +107,7 @@ envelope of `adr/api.md`:
 |---------------|------------------------------------------------------------------------------------|
 | `source`      | Required URI. Defaults to `file://file` in multipart when a `file` part is present |
 | `destination` | Optional connector URI. When set, the result is written there and a JSON receipt is returned |
-| `output`      | `file` or `json`; per-op default (thumbnail=render=`file`, markdown=`json`, scan=`json` only) |
+| `output`      | `file` or `json`; per-op default (thumbnail=render=`file`, markdown=`json`) |
 | `options`     | Op-specific typed model                                                             |
 
 ### Transports
@@ -188,7 +187,6 @@ Defined in `adr/api.md`: every JSON response is the `{source, options, result}` 
 | `POST /v1/thumbnail`  | yes  | Render one page / image into a fixed box, see `adr/render.md`  |
 | `POST /v1/render`     | yes  | Render one page / image by width, height or dpi, see `adr/render.md` |
 | `POST /v1/screenshot` | yes  | Screenshot a web page in headless Chromium, see `adr/browser.md` |
-| `POST /v1/scan`       | yes  | Virus scan, JSON result only                                  |
 
 Op-specific options and results are defined in each task's ADR.
 todo: generic `POST /v1/pipeline` with a step DSL, built on the same services.
@@ -322,7 +320,6 @@ server/
     markdown.py        route + coordinator
     render.py          /v1/thumbnail and /v1/render routes + shared coordinator
     screenshot.py      route + coordinator
-    scan.py            route + coordinator
   io/
     uri.py             URI parsing and validation
     workspace.py       per-request temp dir
@@ -338,7 +335,6 @@ server/
     lok.py             LibreOfficeKit ctypes binding
     render.py          RenderService + worker fn (pypdfium2, Pillow)
     browser.py         BrowserService (Playwright), egress policy wiring
-    scan.py            ScanService
 test/                  mirrors server/, shared fixtures in test/fixtures/
 Dockerfile
 ```
@@ -382,12 +378,11 @@ Imports only point down; a violation is a design bug, not a style nit.
   pipelines that parse lines. Levels stay separate: `PAPYRUS_LOG_LEVEL` for `papyrus.*`, uvicorn keeps
   `--log-level` with its loggers routed to the root handler, libraries at warning. `X-Request-ID` echoed (if it
   matches `[A-Za-z0-9._:-]{1,128}`) or generated and bound to every line, access lines included.
-- Memory sizing must account for pool processes plus daemons (about 330 MB per convert worker, about 1 GB for
-  clamd signatures, about 150 MB plus 150 MB per context for the browser).
+- Memory sizing must account for pool processes plus daemons (about 330 MB per convert worker, about 150 MB plus
+  150 MB per context for the browser).
 
 ## Out of Scope
 
-- Virus scan engine integration details (clamd lifecycle, signature updates, multi-process entrypoint): own ADR.
 - Printing, OCR: future ADRs, plugging into the service kinds above. Conversion: `adr/convert.md`, rendering:
   `adr/render.md`, browser: `adr/browser.md`.
 - Metrics, async/webhook delivery, per-service queue caps, pipeline DSL.

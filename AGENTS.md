@@ -15,7 +15,6 @@
 - [x] Markdown extraction service and `/v1/markdown` (markitdown, spec: `adr/markdown.md`)
 - [x] MIME detection with magika, canonical and derived format tables, per-op allowlists, fenced code markdown (spec: `adr/mime.md`)
 - [x] Optional structure-aware markdown chunking with chonkie (spec: `adr/chunking.md`)
-- [ ] Virus scan service and `/v1/scan` (clamd inside the image, own ADR)
 - [!] Pipeline endpoint with a step DSL over existing services
 - [!] Multiple file parts referenced from metadata via `file://<key>`
 - [!] Per-service sizing, timeouts and `max_tasks` configurable in YAML
@@ -23,6 +22,11 @@
 - [!] Metrics
 - [!] External OCR API service
 - [!] Embedding-based semantic chunking strategy (chonkie `SemanticChunker`)
+
+### Inspect (spec: `adr/inspect.md`)
+
+- [ ] `POST /v1/inspect`: materialize and detect, return standardized source info and the type mismatch, no worker
+- [ ] Structural probe: pdfium (page count, encrypted) and Pillow `verify` (size, truncation) in the render pool, zip central directory and member and ratio checks, strict UTF-8 and JSON parse; validity verdict, none for legacy office and `msg`
 
 ### Development and CI (spec: `adr/development.md`)
 
@@ -79,6 +83,7 @@
 - [x] Bruno docs to camelCase and the new shapes
 - [ ] Tag `v0.3.0` and announce the breaking change in the release notes
 - [!] Metadata for `output=file` responses, opt-in data URI content
+- [ ] `sha256` in `FileInfo`, filled for `source` and `result` by every operation
 
 ### Helm Chart (spec: `adr/chart.md`)
 
@@ -103,7 +108,6 @@
 - Starlette parses multipart bodies before size checks; the request body limit must also be enforced at the reverse proxy
 - SSRF guard is vulnerable to DNS rebinding until the validated IP is pinned on connect (`server/io/http.py`)
 - Chromium runs without its sandbox by default (Docker seccomp blocks user namespaces): a renderer exploit runs as the API user with access to secrets and workspaces
-- clamd inside the image needs a multi-process entrypoint and adds about 1 GB RAM per replica
 - LibreOffice workers keep network access; deny egress for the worker (network namespace or deployment policy)
 - LibreOffice adds about 630 MB to the image and about 330 MB RAM per convert worker, 1 GB+ spikes on large files
 - `workers.processes: auto` uses `os.cpu_count()`, which ignores container CPU limits: a 2 CPU container on a 32 core host starts 32 processes per pool
