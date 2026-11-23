@@ -62,6 +62,13 @@ OP_ERRORS: tuple[type[ProblemError], ...] = (
 IMAGE_FILES = {format.mime_type: {'schema': {'type': 'string', 'format': 'binary'}} for format in ImageFormat}
 
 
+def check_shared_file(materialized: Materialized, document: Document) -> None:
+    """A resolved share link that returns a web page got a login or access page, never the shared file"""
+    link = materialized.fetched.link if materialized.fetched else None
+    if link and document.format.label == FormatLabel.HTML:
+        raise SourceForbidden(f'{link} link did not return a file, check that the file is shared publicly')
+
+
 def source_of(uri: str, name: str, document: Document, materialized: Materialized, **facts: Any) -> Source:
     """`name` is the materialized name, before detection renames the file to its detected extension"""
     value = document.format
@@ -74,7 +81,7 @@ def source_of(uri: str, name: str, document: Document, materialized: Materialize
         extension=value.extension,
         label=value.label,
         group=value.group,
-        fetch=Fetch(url=fetched.url, status=fetched.status) if fetched else None,
+        fetch=Fetch(url=fetched.url, status=fetched.status, link=fetched.link) if fetched else None,
         **facts,
     )
 

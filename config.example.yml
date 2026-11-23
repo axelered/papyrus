@@ -40,11 +40,17 @@ http:
   # Allow URLs that point to private or internal network addresses. Keep this off in production.
   allow_private: false
   # When the list is not empty, only these hostnames can be downloaded from, e.g. [docs.example.com].
+  # With shared_links on, also list the hosts the links resolve to, not only the hosts users paste:
+  # drive.usercontent.google.com, docs.google.com, dl.dropboxusercontent.com, raw.githubusercontent.com, ...
   allowed_hosts: []
   # Timeout for each download, in seconds.
   timeout: 30
-  # Maximum number of redirects to follow.
+  # Maximum number of redirects to follow, counted across the whole chain.
   max_redirects: 5
+  # Download the file behind public share links instead of their viewer page: Google Drive, Docs, Sheets and
+  # Slides (exported as docx, xlsx, pptx), Dropbox, OneDrive and SharePoint, GitHub. Links must be shared with
+  # anyone who has the link; a link that returns a web page fails with 403. Set false to fetch URLs as given.
+  shared_links: true
   # Language asked of remote sites, as a BCP 47 tag such as en-US, it-IT or de. Downloads send it as
   # Accept-Language and screenshots set it as the browser language, so sites that translate serve that version.
   # It does not translate content. Set null to send no language and let each site decide.

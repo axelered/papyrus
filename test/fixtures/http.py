@@ -5,6 +5,7 @@ import pytest
 
 from server.config import HttpConfig
 from server.io.http import HttpFetcher
+from server.io.links import LinkResolver
 
 Handler = Callable[[httpx.Request], httpx.Response]
 FetcherFactory = Callable[..., HttpFetcher]
@@ -20,6 +21,7 @@ def make_fetcher() -> FetcherFactory:
         handler: Handler,
         dns: dict[str, list[str]] | None = None,
         max_file_size: int = 1024,
+        links: tuple[LinkResolver, ...] = (),
         **config: object,
     ) -> HttpFetcher:
         async def resolver(host: str, _: int) -> list[str]:
@@ -30,7 +32,11 @@ def make_fetcher() -> FetcherFactory:
             return dns[host]
 
         return HttpFetcher(
-            HttpConfig.model_validate(config), max_file_size, transport=httpx.MockTransport(handler), resolver=resolver
+            HttpConfig.model_validate(config),
+            max_file_size,
+            transport=httpx.MockTransport(handler),
+            resolver=resolver,
+            links=links,
         )
 
     return make

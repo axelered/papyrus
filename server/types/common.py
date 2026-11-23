@@ -156,6 +156,11 @@ class FileInfo(ApiModel):
 class Fetch(ApiModel):
     url: str = Field(description='Final URL after redirects')
     status: int | None = Field(default=None, description='HTTP status of the document, omitted when none was sent')
+    link: str | None = Field(
+        default=None,
+        description='Share link provider the URL was resolved through to fetch the shared file, such as '
+        '`google-drive`, `google-docs`, `dropbox`, `onedrive` or `github`; omitted for other URLs',
+    )
 
 
 class Source(FileInfo):

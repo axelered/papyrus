@@ -5,7 +5,7 @@ from urllib.parse import quote, urlsplit
 
 from fastapi import APIRouter, Depends, Request, Response
 
-from server.api.output import IMAGE_FILES, op_responses, respond, result_of, source_of
+from server.api.output import IMAGE_FILES, check_shared_file, op_responses, respond, result_of, source_of
 from server.api.request import Op, op_context, openapi_body
 from server.auth import require_api_key
 from server.errors import ImageTooLarge, PageOutOfRange, UnsupportedFormat
@@ -110,6 +110,7 @@ async def _render[M: ThumbnailRequest | RenderRequest](
         name = source.path.name
         with stage('detect'):
             document = await services.detect.detect(source.path)
+        check_shared_file(source, document)
         if document.format.label not in RENDER_FORMATS | PDF_CONVERSIONS:
             raise UnsupportedFormat(
                 f'{document.format.mime_type} ({document.format.label}) is not supported for rendering'

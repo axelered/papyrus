@@ -143,10 +143,10 @@
 
 ### Shared Links (spec: `adr/links.md`)
 
-- [ ] `SafeClient` in `utils/net.py`: hop loop out of `HttpFetcher`, per-hop `intercept`, drop `Authorization` cross-origin
-- [ ] `LinkResolver` protocol and providers in `io/links.py`: google-drive, google-docs, dropbox, onedrive, github
-- [ ] `HttpFetcher` resolvers, `Fetched.link`, `Content-Disposition` filenames, `http.shared_links` in `config.example.yml`
-- [ ] `403` for a matched link returning HTML, `422` for folder links, `fetch.link` in the response
+- [x] `SafeClient` in `utils/net.py`: hop loop out of `HttpFetcher`, per-hop `intercept`, drop `Authorization` cross-origin
+- [x] `LinkResolver` protocol and providers in `io/links.py`: google-drive, google-docs, dropbox, onedrive, github
+- [x] `HttpFetcher` resolvers, `Fetched.link`, `Content-Disposition` filenames, `http.shared_links` in `config.example.yml`
+- [x] `403` for a matched link returning HTML, `422` for folder links, `fetch.link` in the response
 - [ ] Bruno examples for Drive and Google Docs sources and the private link error
 - [!] Live provider tests in CI against public fixture files
 - [!] Op-dependent export format for Google native docs (PDF for render)

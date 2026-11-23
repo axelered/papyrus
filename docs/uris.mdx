@@ -24,7 +24,26 @@ Papyrus downloads the URL, follows up to 5 redirects and reports the final URL a
 - When the server sets `http.allowed_hosts`, any other host fails with `403 source_forbidden`.
 - A `404` or `410` from the remote server fails with `404 source_not_found`; any other error status with `502 source_fetch_failed`.
 
-`source.name` is the last segment of the URL path, or `source` with an extension from the `Content-Type` when the path has none, as for `https://axelered.com`.
+`source.name` is the file name the server sends in `Content-Disposition`, else the last segment of the URL path, or `source` when the path is empty. When the name has no extension, one is added from the `Content-Type`, as for `https://axelered.com`.
+
+## Share links
+
+A public share link opens a viewer page, not the file. Papyrus recognizes these links, downloads the file they share and names the provider in `source.fetch.link`:
+
+| Provider | `link` | Links | Downloads |
+|---|---|---|---|
+| Google Drive | `google-drive` | `drive.google.com/file/d/…`, `drive.google.com/open?id=…` | the uploaded file as is |
+| Google Docs, Sheets, Slides | `google-docs` | `docs.google.com/document/d/…`, `/spreadsheets/d/…`, `/presentation/d/…` | an export to `docx`, `xlsx` or `pptx` |
+| Dropbox | `dropbox` | `www.dropbox.com/s/…`, `www.dropbox.com/scl/fi/…` | the file |
+| OneDrive, SharePoint | `onedrive` | `1drv.ms/…`, `onedrive.live.com/…`, `<tenant>.sharepoint.com/:w:/…` | the file |
+| GitHub | `github` | `github.com/<owner>/<repo>/blob/<ref>/<path>` | the raw file |
+
+- The link must be shared with anyone who has it. A private link returns a sign-in page, which fails with `403 source_forbidden` instead of being processed as a web page.
+- Short links that redirect to a share link, such as `bit.ly`, work too: the link is recognized on the hop that reaches it.
+- Folder links fail with `422 unsupported_uri`.
+- A Google export URL you send yourself, such as `…/export?format=pdf`, is kept as is.
+- `/v1/screenshot` opens every URL as a web page, share links included.
+- Operators can turn this off with `http.shared_links`.
 
 ## Storage connectors
 

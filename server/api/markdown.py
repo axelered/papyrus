@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Depends, Request, Response
 
-from server.api.output import op_responses, respond, result_of, source_of
+from server.api.output import check_shared_file, op_responses, respond, result_of, source_of
 from server.api.request import op_context, openapi_body
 from server.auth import require_api_key
 from server.errors import (
@@ -56,6 +56,7 @@ async def markdown(request: Request) -> Response:
         name = source.path.name
         with stage('detect'):
             original = await services.detect.detect(source.path)
+        check_shared_file(source, original)
         # todo: for mode=OCR modernize can be skipped, office files are converted to PDF anyway
         with stage('modernize'):
             document = await services.convert.modernize(original, op.workspace)

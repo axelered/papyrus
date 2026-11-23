@@ -24,7 +24,7 @@ is processed as the document it names.
 
 | Component      | Location              | Role                                                                     |
 |----------------|-----------------------|--------------------------------------------------------------------------|
-| `SafeClient`   | `server/utils/net.py` | httpx client: host policy on every hop, manual redirects, credential rule |
+| `SafeClient`   | `server/utils/net.py` | httpx client: host policy on every hop, manual redirects, credential rule; `Target` |
 | `LinkResolver` | `server/io/links.py`  | Protocol plus one class per provider, `LINKS` tuple of instances         |
 | `HttpFetcher`  | `server/io/http.py`   | Resolvers + `SafeClient` + saving under size limits                      |
 
@@ -32,13 +32,12 @@ is processed as the document it names.
 
 ```python
 @dataclass(frozen=True)
-class Target:
+class Target:                                  # server/utils/net.py, generic: utils cannot import io
     url: httpx.URL
-    link: str                                  # resolver name, e.g. 'google-drive'
     headers: Mapping[str, str] = field(default_factory=dict)
 
 class LinkResolver(Protocol):
-    name: str
+    name: str                                  # 'google-drive', echoed as fetch.link
     async def resolve(self, url: httpx.URL, client: SafeClient) -> Target | None: ...  # None = not mine
 ```
 
@@ -63,13 +62,14 @@ async def stream(self, url: httpx.URL, headers: Mapping[str, str] = {},
 - `http.max_redirects` bounds the whole chain, hops before and after resolution.
 - `Authorization` is dropped when a redirect changes origin (scheme, host, port), so no resolver can leak a token.
 - Resolver calls through `client` pass no `intercept`: resolvers never re-enter each other.
+- Independent of `server.errors`: raises `HostForbidden`, `HostUnresolved`, `RedirectFailed` and httpx errors;
+  `HttpFetcher` maps them to `source_forbidden` and `source_fetch_failed`.
 
 ### HttpFetcher
 
 - Takes `links: Sequence[LinkResolver]` at init; `factory.py` passes `LINKS` when `http.shared_links` is on, `()`
   otherwise.
-- `intercept` tries the resolvers in order; the first non-`None` wins.
-- `Fetched` gains `link: str | None`, the matched resolver name.
+- `intercept` tries the resolvers in order; the first non-`None` wins and its `name` becomes `Fetched.link`.
 - The local filename comes from `Content-Disposition` (`filename*` before `filename`), then the URL basename, then
   the `Content-Type` extension guess. Applies to every http(s) source.
 
@@ -80,7 +80,8 @@ async def stream(self, url: httpx.URL, headers: Mapping[str, str] = {},
 | `google-drive` | `drive.google.com/file/d/<id>/...`, `drive.google.com/{open,uc}?id=<id>`         | `drive.usercontent.google.com/download?id=<id>&export=download&confirm=t` |
 | `google-docs`  | `docs.google.com/{document,spreadsheets,presentation}/d/<id>/...`                | `docs.google.com/<kind>/d/<id>/export?format={docx,xlsx,pptx}`      |
 | `dropbox`      | `www.dropbox.com/{s,scl/fi}/...`                                                 | same URL with `dl=1`                                                |
-| `onedrive`     | `1drv.ms/...`, `onedrive.live.com/...`, `*.sharepoint.com/:<x>:/...`             | same URL with `download=1`                                          |
+| `onedrive`     | `onedrive.live.com/:<x>:/...`, `*.sharepoint.com/:<x>:/...`                      | same URL with `download=1`                                          |
+|                | `onedrive.live.com/{redir,embed}?...`                                           | same query on `/download`                                           |
 | `github`       | `github.com/<owner>/<repo>/blob/<ref>/<path>`                                    | `raw.githubusercontent.com/<owner>/<repo>/<ref>/<path>`             |
 
 - Drive `/file/d/` links are uploaded files: the download returns the original bytes and magika detects the type.
@@ -90,7 +91,9 @@ async def stream(self, url: httpx.URL, headers: Mapping[str, str] = {},
 - Folder URLs of a known provider (`drive.google.com/drive/folders/...`, Dropbox `/sh/`, GitHub `tree/`) raise
   `422 unsupported_uri`.
 - OneDrive and SharePoint `download=1` works only for "anyone with the link" shares; anything else hits the HTML
-  rule below.
+  rule below. `1drv.ms` short links are not matched: they resolve on the `onedrive.live.com` hop they redirect to.
+- A `docs.google.com/.../export` URL is not rewritten, so a format the user picked (`format=pdf`) is kept.
+  Published docs (`/d/e/<id>/pub`) are web pages and are not matched.
 
 > [!NOTE]
 > Op-dependent export: the coordinator could pass a preference down (`materialize(..., prefer=PDF)` from render,
@@ -101,7 +104,7 @@ async def stream(self, url: httpx.URL, headers: Mapping[str, str] = {},
 
 - A matched link whose detected format is HTML raises `403 source_forbidden`: "`<link>` link did not return a file;
   check the file is shared publicly". This covers private files (login page), native docs behind a `/file/d/` link,
-  and provider URL changes. The check runs in the coordinators after detection, on `Fetched.link`.
+  and provider URL changes. `check_shared_file` (`server/api/output.py`) runs in the coordinators after detection.
 - The rewritten host goes through `http.enabled`, `http.allowed_hosts` and `http.allow_private` like any URL.
 
 ## Configuration

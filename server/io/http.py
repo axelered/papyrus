@@ -1,5 +1,6 @@
 import logging
 import mimetypes
+from collections.abc import Sequence
 from dataclasses import dataclass
 from email.message import Message
 from email.utils import collapse_rfc2231_value
@@ -11,6 +12,7 @@ import httpx
 from server import version
 from server.config import HttpConfig
 from server.errors import SourceFetchFailed, SourceForbidden, SourceNotFound, SourceTooLarge
+from server.io.links import LinkResolver
 from server.io.workspace import Workspace
 from server.utils.net import (
     HostForbidden,
@@ -19,6 +21,7 @@ from server.utils.net import (
     RedirectFailed,
     Resolver,
     SafeClient,
+    Target,
     resolve_host,
 )
 from server.utils.problem import ProblemError
@@ -34,6 +37,7 @@ class Fetched:
     path: Path
     url: str  # final URL after redirects
     status: int
+    link: str | None = None  # share link resolver the URL went through
 
 
 class HttpFetcher:
@@ -45,9 +49,11 @@ class HttpFetcher:
         max_file_size: int,
         transport: httpx.AsyncBaseTransport | None = None,
         resolver: Resolver = resolve_host,
+        links: Sequence[LinkResolver] = (),
     ):
         self._config = config
         self._max_file_size = max_file_size
+        self._links = tuple(links)
         self._client = SafeClient(
             httpx.AsyncClient(timeout=config.timeout, headers=_headers(config.locale), transport=transport),
             HostPolicy(config.allowed_hosts, config.allow_private, resolver),
@@ -60,10 +66,19 @@ class HttpFetcher:
     async def fetch(self, url: str, workspace: Workspace) -> Fetched:
         if not self._config.enabled:
             raise SourceForbidden('http(s) sources are disabled')
+        matched: list[str] = []
+
+        async def intercept(hop: httpx.URL) -> Target | None:
+            for link in self._links:
+                if (target := await link.resolve(hop, self._client)) is not None:
+                    matched.append(link.name)
+                    return target
+            return None
+
         try:
-            async with self._client.stream(url) as response:
+            async with self._client.stream(url, intercept=intercept if self._links else None) as response:
                 path = await self._save(response, workspace)
-                return Fetched(path, str(response.url), response.status_code)
+                return Fetched(path, str(response.url), response.status_code, matched[0] if matched else None)
         except ProblemError:
             raise
         except HostForbidden as e:

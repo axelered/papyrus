@@ -16,6 +16,7 @@ from server.api.admission import Admission
 from server.config import Config, ConfigError, Settings
 from server.io.connectors import Connectors
 from server.io.http import HttpFetcher
+from server.io.links import LINKS
 from server.io.transfer import Transfer
 from server.services.base import Service
 from server.services.browser import BrowserService
@@ -196,7 +197,8 @@ def create_app(settings: Settings | None = None, config: Config | None = None) -
         log_startup(resolved_settings, resolved_config, topology)
         async with AsyncExitStack() as stack:
             max_file_size = int(resolved_config.limits.max_file_size)
-            http = HttpFetcher(resolved_config.http, max_file_size)
+            links = LINKS if resolved_config.http.shared_links else ()
+            http = HttpFetcher(resolved_config.http, max_file_size, links=links)
             stack.push_async_callback(http.aclose)
             app.state.transfer = Transfer(Connectors(resolved_config.connectors), http, max_file_size)
             services = Services.create(resolved_config, topology)
