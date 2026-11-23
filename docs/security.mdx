@@ -10,7 +10,7 @@ Papyrus processes documents and web pages you do not control. This page lists wh
 
 - [ ] Long random API keys from your secret manager, rotated by listing old and new keys together.
 - [ ] TLS and a request body size limit at your reverse proxy.
-- [ ] `http.allow_private: false`, and `http.allowed_hosts` set when your sources come from known hosts.
+- [ ] `http.allow_private: false`, and `http.allowed_hosts` set when your sources come from known hosts, including the hosts share links resolve to.
 - [ ] Egress from the container limited to the hosts and buckets Papyrus needs, and the OCR backend if you use one.
 - [ ] With `ocr`, a backend your documents are allowed to reach.
 - [ ] `PAPYRUS_AUTH_DISABLED` and `PAPYRUS_TIMING` unset.
@@ -26,6 +26,7 @@ Every URL source, redirect and resource a screenshot page loads is checked befor
 
 - Hostnames that resolve to private, loopback, link-local or other internal addresses are refused with `403 source_forbidden`, unless `http.allow_private` is on.
 - With `http.allowed_hosts`, any other host is refused, for every hop and every page resource.
+- [Share links](./uris#share-links) are rewritten to the provider download URL before the check, and only the hosts Papyrus connects to are checked. With `http.allowed_hosts`, list the download hosts, such as `drive.usercontent.google.com` for Google Drive; `drive.google.com` itself is never contacted. Short links like `bit.ly` are contacted, so list them too if you accept them.
 - Downloads stop at `limits.max_file_size`, even when the server does not announce a size.
 
 The browser connects only through this check, with the resolved address pinned, so a page cannot change its DNS answer between the check and the connection. Plain URL downloads check the address but do not pin it yet, so a host that switches its DNS answer right after the check could reach an internal address. Until pinning lands, set `http.allowed_hosts` for known sources, or block internal ranges with an egress policy on the container.

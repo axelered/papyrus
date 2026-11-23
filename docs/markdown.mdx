@@ -46,6 +46,7 @@ curl http://127.0.0.1:8000/v1/markdown \
 |---|---|
 | A file in your service | A multipart upload, as above |
 | A public URL | `{"source": "https://…"}` as JSON |
+| A Google Drive, Dropbox, OneDrive or GitHub share link | The link as `source`: Papyrus converts the shared file, not the viewer page; see [share links](./uris#share-links) |
 | An object in a bucket | `{"source": "s3://<connector>/<key>"}`; see [remote storage](./storage) |
 
 ## Read scans and images

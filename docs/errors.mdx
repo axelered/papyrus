@@ -47,7 +47,7 @@ Retrying these returns the same error.
 | 415 | `unsupported_media_type` | The request is neither `application/json` nor `multipart/form-data` |
 | 415 | `unsupported_format` | The operation does not accept the detected format, or the file is corrupt or encrypted. See [file formats](./formats) |
 | 422 | `validation_error` | The body or `metadata` is not a JSON object, or a field is missing, unknown or out of range; see `errors` |
-| 422 | `unsupported_uri` | The URI is malformed or not allowed there, for example `file://` in a JSON request |
+| 422 | `unsupported_uri` | The URI is malformed or not allowed there, for example `file://` in a JSON request or a [share link](./uris#share-links) to a folder |
 | 422 | `unknown_connector` | The storage URI names a connector the server does not have |
 | 422 | `ocr_not_configured` | `readMode: ocr` on a server without an OCR backend. Ask the operator to [configure one](./configuration#ocr) |
 | 422 | `page_out_of_range` | `page` is past the end of the document |
@@ -57,7 +57,7 @@ Retrying these returns the same error.
 | Status | Code | Cause |
 |---|---|---|
 | 401 | `unauthorized` | The `Authorization: Bearer` key is missing or wrong |
-| 403 | `source_forbidden` | The fetch policy blocks the URL: private address, host not allowed, or URLs disabled |
+| 403 | `source_forbidden` | The fetch policy blocks the URL: private address, host not allowed, or URLs disabled. Also a [share link](./uris#share-links) that returns a sign-in page because the file is not public |
 | 404 | `source_not_found` | The URL returned 404 or 410, or the storage object does not exist |
 
 ## Retry later
