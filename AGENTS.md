@@ -25,7 +25,7 @@
 
 ### Inspect (spec: `adr/inspect.md`)
 
-- [ ] `POST /v1/inspect`: materialize and detect, return standardized source info and the type mismatch, no worker
+- [x] `POST /v1/inspect`: materialize and detect, return standardized source info and the type mismatch, no worker
 - [ ] Structural probe: pdfium (page count, encrypted) and Pillow `verify` (size, truncation) in the render pool, zip central directory and member and ratio checks, strict UTF-8 and JSON parse; validity verdict, none for legacy office and `msg`
 
 ### Development and CI (spec: `adr/development.md`)

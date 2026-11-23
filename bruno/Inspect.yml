@@ -1,0 +1,158 @@
+info:
+  name: Inspect
+  type: http
+  seq: 5
+
+http:
+  method: POST
+  url: "{{host}}/v1/inspect"
+  body:
+    type: json
+    data: |-
+      {
+        "source": "https://axelered.com"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
+
+docs:
+  content: |-
+    Detects the format of a document and checks it, without processing it. Returns the same `source` facts every other operation reports, plus `checks`. Every format is accepted, so a file Papyrus cannot process comes back as `unknown` instead of failing.
+
+    Use it to route documents before sending them to Markdown or render, or to flag uploads whose name does not match their content. A failed check never rejects the file: the response reports it and you decide what to do.
+
+    Inspect produces no file, so the response has no `result` and the request takes no `output` or `destination`. An http(s) URL without an extension in its path takes the extension of the response `Content-Type`, so `extensionMatch` then compares the content with what the server declared.
+  type: text/markdown
+
+examples:
+  - name: Inspect an uploaded PDF
+    description: Upload a file as multipart. The content is a PDF and its name says so, so `extensionMatch` is `true`.
+    request:
+      url: "{{host}}/v1/inspect"
+      method: POST
+      body:
+        type: multipart-form
+        data:
+          - name: file
+            type: file
+            value:
+              - sample.pdf
+            contentType: application/pdf
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: json
+        data: |-
+          {
+            "source": {
+              "uri": "file://file",
+              "name": "sample.pdf",
+              "size": 584,
+              "mimeType": "application/pdf",
+              "extension": "pdf",
+              "label": "pdf",
+              "group": "document"
+            },
+            "options": {},
+            "checks": { "extensionMatch": true }
+          }
+  - name: Flag a renamed file
+    description: An HTML page saved as `report.pdf`. Detection reads the content, so `source` reports HTML and `extensionMatch` is `false`; `source.name` keeps the name it was sent with.
+    request:
+      url: "{{host}}/v1/inspect"
+      method: POST
+      body:
+        type: multipart-form
+        data:
+          - name: file
+            type: file
+            value:
+              - report.pdf
+            contentType: application/pdf
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: json
+        data: |-
+          {
+            "source": {
+              "uri": "file://file",
+              "name": "report.pdf",
+              "size": 98,
+              "mimeType": "text/html",
+              "extension": "html",
+              "label": "html",
+              "group": "markup"
+            },
+            "options": {},
+            "checks": { "extensionMatch": false }
+          }
+  - name: Inspect a web page
+    description: Fetch a URL. `fetch` reports the final URL and HTTP status; the path has no extension, so the name comes from the `text/html` response.
+    request:
+      url: "{{host}}/v1/inspect"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "source": "https://axelered.com"
+          }
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: json
+        data: |-
+          {
+            "source": {
+              "uri": "https://axelered.com",
+              "name": "source.html",
+              "size": 94018,
+              "mimeType": "text/html",
+              "extension": "html",
+              "label": "html",
+              "group": "markup",
+              "fetch": { "url": "https://axelered.com", "status": 200 }
+            },
+            "options": {},
+            "checks": { "extensionMatch": true }
+          }
+  - name: Inspect a file in a bucket
+    description: Read the document from a storage connector, here an S3 connector named `demo-s3`, without downloading it to the client.
+    request:
+      url: "{{host}}/v1/inspect"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "source": "s3://demo-s3/papyrus-test/report.docx"
+          }
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: json
+        data: |-
+          {
+            "source": {
+              "uri": "s3://demo-s3/papyrus-test/report.docx",
+              "name": "report.docx",
+              "size": 952,
+              "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+              "extension": "docx",
+              "label": "docx",
+              "group": "document"
+            },
+            "options": {},
+            "checks": { "extensionMatch": true }
+          }

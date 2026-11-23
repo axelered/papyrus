@@ -9,6 +9,7 @@ from server.services.detect import (
     DetectService,
     Formats,
     _brand,
+    extension_match,
     from_extension,
     lookup,
     normalize_extension,
@@ -205,3 +206,24 @@ def test_from_extension_unknown(extension: str):
 )
 def test_resolve(detected: str, extension: str, label: str):
     assert resolve(detected, extension).label == label
+
+
+@pytest.mark.parametrize(
+    ('label', 'extension', 'match'),
+    [
+        ('html', 'html', True),
+        ('html', '.HTM', True),
+        ('jpeg', 'jpeg', True),
+        ('python', 'txt', True),
+        ('docx', 'zip', True),
+        ('jsonl', 'json', True),
+        ('unknown', 'bin', True),
+        ('html', 'pdf', False),
+        ('txt', 'csv', False),
+        ('html', 'nope', False),
+        ('html', 'bin', False),
+        ('html', '', None),
+    ],
+)
+def test_extension_match(label: str, extension: str, match: bool | None):
+    assert extension_match(lookup(label), extension) is match

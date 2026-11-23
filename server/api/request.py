@@ -13,7 +13,7 @@ from server.config import Config
 from server.errors import DeadlineExceeded, UnsupportedUri
 from server.io.uri import PART_SCHEME
 from server.io.workspace import Workspace
-from server.types.common import OpRequest
+from server.types.common import OpRequest, SourceRequest
 from server.utils.body import JSON, MULTIPART, read_body
 from server.utils.openapi import components
 from server.utils.timing import stage
@@ -25,14 +25,14 @@ _MAX_FILE_PARTS = 8
 
 
 @dataclass
-class Op[M: OpRequest]:
+class Op[M: SourceRequest]:
     model: M
     parts: dict[str, Path]
     workspace: Workspace
 
 
 @asynccontextmanager
-async def op_context[M: OpRequest](request: Request, model: type[M]) -> AsyncIterator[Op[M]]:
+async def op_context[M: SourceRequest](request: Request, model: type[M]) -> AsyncIterator[Op[M]]:
     """Admission slot, workspace and deadline around one operation; parses and validates the request body"""
     config: Config = request.app.state.config
     with request.app.state.admission.slot(), Workspace(config.limits.tmp_dir) as workspace:
@@ -41,7 +41,7 @@ async def op_context[M: OpRequest](request: Request, model: type[M]) -> AsyncIte
             async with deadline:
                 with stage('parse'):
                     op = await parse_op(request, model, workspace, int(config.limits.max_file_size))
-                if op.model.destination:
+                if isinstance(op.model, OpRequest) and op.model.destination:
                     request.app.state.transfer.check_destination(op.model.destination)
                 yield op
         except TimeoutError as e:
@@ -50,7 +50,7 @@ async def op_context[M: OpRequest](request: Request, model: type[M]) -> AsyncIte
             raise
 
 
-async def parse_op[M: OpRequest](request: Request, model: type[M], workspace: Workspace, max_size: int) -> Op[M]:
+async def parse_op[M: SourceRequest](request: Request, model: type[M], workspace: Workspace, max_size: int) -> Op[M]:
     body = await read_body(
         request,
         new_file=workspace.new_file,

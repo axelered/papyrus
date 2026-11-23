@@ -36,6 +36,7 @@ Full documentation: [docs.axelered.com/papyrus](https://docs.axelered.com/papyru
 | `POST /v1/render`     | One page or image frame at a readable size                        | `file`         |
 | `POST /v1/thumbnail`  | One page, image or web page fitted into a box                     | `file`         |
 | `POST /v1/screenshot` | A web page captured in headless Chromium                          | `file`         |
+| `POST /v1/inspect`    | Detected format and checks of a document, without processing it   | `json`         |
 | `GET /`, `/health`, `/ready` | Version, liveness and readiness, public                    | `json`         |
 
 All `/v1` routes require `Authorization: Bearer <key>`. Requests are `application/json`, or `multipart/form-data` with the upload in `file` and the request as JSON in `metadata`. Keys are camelCase.

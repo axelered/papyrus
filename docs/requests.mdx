@@ -86,3 +86,5 @@ Operation data such as `chunks` sits next to these three keys. Fields Papyrus do
 | `destination` set | The envelope without `content`; `result.uri` is where the file was written |
 
 Markdown defaults to `json`; render, thumbnail and screenshot default to `file`. When the response carries operation data, such as chunks, `output: file` and `destination` deliver the full JSON document instead of the bare artifact, so nothing is lost.
+
+Inspect produces no file: it always returns JSON, has no `result`, and rejects `output` and `destination`.

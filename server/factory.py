@@ -11,7 +11,7 @@ from typing import Self
 from fastapi import FastAPI
 
 from server import version
-from server.api import health, markdown, render, screenshot
+from server.api import health, inspect, markdown, render, screenshot
 from server.api.admission import Admission
 from server.config import Config, ConfigError, Settings
 from server.io.connectors import Connectors
@@ -205,4 +205,5 @@ def create_app(settings: Settings | None = None, config: Config | None = None) -
     app.include_router(markdown.router)
     app.include_router(render.router)
     app.include_router(screenshot.router)
+    app.include_router(inspect.router)
     return app

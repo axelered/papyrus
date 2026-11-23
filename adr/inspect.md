@@ -26,8 +26,8 @@ op_context -> transfer.materialize -> detect.detect -> checks -> InspectResponse
 
 ### Request
 
-`InspectRequest`: `source` and `options` only. `output` and `destination` are not fields, so sending them is a
-`422 validation_error` (`extra='forbid'`). `options` is an empty `OptionsModel` today, kept so later checks can add
+`InspectRequest`: `source` and `options` only, on `SourceRequest`, the `source`-only base that `OpRequest` extends with
+`destination` and `output`. Sending either is a `422 validation_error` (`extra='forbid'`). `options` is an empty `OptionsModel` today, kept so later checks can add
 switches without changing the shape.
 
 ### Response
@@ -60,10 +60,12 @@ so there is no `result`.
 
 | Check            | Rule                                                                                         |
 |------------------|----------------------------------------------------------------------------------------------|
-| `extensionMatch` | Uses the materialized name's extension, before normalization. `true` when it maps (with aliases) to the detected format or to a generic ancestor of it (`notes.txt` with Python, `photo.jpeg`, `book.docx`). `false` when it maps to another format or to none (`report.pdf` that is HTML, `data.xyz`). Omitted when the name has no extension |
+| `extensionMatch` | Uses the materialized name's extension, before normalization. `true` when it maps (with aliases) to the detected format or to a generic ancestor of it (`notes.txt` with Python, `photo.jpeg`, `book.docx`). `bin` declares `unknown`. `false` when it maps to another format or to none (`report.pdf` that is HTML, `data.xyz`). Omitted when the name has no extension |
 
-- The ancestor test reuses `_ancestors` in `server/services/detect.py`; expose a small helper there instead of
-  duplicating the logic in the route.
+- The ancestor test reuses `_ancestors` through `extension_match` in `server/services/detect.py`.
+- http(s) URLs without an extension are named after the response `Content-Type` (`server/io/http.py`), so for them
+  `extensionMatch` compares the content with the declared `Content-Type`; a server labelling a PDF `text/html` is
+  flagged, which is the point of the check.
 
 ## API Contract Changes
 
@@ -86,5 +88,5 @@ so there is no `result`.
   truncation (both in the render pool), zip central directory, members and compression ratio, strict UTF-8 and JSON
   parse; no verdict for legacy office and `msg`. todo: tracked in `AGENTS.md`.
 - `sha256` in `FileInfo`, which belongs to every op. todo: tracked in `AGENTS.md` under API Contract.
-- Declared HTTP `Content-Type` or multipart part type as a check source.
+- A separate check on the declared HTTP `Content-Type` or multipart part type.
 - Partial or head-only fetches.

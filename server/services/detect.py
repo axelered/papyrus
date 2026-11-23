@@ -181,6 +181,17 @@ def resolve(detected: str, extension: str) -> Format:
     return content
 
 
+def extension_match(value: Format, extension: str) -> bool | None:
+    """Whether a name's extension declares `value` or a generic ancestor of it; None without an extension"""
+    extension = extension.lower().lstrip('.')
+    if not extension:
+        return None
+    declared = from_extension(extension)
+    if declared is None and extension in Formats.UNKNOWN.extensions:
+        declared = Formats.UNKNOWN
+    return declared is not None and (declared.label == value.label or declared.label in _ancestors(value))
+
+
 def _brand(path: Path) -> bytes:
     with path.open('rb') as file:
         head = file.read(12)

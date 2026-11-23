@@ -53,3 +53,17 @@ Papyrus identifies the content with [Magika](https://github.com/google/magika), 
 | `group` | `document` | Family: `document`, `spreadsheet`, `presentation`, `email`, `archive`, `markup`, `data`, `code`, `text`, `image` or `unknown` |
 
 Use `group` to route documents in your own pipeline, and `label` when you need the exact format.
+
+## Check a file before processing
+
+Inspect returns these fields without processing the document, so you can route it, or reject it in your own app, before a slow conversion. It accepts every format and adds `checks`:
+
+```json
+{
+  "source": {"uri": "file://file", "name": "report.pdf", "size": 98, "mimeType": "text/html", "extension": "html", "label": "html", "group": "markup"},
+  "options": {},
+  "checks": {"extensionMatch": false}
+}
+```
+
+`extensionMatch` is `false` when the name claims a different format than the content, like this HTML page saved as `report.pdf`. A generic name is not a mismatch: `notes.txt` that contains Python passes. The check is omitted when the name has no extension, and a failed check never rejects the file.

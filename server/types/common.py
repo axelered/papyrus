@@ -102,12 +102,17 @@ RESOLVED = 'The request options with defaults applied'
 FORMAT = 'Output image format'
 
 
-class OpRequest(ApiModel):
-    """Common request contract; operations subclass it, override `output` defaults and add typed `options`"""
+class SourceRequest(ApiModel):
+    """Request reading one source; ops without an artifact (inspect) take it as is and reject output fields"""
 
     model_config = ConfigDict(extra='forbid')
 
     source: str = Field(description='file://<part>, http(s):// URL or <protocol>://<connector>/<path>')
+
+
+class OpRequest(SourceRequest):
+    """Common request contract; operations subclass it, override `output` defaults and add typed `options`"""
+
     destination: str | None = Field(default=None, description='Connector URI to write the result to')
     output: OutputMode = Field(default=OutputMode.JSON, description=OUTPUT)
 
