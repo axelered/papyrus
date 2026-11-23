@@ -2,9 +2,9 @@ import re
 from dataclasses import dataclass
 
 from server.errors import UnsupportedUri
+from server.utils.net import HTTP_SCHEMES
 
 PART_SCHEME = 'file'
-HTTP_SCHEMES = frozenset({'http', 'https'})
 
 _SCHEME = re.compile(r'^[a-z][a-z0-9+.-]*$')
 
