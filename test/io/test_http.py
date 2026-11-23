@@ -69,6 +69,28 @@ async def test_guesses_extension_from_content_type(make_fetcher: FetcherFactory,
 
 
 @pytest.mark.parametrize(
+    ('disposition', 'name'),
+    [
+        ('attachment; filename="Q3 Report.pdf"', 'Q3 Report.pdf'),
+        ('attachment; filename=plain.pdf', 'plain.pdf'),
+        ('attachment; filename="fallback.pdf"; filename*=UTF-8\'\'R%C3%A9sum%C3%A9.pdf', 'Résumé.pdf'),
+        ('attachment; filename*=UTF-8\'\'R%C3%A9sum%C3%A9.pdf; filename="fallback.pdf"', 'Résumé.pdf'),
+        ('attachment; filename="../../etc/passwd.txt"', 'passwd.txt'),
+        ('attachment; filename="report"', 'report.pdf'),
+        ('inline', 'download.pdf'),
+        ('attachment; filename=""', 'download.pdf'),
+    ],
+)
+async def test_names_file_from_content_disposition(
+    make_fetcher: FetcherFactory, workspace: Workspace, disposition: str, name: str
+):
+    headers = {'content-disposition': disposition, 'content-type': 'application/pdf'}
+    fetcher = make_fetcher(lambda request: _ok(**headers))
+
+    assert (await fetcher.fetch('https://example.com/download', workspace)).path.name == name
+
+
+@pytest.mark.parametrize(
     'url', ['http://127.0.0.1/a', 'http://169.254.169.254/latest/meta-data', 'http://[::1]/a', 'http://10.0.0.1:8080/']
 )
 async def test_blocks_private_ip_literals(make_fetcher: FetcherFactory, workspace: Workspace, url: str):

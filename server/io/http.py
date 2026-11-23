@@ -1,6 +1,8 @@
 import logging
 import mimetypes
 from dataclasses import dataclass
+from email.message import Message
+from email.utils import collapse_rfc2231_value
 from pathlib import Path, PurePosixPath
 from urllib.parse import unquote
 
@@ -109,9 +111,22 @@ def accept_language(locale: str) -> str:
 
 
 def _filename(response: httpx.Response) -> str:
-    """URL basename, with an extension guessed from Content-Type when missing so format detection still works"""
-    name = PurePosixPath(unquote(response.url.path)).name or 'source'
+    """`Content-Disposition` name, else the URL basename, with an extension guessed from Content-Type when missing"""
+    name = _disposition_name(response.headers.get('content-disposition'))
+    name = name or PurePosixPath(unquote(response.url.path)).name or 'source'
     if not PurePosixPath(name).suffix:
         content_type = response.headers.get('content-type', '').split(';', 1)[0].strip()
         name += mimetypes.guess_extension(content_type) or ''
     return name
+
+
+def _disposition_name(header: str | None) -> str | None:
+    """RFC 6266 filename, `filename*` before `filename`; the workspace strips any path from it"""
+    if not header:
+        return None
+    message = Message()
+    message['content-disposition'] = header
+    names = [value for key, value in message.get_params([], header='content-disposition') if key == 'filename']
+    extended = [collapse_rfc2231_value(value) for value in names if isinstance(value, tuple)]
+    plain = [value for value in names if isinstance(value, str)]
+    return next((name for name in [*extended, *plain] if name.strip()), None)

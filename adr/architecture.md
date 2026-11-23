@@ -162,7 +162,8 @@ Anything else: `422 unsupported_uri`. Unknown connector: `422 unknown_connector`
   IPv6 unwrapped): loopback, private, CGNAT, link-local/metadata, ULA, unless `http.allow_private`.
 - The resolve-and-validate check lives in `utils/net.py`, shared with the browser egress proxy (`adr/browser.md`).
 - todo: httpx re-resolves on connect, so DNS rebinding can bypass the check; pin the validated IP in the transport.
-- The file name is the decoded URL basename; when it has no extension, one is guessed from `Content-Type`.
+- The file name comes from `Content-Disposition`, else the decoded URL basename; when it has no extension, one is
+  guessed from `Content-Type`.
 - If `http.allowed_hosts` is non-empty, only those hosts are allowed.
 - Re-validate on every redirect, at most `http.max_redirects`. Enforce `http.timeout` and `limits.max_file_size`.
 - Rejection: `403 source_forbidden`.
