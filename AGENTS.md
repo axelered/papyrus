@@ -141,6 +141,17 @@
 - [!] Expose `Retry-After` to browsers in `server/utils/cors.py`
 - [!] Add `zod` and the development tools to `adr/license.md` once `feat/license` is merged
 
+### Shared Links (spec: `adr/links.md`)
+
+- [ ] `SafeClient` in `utils/net.py`: hop loop out of `HttpFetcher`, per-hop `intercept`, drop `Authorization` cross-origin
+- [ ] `LinkResolver` protocol and providers in `io/links.py`: google-drive, google-docs, dropbox, onedrive, github
+- [ ] `HttpFetcher` resolvers, `Fetched.link`, `Content-Disposition` filenames, `http.shared_links` in `config.example.yml`
+- [ ] `403` for a matched link returning HTML, `422` for folder links, `fetch.link` in the response
+- [ ] Bruno examples for Drive and Google Docs sources and the private link error
+- [!] Live provider tests in CI against public fixture files
+- [!] Op-dependent export format for Google native docs (PDF for render)
+- [!] OAuth resolvers over provider APIs
+
 ### Helm Chart (spec: `adr/chart.md`)
 
 - [x] Chart in `chart/`: ConfigMap, Secret with generated key, Deployment, Service, Ingress, PDB, opt-in NetworkPolicy

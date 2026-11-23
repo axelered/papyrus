@@ -18,7 +18,7 @@ and returns the result as a file or JSON, or writes it to a configured destinati
 | HTTP                 | FastAPI, single uvicorn process per container (no `--workers`) |
 | Models / config      | Pydantic v2 models from YAML (pyyaml), pydantic-settings for env |
 | Process pools        | `pebble.ProcessPool` (per-task timeout kills the worker)       |
-| Remote sources       | httpx (SSRF-guarded)                                           |
+| Remote sources       | httpx (SSRF-guarded), share link resolvers, see `adr/links.md` |
 | Connectors           | fsspec (s3fs now; other protocols by adding the dependency)    |
 | Markdown extraction  | markitdown with `pdf,docx,pptx,xlsx,xls,outlook` extras        |
 | Rendering            | pypdfium2 + Pillow (PyMuPDF rejected: AGPL)                    |
