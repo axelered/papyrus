@@ -41,7 +41,7 @@ def test_thumbnail_reports_the_link(client: TestClient, auth_headers: dict[str, 
     assert response.json()['source']['fetch']['link'] == 'google-drive'
 
 
-@pytest.mark.parametrize('route', ['markdown', 'thumbnail', 'render'])
+@pytest.mark.parametrize('route', ['markdown', 'thumbnail', 'render', 'inspect'])
 def test_link_returning_a_web_page_is_forbidden(client: TestClient, auth_headers: dict[str, str], route: str):
     _serve(client, 'view', LOGIN)
 

@@ -3,7 +3,7 @@ from pathlib import PurePath
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
-from server.api.output import source_of
+from server.api.output import check_shared_file, source_of
 from server.api.request import op_context, openapi_body
 from server.auth import require_api_key
 from server.services.detect import extension_match
@@ -30,6 +30,7 @@ async def inspect(request: Request) -> JSONResponse:
         name = source.path.name
         with stage('detect'):
             document = await request.app.state.services.detect.detect(source.path)
+        check_shared_file(source, document)
         response = InspectResponse(
             source=source_of(op.model.source, name, document, source),
             options=op.model.options,

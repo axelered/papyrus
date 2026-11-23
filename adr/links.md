@@ -7,7 +7,7 @@ is processed as the document it names.
 ## Goals
 
 - A share link behaves as the file it shares on every endpoint that materializes a source (`/v1/markdown`,
-  `/v1/thumbnail`, `/v1/render`); detection and routing stay content-based (`adr/mime.md`).
+  `/v1/thumbnail`, `/v1/render`, `/v1/inspect`); detection and routing stay content-based (`adr/mime.md`).
 - A link that cannot be resolved to a file fails explicitly; the viewer or login page is never processed.
 - Every request a resolver triggers goes through the same SSRF policy as the source fetch.
 - The resolver contract already fits authenticated, API-driven flows (OAuth) without a signature change.
