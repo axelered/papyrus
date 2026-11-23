@@ -1,6 +1,7 @@
 import httpx
 import pytest
 
+from server import version
 from server.errors import SourceFetchFailed, SourceForbidden, SourceNotFound, SourceTooLarge
 from server.io.workspace import Workspace
 from test.fixtures.http import FetcherFactory
@@ -20,6 +21,21 @@ async def test_fetches_into_workspace(make_fetcher: FetcherFactory, workspace: W
     assert path.read_bytes() == b'%PDF-1.7'
     assert path.name == 'My Report.pdf'
     assert path.is_relative_to(workspace.path)
+
+
+async def test_identifies_as_papyrus(
+    make_fetcher: FetcherFactory, workspace: Workspace, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(version, '__version__', '1.2.3')
+    agents: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        agents.append(request.headers['user-agent'])
+        return httpx.Response(302, headers={'location': '/final'}) if request.url.path == '/a' else _ok()
+
+    await make_fetcher(handler).fetch('https://example.com/a', workspace)
+
+    assert agents == ['Papyrus/1.2.3', 'Papyrus/1.2.3']
 
 
 async def test_guesses_extension_from_content_type(make_fetcher: FetcherFactory, workspace: Workspace):

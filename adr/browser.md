@@ -207,6 +207,15 @@ browser:
 
 Concurrency, timeout and recycle count are code heuristics like the other services.
 
+`http.locale` (`adr/architecture.md`, Request Identity) is passed as `new_context(locale=…)`: it sets
+`Accept-Language`, `navigator.language` and `Intl` formatting, so pages that pick their language in JavaScript
+follow it too. `null` keeps the Playwright default.
+
+> [!NOTE]
+> The user agent stays Chromium's own (`HeadlessChrome/…`). Replacing `HeadlessChrome` with `Chrome` in the context
+> `user_agent` defeats only naive checks, since bot detection fingerprints in JavaScript; reconsider if blocked
+> screenshots show up in practice.
+
 ## Spike
 
 Run as `full` tests in the image (`test/services/test_browser.py`):

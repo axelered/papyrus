@@ -157,6 +157,17 @@ Anything else: `422 unsupported_uri`. Unknown connector: `422 unknown_connector`
 - Re-validate on every redirect, at most `http.max_redirects`. Enforce `http.timeout` and `limits.max_file_size`.
 - Rejection: `403 source_forbidden`.
 
+### Request Identity
+
+- `User-Agent: Papyrus/<version>` from `server/version.py`, RFC 9110 product token only; no config override.
+- `http.locale` (BCP 47, default `en-US`) sets the language asked of remote sites, for the fetcher and the browser
+  (`adr/browser.md`). It changes what a site serves, never the content Papyrus produces: markitdown does not
+  translate, uploads and connector objects are unaffected.
+- Fetcher header: `Accept-Language: <tag>,<base>;q=0.9` (`it-IT,it;q=0.9`), the tag alone when it has no region
+  (`de`), as Chromium sends it. `null` sends no header and lets the site decide.
+- Validated at startup with `^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|\d{3}))?$`; no locale library.
+- todo: per-request `options.locale` on every op that fetches a URL, overriding `http.locale`, echoed in `options`.
+
 ### Outputs
 
 Defined in `adr/api.md`: every JSON response is the `{source, options, result}` envelope plus op data sections.

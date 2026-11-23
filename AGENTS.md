@@ -58,6 +58,12 @@
 - [!] HTML in `/v1/render` through Chromium (HTML > PDF > image), uploaded HTML for `/v1/screenshot`
 - [!] Pin the validated IP in the httpx transport via `utils/net.py`
 
+### Request Identity (spec: `adr/architecture.md`, `adr/browser.md`)
+
+- [x] `User-Agent: Papyrus/<version>` in `HttpFetcher`
+- [ ] `http.locale` (default `en-US`): `Accept-Language` in the fetcher, `locale` in the browser context, `config.example.yml` and docs
+- [!] Per-request `options.locale` overriding `http.locale`
+
 ### Performance (spec: `adr/performance.md`)
 
 - [x] `Server-Timing` stages behind `PAPYRUS_TIMING` and the `scripts/bench.py` cold/hot pool benchmark

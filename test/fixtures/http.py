@@ -29,7 +29,8 @@ def make_fetcher() -> FetcherFactory:
                 raise OSError(f'unknown host {host}')
             return dns[host]
 
-        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-        return HttpFetcher(HttpConfig.model_validate(config), max_file_size, client=client, resolver=resolver)
+        return HttpFetcher(
+            HttpConfig.model_validate(config), max_file_size, transport=httpx.MockTransport(handler), resolver=resolver
+        )
 
     return make

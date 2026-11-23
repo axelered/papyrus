@@ -6,6 +6,7 @@ from urllib.parse import unquote
 
 import httpx
 
+from server import version
 from server.config import HttpConfig
 from server.errors import SourceFetchFailed, SourceForbidden, SourceNotFound, SourceTooLarge
 from server.io.uri import HTTP_SCHEMES
@@ -34,12 +35,12 @@ class HttpFetcher:
         self,
         config: HttpConfig,
         max_file_size: int,
-        client: httpx.AsyncClient | None = None,
+        transport: httpx.AsyncBaseTransport | None = None,
         resolver: Resolver = resolve_host,
     ):
         self._config = config
         self._max_file_size = max_file_size
-        self._client = client or httpx.AsyncClient(timeout=config.timeout, headers={'User-Agent': 'papyrus'})
+        self._client = httpx.AsyncClient(timeout=config.timeout, headers=_headers(), transport=transport)
         self._policy = HostPolicy(config.allowed_hosts, config.allow_private, resolver)
 
     async def aclose(self) -> None:
@@ -100,6 +101,11 @@ class HttpFetcher:
                     raise SourceTooLarge(f'source exceeds {self._max_file_size} bytes')
                 file.write(chunk)
         return local
+
+
+def _headers() -> dict[str, str]:
+    """RFC 9110 product token only (adr/architecture.md, Request Identity)"""
+    return {'User-Agent': f'Papyrus/{version.__version__}'}
 
 
 def _filename(response: httpx.Response) -> str:
