@@ -147,7 +147,7 @@
 - [x] `LinkResolver` protocol and providers in `io/links.py`: google-drive, google-docs, dropbox, onedrive, github
 - [x] `HttpFetcher` resolvers, `Fetched.link`, `Content-Disposition` filenames, `http.shared_links` in `config.example.yml`
 - [x] `403` for a matched link returning HTML, `422` for folder links, `fetch.link` in the response
-- [ ] Bruno examples for Drive and Google Docs sources and the private link error
+- [x] Bruno examples for Drive and Google Docs sources and the private link error
 - [!] Live provider tests in CI against public fixture files
 - [!] Op-dependent export format for Google native docs (PDF for render)
 - [!] OAuth resolvers over provider APIs

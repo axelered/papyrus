@@ -26,6 +26,8 @@ docs:
     Extracts Markdown from a document or web page, ready to pass to an LLM or index for retrieval. The format is detected from the content, and `options.chunking` adds structure-aware chunks sized for your embedding model, with the headings they sit under and their offsets in the Markdown.
 
     The default `options.readMode` is `auto`: images, presentations, and PDF or Word documents whose text cannot be extracted, such as scans, are read page by page by the vision model configured on the server; everything else is extracted from the text stored in the file. Set `ocr` to read every page with the model, or `text` to never use it. `options.readMode` in the response is the mode used. Without a model on the server, `auto` extracts text only, so scans return little or nothing and images fail with `415 unsupported_format`, as do corrupt and encrypted files. Legacy formats such as `.doc` and `.ppt` are converted with LibreOffice first and take longer.
+
+    Public share links of Google Drive, Docs, Sheets and Slides, Dropbox, OneDrive and GitHub are processed as the file they share, not as a web page.
   type: text/markdown
 
 examples:
@@ -240,6 +242,94 @@ examples:
               "group": "markup",
               "encoding": "utf-8",
               "content": "[Axelered](/)[01Platform](/platform)…"
+            },
+            "options": { "readMode": "text" }
+          }
+  - name: Convert a shared Google Drive file
+    description: Share links of Google Drive, Dropbox, OneDrive and GitHub fetch the file they share, not the viewer page. `source.fetch.link` names the provider, `source.fetch.url` is the download URL and `source.name` the shared file name.
+    request:
+      url: "{{host}}/v1/markdown"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "source": "https://drive.google.com/file/d/1aXlRdQ3-Report_2026/view?usp=sharing"
+          }
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: json
+        data: |-
+          {
+            "source": {
+              "uri": "https://drive.google.com/file/d/1aXlRdQ3-Report_2026/view?usp=sharing",
+              "name": "Axelered Q3 Report.pdf",
+              "size": 18810,
+              "mimeType": "application/pdf",
+              "extension": "pdf",
+              "label": "pdf",
+              "group": "document",
+              "fetch": {
+                "url": "https://drive.usercontent.google.com/download?id=1aXlRdQ3-Report_2026&export=download&confirm=t",
+                "status": 200,
+                "link": "google-drive"
+              }
+            },
+            "result": {
+              "name": "Axelered Q3 Report.md",
+              "size": 3092,
+              "mimeType": "text/markdown",
+              "extension": "md",
+              "label": "markdown",
+              "group": "markup",
+              "encoding": "utf-8",
+              "content": "# Q3 Report\n\nAutomation coverage grew across every process we own.…"
+            },
+            "options": { "readMode": "text" }
+          }
+  - name: Convert a Google Doc
+    description: Google Docs, Sheets and Slides have no file of their own, so they are exported to `docx`, `xlsx` or `pptx` first. Headings, lists and tables come through in the Markdown.
+    request:
+      url: "{{host}}/v1/markdown"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "source": "https://docs.google.com/document/d/1AxeLeReD-Playbook/edit?usp=sharing"
+          }
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: json
+        data: |-
+          {
+            "source": {
+              "uri": "https://docs.google.com/document/d/1AxeLeReD-Playbook/edit?usp=sharing",
+              "name": "Automation Playbook.docx",
+              "size": 12240,
+              "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+              "extension": "docx",
+              "label": "docx",
+              "group": "document",
+              "fetch": {
+                "url": "https://docs.google.com/document/d/1AxeLeReD-Playbook/export?format=docx",
+                "status": 200,
+                "link": "google-docs"
+              }
+            },
+            "result": {
+              "name": "Automation Playbook.md",
+              "size": 2410,
+              "mimeType": "text/markdown",
+              "extension": "md",
+              "label": "markdown",
+              "group": "markup",
+              "encoding": "utf-8",
+              "content": "# Automation Playbook\n\n## Discovery\n\n| Step | Owner |\n| --- | --- |\n…"
             },
             "options": { "readMode": "text" }
           }
@@ -687,4 +777,31 @@ examples:
             "status": 403,
             "code": "source_forbidden",
             "detail": "host '127.0.0.1' resolves to a non-public address"
+          }
+  - name: Reject a private share link
+    description: A share link that is not public returns a sign-in page instead of the file, which fails with `source_forbidden` rather than being processed as a web page. Share the file with anyone who has the link.
+    request:
+      url: "{{host}}/v1/markdown"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "source": "https://drive.google.com/file/d/1PrIvAtE-Axelered/view"
+          }
+    response:
+      status: 403
+      statusText: Forbidden
+      headers:
+        - name: content-type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "about:blank",
+            "title": "Forbidden",
+            "status": 403,
+            "code": "source_forbidden",
+            "detail": "google-drive link did not return a file, check that the file is shared publicly"
           }

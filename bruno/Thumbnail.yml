@@ -25,7 +25,7 @@ settings:
 
 docs:
   content: |-
-    Fits one page, image or web page into a fixed box, a 256 × 256 px WebP by default, for file lists, search results and link previews. A URL that serves HTML, such as `https://axelered.com`, is captured in a browser at desktop width.
+    Fits one page, image or web page into a fixed box, a 256 × 256 px WebP by default, for file lists, search results and link previews. A URL that serves HTML, such as `https://axelered.com`, is captured in a browser at desktop width. A public share link, such as a Google Drive file, previews the file it shares.
 
     Use render when you need a page at reading size.
   type: text/markdown
@@ -125,6 +125,54 @@ examples:
               "content": "UklGRkoaAABXRUJQVlA4ID4aAACwaQCdASpAAcgA…"
             },
             "options": { "page": 1, "width": 320, "height": 200, "fit": "cover", "format": "webp" }
+          }
+  - name: Preview a shared Google Drive file
+    description: A share link previews the file it shares, here the first page of a PDF, instead of the Drive viewer. `source.fetch.link` names the provider.
+    request:
+      url: "{{host}}/v1/thumbnail"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "output": "json",
+            "source": "https://drive.google.com/file/d/1aXlRdQ3-Report_2026/view?usp=sharing"
+          }
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: json
+        data: |-
+          {
+            "source": {
+              "uri": "https://drive.google.com/file/d/1aXlRdQ3-Report_2026/view?usp=sharing",
+              "name": "Axelered Q3 Report.pdf",
+              "size": 18810,
+              "mimeType": "application/pdf",
+              "extension": "pdf",
+              "label": "pdf",
+              "group": "document",
+              "pageCount": 1,
+              "fetch": {
+                "url": "https://drive.usercontent.google.com/download?id=1aXlRdQ3-Report_2026&export=download&confirm=t",
+                "status": 200,
+                "link": "google-drive"
+              }
+            },
+            "result": {
+              "name": "Axelered Q3 Report.webp",
+              "size": 9852,
+              "mimeType": "image/webp",
+              "extension": "webp",
+              "label": "webp",
+              "group": "image",
+              "width": 198,
+              "height": 256,
+              "encoding": "base64",
+              "content": "UklGRnQmAABXRUJQVlA4IGgmAACwagCdASrGAAAB…"
+            },
+            "options": { "page": 1, "width": 256, "height": 256, "fit": "contain", "format": "webp" }
           }
   - name: Preview a website
     description: A URL that serves HTML is captured in a browser at desktop width. A 4:3 box captures a 1280 × 960 viewport and scales it down.
