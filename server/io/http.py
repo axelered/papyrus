@@ -40,7 +40,7 @@ class HttpFetcher:
     ):
         self._config = config
         self._max_file_size = max_file_size
-        self._client = httpx.AsyncClient(timeout=config.timeout, headers=_headers(), transport=transport)
+        self._client = httpx.AsyncClient(timeout=config.timeout, headers=_headers(config.locale), transport=transport)
         self._policy = HostPolicy(config.allowed_hosts, config.allow_private, resolver)
 
     async def aclose(self) -> None:
@@ -103,9 +103,18 @@ class HttpFetcher:
         return local
 
 
-def _headers() -> dict[str, str]:
-    """RFC 9110 product token only (adr/architecture.md, Request Identity)"""
-    return {'User-Agent': f'Papyrus/{version.__version__}'}
+def _headers(locale: str | None) -> dict[str, str]:
+    """RFC 9110 product token only, and the configured language (adr/architecture.md, Request Identity)"""
+    headers = {'User-Agent': f'Papyrus/{version.__version__}'}
+    if locale:
+        headers['Accept-Language'] = accept_language(locale)
+    return headers
+
+
+def accept_language(locale: str) -> str:
+    """The tag, then its base language as a fallback, as Chromium sends it: `it-IT` gives `it-IT,it;q=0.9`"""
+    base = locale.split('-', 1)[0]
+    return locale if base == locale else f'{locale},{base};q=0.9'
 
 
 def _filename(response: httpx.Response) -> str:

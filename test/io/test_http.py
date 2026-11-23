@@ -38,6 +38,29 @@ async def test_identifies_as_papyrus(
     assert agents == ['Papyrus/1.2.3', 'Papyrus/1.2.3']
 
 
+@pytest.mark.parametrize(
+    ('config', 'header'),
+    [
+        ({}, 'en-US,en;q=0.9'),
+        ({'locale': 'it-IT'}, 'it-IT,it;q=0.9'),
+        ({'locale': 'de'}, 'de'),
+        ({'locale': None}, None),
+    ],
+)
+async def test_asks_for_the_configured_language(
+    make_fetcher: FetcherFactory, workspace: Workspace, config: dict, header: str | None
+):
+    languages: list[str | None] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        languages.append(request.headers.get('accept-language'))
+        return _ok()
+
+    await make_fetcher(handler, **config).fetch('https://example.com/a', workspace)
+
+    assert languages == [header]
+
+
 async def test_guesses_extension_from_content_type(make_fetcher: FetcherFactory, workspace: Workspace):
     fetcher = make_fetcher(lambda request: _ok(**{'content-type': 'application/pdf; charset=binary'}))
 

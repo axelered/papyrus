@@ -92,6 +92,7 @@ class BrowserService(Service):
         resolver: Resolver = resolve_host,
     ):
         self._http_enabled = http.enabled
+        self._locale = http.locale
         self._policy = HostPolicy(http.allowed_hosts, http.allow_private, resolver)
         self._sandbox = config.sandbox
         self._timeout = timeout
@@ -241,6 +242,7 @@ class BrowserService(Service):
                         device_scale_factor=options.scale,
                         service_workers='block',
                         accept_downloads=False,
+                        locale=self._locale,
                         proxy={'server': f'http://127.0.0.1:{proxy.port}'},
                     )
             except Error as e:

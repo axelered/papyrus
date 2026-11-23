@@ -47,6 +47,8 @@ class HttpConfig(_Section):
     allowed_hosts: tuple[str, ...] = ()
     timeout: PositiveFloat = 30
     max_redirects: int = Field(default=5, ge=0)
+    # BCP 47 language asked of remote sites by the fetcher and the browser, None lets the site decide
+    locale: str | None = Field(default='en-US', pattern=r'^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|\d{3}))?$')
 
     @field_validator('allowed_hosts')
     @classmethod

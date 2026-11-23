@@ -39,6 +39,11 @@ def test_auto_processes_resolves_to_cpu_count():
     assert config.workers.processes == (os.cpu_count() or 1)
 
 
+@pytest.mark.parametrize('locale', ['en-US', 'de', 'pt-BR', 'zh-Hant-TW', 'es-419', None])
+def test_accepts_bcp47_locales(locale: str | None):
+    assert Config.model_validate({'http': {'locale': locale}}).http.locale == locale
+
+
 @pytest.mark.parametrize(
     'content',
     [
@@ -49,6 +54,9 @@ def test_auto_processes_resolves_to_cpu_count():
         "cors: { allow_origins: ['*', 'https://axelered.com'] }",
         'cors: { allow_origins: [https://axelered.com/] }',
         'cors: { allow_origins: [axelered.com] }',
+        'http: { locale: it_IT }',
+        'http: { locale: italian }',
+        "http: { locale: '' }",
     ],
 )
 def test_rejects_invalid_config(content: str):

@@ -61,7 +61,7 @@
 ### Request Identity (spec: `adr/architecture.md`, `adr/browser.md`)
 
 - [x] `User-Agent: Papyrus/<version>` in `HttpFetcher`
-- [ ] `http.locale` (default `en-US`): `Accept-Language` in the fetcher, `locale` in the browser context, `config.example.yml` and docs
+- [x] `http.locale` (default `en-US`): `Accept-Language` in the fetcher, `locale` in the browser context, `config.example.yml` and docs
 - [!] Per-request `options.locale` overriding `http.locale`
 
 ### Performance (spec: `adr/performance.md`)

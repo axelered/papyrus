@@ -163,8 +163,8 @@ Anything else: `422 unsupported_uri`. Unknown connector: `422 unknown_connector`
 - `http.locale` (BCP 47, default `en-US`) sets the language asked of remote sites, for the fetcher and the browser
   (`adr/browser.md`). It changes what a site serves, never the content Papyrus produces: markitdown does not
   translate, uploads and connector objects are unaffected.
-- Fetcher header: `Accept-Language: <tag>,<base>;q=0.9` (`it-IT,it;q=0.9`), the tag alone when it has no region
-  (`de`), as Chromium sends it. `null` sends no header and lets the site decide.
+- Fetcher header: `Accept-Language: <tag>,<base>;q=0.9` (`it-IT,it;q=0.9`), the tag alone when it has no
+  subtags (`de`), as Chromium sends it. `null` sends no header and lets the site decide.
 - Validated at startup with `^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|\d{3}))?$`; no locale library.
 - todo: per-request `options.locale` on every op that fetches a URL, overriding `http.locale`, echoed in `options`.
 

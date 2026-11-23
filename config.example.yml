@@ -45,6 +45,10 @@ http:
   timeout: 30
   # Maximum number of redirects to follow.
   max_redirects: 5
+  # Language asked of remote sites, as a BCP 47 tag such as en-US, it-IT or de. Downloads send it as
+  # Accept-Language and screenshots set it as the browser language, so sites that translate serve that version.
+  # It does not translate content. Set null to send no language and let each site decide.
+  locale: en-US
 
 # Headless Chromium used for screenshots.
 browser:

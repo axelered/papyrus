@@ -24,6 +24,7 @@ class Site:
 
     def __init__(self):
         self.requests: list[tuple[str, str]] = []
+        self.languages: list[str] = []
         self.server: asyncio.Server | None = None
 
     @property
@@ -56,6 +57,7 @@ class Site:
             '/bomb': '<html><body><script>const a = []; while (true) { a.push(new Array(1e6).fill(1)) }</script>',
             '/escape': '<html><body><script>location.href = "file:///etc/passwd"</script></body></html>',
             '/marker': '<html><body>PAPYRUS-SECRET-7f3a</body></html>',
+            '/lang': '<html><body><script>fetch("/nav/" + navigator.language)</script></body></html>',
         }
         if path == '/redirect':
             return 302, {'Location': self.url('/', host='evil.test')}, ''
@@ -68,6 +70,9 @@ class Site:
             head = (await reader.readuntil(b'\r\n\r\n')).decode('latin-1')
             path = head.split(' ', 2)[1]
             host = next((line[5:].strip() for line in head.split('\r\n') if line.lower().startswith('host:')), '')
+            self.languages += [
+                line[16:].strip() for line in head.split('\r\n') if line.lower().startswith('accept-language:')
+            ]
             self.requests.append((host, path))
             if path == '/slow':
                 await asyncio.sleep(30)
@@ -173,6 +178,19 @@ async def test_full_page_is_cut_at_max_side(browser: BrowserService, site: Site,
     capture = await browser.screenshot(site.url('/tall'), target, ScreenshotOptions(width=800, full_page=True))
 
     assert _png_size(target) == (800, MAX_IMAGE_SIDE) == (capture.width, capture.height)
+
+
+@pytest.mark.parametrize(('locale', 'header'), [('it-IT', 'it-IT,it;q=0.9'), ('en-US', 'en-US,en;q=0.9')])
+async def test_page_follows_the_configured_locale(site: Site, tmp_path: Path, locale: str, header: str):
+    service = _service(locale=locale)
+    try:
+        options = ScreenshotOptions(wait_until=WaitUntil.NETWORKIDLE)
+        await service.screenshot(site.url('/lang'), tmp_path / 'lang.png', options)
+    finally:
+        await service.aclose()
+
+    assert f'/nav/{locale}' in site.paths()
+    assert site.languages[0] == header
 
 
 async def test_error_status_is_captured(browser: BrowserService, site: Site, tmp_path: Path):
