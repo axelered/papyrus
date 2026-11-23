@@ -60,3 +60,6 @@ tasks:
     type: job
     deps: [docker/build-dev]
     stop: { cmd: [ 'docker', 'stop', 'papyrus-test' ] }
+
+  docs:
+    cmd: ['axelered-docs', 'dev']
