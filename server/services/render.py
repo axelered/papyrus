@@ -34,6 +34,7 @@ class RenderSpec:
     dpi: int | None
     fit: Fit
     format: ImageFormat
+    max_pixels: int | None = None  # caps the bitmap area, aspect kept
 
 
 @dataclass(frozen=True)
@@ -71,6 +72,8 @@ def plan(width: float, height: float, spec: RenderSpec, vector: bool) -> Plan:
     if not vector:
         scale = min(scale, 1.0)
     scale = min(scale, MAX_IMAGE_SIDE / max(width, height))
+    if spec.max_pixels is not None:
+        scale = min(scale, math.sqrt(spec.max_pixels / (width * height)))
     if vector:
         # pdfium sizes its bitmap with a plain ceil: a hair less scale keeps exact sizes (800, 4096) exact
         scale *= 1 - _EPSILON

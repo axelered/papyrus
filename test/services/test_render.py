@@ -23,8 +23,9 @@ def _spec(
     fit: Fit = Fit.CONTAIN,
     page: int = 1,
     format: ImageFormat = ImageFormat.PNG,
+    max_pixels: int | None = None,
 ) -> RenderSpec:
-    return RenderSpec(page=page, width=width, height=height, dpi=dpi, fit=fit, format=format)
+    return RenderSpec(page, width, height, dpi, fit, format, max_pixels)
 
 
 # - - - Sizing plan
@@ -54,6 +55,27 @@ def test_plan(source: tuple[int, int], spec: RenderSpec, vector: bool, size: tup
     layout = plan(*source, spec, vector=vector)
 
     assert (layout.size, layout.crop) == (size, crop)
+
+
+@pytest.mark.parametrize(
+    ('source', 'dpi', 'vector', 'size'),
+    [
+        # A4 at 200 dpi fits the budget, A3 does not
+        (A4, 200, True, (1653, 2339)),
+        ((842, 1191), 200, True, (1827, 2584)),
+        ((4032, 3024), 200, False, (2508, 1881)),
+        ((640, 480), 200, False, (640, 480)),
+        ((200, 100_000), 200, True, (9, MAX_IMAGE_SIDE)),
+    ],
+)
+def test_plan_caps_pixels(source: tuple[int, int], dpi: int, vector: bool, size: tuple[int, int]):
+    budget = 4608 * 32 * 32
+
+    layout = plan(*source, _spec(dpi=dpi, max_pixels=budget), vector=vector)
+
+    assert layout.size == size
+    # rounding up adds at most one pixel per side
+    assert layout.size[0] * layout.size[1] <= budget + sum(layout.size)
 
 
 def test_plan_keeps_scale_for_pdfium():
