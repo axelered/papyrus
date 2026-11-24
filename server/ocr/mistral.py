@@ -15,7 +15,7 @@ _IMAGE = re.compile(r'!\[[^\]]*\]\(([^)\s]+)\)')
 class MistralAdapter(OcrAdapter):
     """Mistral OCR; the SDK does not retry unless given a retry config"""
 
-    # todo: the API has no truncation signal in its types, confirm on real pages (adr/ocr.md)
+    # the API gives no truncation signal: a very dense page comes back cut or empty with 200 (adr/ocr.md)
 
     def __init__(self, model: str, api_key: str, url: str | None = None, http_client: httpx2.AsyncClient | None = None):
         self._model = model

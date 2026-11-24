@@ -64,7 +64,7 @@
 ### OCR (spec: `adr/ocr.md`)
 
 - [x] Adapters in `server/ocr/` (qwen, mistral) with prompts, cleaning and error types, `live` test mark
-- [ ] Validate `mistral` against the real API: tables, truncation, limits
+- [x] Validate `mistral` against the real API: tables, truncation, limits
 - [!] Quality and speed on real documents, hidden slides in the PDF export
 - [x] `ocr` config section, `OcrService` with slots, render cap and retries, new error codes
 - [x] `RenderSpec.max_pixels`, `options.readMode` in `/v1/markdown`: formats, fallback, page limit, page markers

@@ -64,7 +64,7 @@ Retrying these returns the same error.
 |---|---|---|---|
 | 502 | `source_fetch_failed` | The remote server failed, returned an error status or redirected too often | with backoff |
 | 502 | `destination_failed` | Writing to storage failed | with backoff; the result was not stored |
-| 502 | `ocr_failed` | The OCR backend failed or rejected a page, or its answer was cut off; `detail` names the page | once, with backoff; a page that fails again needs `readMode: text` or a different model |
+| 502 | `ocr_failed` | The OCR backend failed or rejected a page, or its answer was cut off (`qwen` only); `detail` names the page | once, with backoff; a page that fails again needs `readMode: text` or a different model |
 | 503 | `ocr_rate_limited` | The OCR backend is still at its rate limit after several attempts | after the `Retry-After` seconds |
 | 503 | `queue_full` | The server is at capacity | after the `Retry-After` seconds |
 | 504 | `processing_timeout` | One step took too long, for example a page that never finishes loading or an OCR call without an answer | with a smaller input or simpler options |

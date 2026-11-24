@@ -46,7 +46,7 @@ Remote service of `adr/architecture.md`; pages come from `adr/render.md`.
 
 | Element                   | Rule                                                                           |
 |---------------------------|--------------------------------------------------------------------------------|
-| Tables                    | GFM pipe tables, the only form the chunker keeps whole. Merged cells repeat their value |
+| Tables                    | GFM pipe tables, the only form the chunker keeps whole. Merged cells repeat their value (`qwen`; `mistral` leaves them empty) |
 | Formulas                  | LaTeX, `$...$` and `$$...$$`                                                   |
 | Images, figures           | Omitted, text inside them is kept. todo: descriptions                          |
 | Page headers and footers  | Kept (letterheads, VAT and invoice numbers). todo: option to drop them         |
@@ -100,7 +100,7 @@ server/services/ocr.py   OcrService: slots, retries, errors to ProblemError
 | Call         | `chat.completions`, image data URL plus prompt            | `ocr.process`, image data URL          |
 | Parameters   | `temperature: 0`, `max_tokens: 8192`, `extra_body` from config | `include_image_base64: false`, `include_blocks: false` |
 | Cleaning     | `<think>` block, fence wrapping the whole answer          | References to images of the response   |
-| Truncation   | `finish_reason: length`                                   | todo: no signal in the SDK types       |
+| Truncation   | `finish_reason: length`                                   | No signal, cannot be detected          |
 
 - Own Qwen prompt: the built-in `qwenvl markdown` emits coordinates and LaTeX tables.
 - The openai SDK falls back to `OPENAI_API_KEY` from the environment: always pass a key (a placeholder when none is
@@ -176,7 +176,7 @@ ocr:                                  # absent: OCR is disabled
 | Source image trips the bomb guard                                 | `413 image_too_large`                   |
 | Corrupt or encrypted PDF, PDF without pages                       | `415 unsupported_format`                |
 | Backend fails after retries, rejects the request or answers garbage | `502 ocr_failed`                      |
-| Output truncated                                                  | `502 ocr_failed`, page in `detail`      |
+| Output truncated                                                  | `502 ocr_failed`, page in `detail` (`qwen` only) |
 | Still rate limited after retries                                  | `503 ocr_rate_limited` with `Retry-After` |
 | Page times out after retries                                      | `504 processing_timeout`                |
 
@@ -198,8 +198,13 @@ The spike was dropped by decision: live calls only check the shape of requests a
 
 - `qwen`: checked through OpenRouter with `qwen/qwen3-vl-8b-instruct`, adapter and endpoint: pipe table, two-page PDF
   with markers (3.4s at `concurrency: 2`), PNG. No quality claim: both samples are clean synthetic pages.
-- `mistral`: never called, no key. Request, response and errors follow the SDK types over a fake transport.
-  todo: confirm tables come inline as pipe tables, how truncation shows and the request limits.
+- `mistral`: checked with `mistral-ocr-latest` on 2026-11-24, adapter and endpoint (two-page PDF in 2.4s at
+  `concurrency: 2`). Tables come inline as pipe tables, the first row as header; pictures are references that are
+  dropped; blank page is an empty string; bad key `401`, bad model `400`; 2,500 pages per minute on the test account.
+- `mistral` on dense synthetic A4 pages, 200 dpi: 90-row table 89 rows exact, one digit misread (5s); 160 and 300
+  short lines all found (14s, 17s); 500 lines at 14 px cut off mid-table; 750 lines, one empty answer and one garbage.
+  The answer is `200` and has no finish reason, so a cut page, or one read as empty, cannot be told from a good one.
+  todo: confidence scores in the request as a signal.
 - todo: seconds per page (10s assumed for `max_pages`), repetition loops and quality on scans, dense tables, receipts
   and handwriting.
 - todo: hidden slides in the PDF export.

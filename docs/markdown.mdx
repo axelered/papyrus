@@ -86,7 +86,7 @@ Axelered LLC
 - Formats without pages, such as HTML or CSV, and spreadsheets are read as in `text` mode. `options.readMode` in the response is the mode that was used.
 - Tables become Markdown tables, page headers and footers are kept, pictures are left out.
 - One model call per page makes OCR slower than `text`, and `limits.deadline` covers the whole document. Keep the default `text` for documents with a good text layer.
-- A page that cannot be read fails the request; you never receive a document with missing pages.
+- A page that the model reports as failed or cut off fails the request. Mistral OCR does not report it: a very dense page, such as hundreds of lines in small print, can come back cut or empty, so check the result of such documents.
 - A model can misread a page or follow instructions written on it, so treat the Markdown as untrusted content.
 
 ## Get a file instead of JSON
