@@ -65,6 +65,7 @@ CMD ["uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8000", "--rel
 
 FROM base AS runtime
 
+LABEL org.opencontainers.image.licenses="Apache-2.0"
 COPY --from=build /app/.venv /app/.venv
 COPY --from=build /app/assets /app/assets
 COPY server ./server

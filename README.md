@@ -148,3 +148,7 @@ docker run -p 8000:8000 -e PAPYRUS_API_KEY=<key> -v ./config.yml:/etc/papyrus/co
 
 Copy `config.example.yml` to `config.yml` and change what you need; every key is optional and shows its default. Configuration
 reference: [docs.axelered.com/papyrus/configuration](https://docs.axelered.com/papyrus/configuration).
+
+## ⚖️ License
+
+Apache License 2.0, see [LICENSE](LICENSE) and [NOTICE](NOTICE). Copyright Axelered D.o.o. and Axelered LLC-Fz.
