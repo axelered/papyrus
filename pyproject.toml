@@ -9,8 +9,11 @@ dependencies = [
     "chonkie[code]>=1.7.0",
     "fastapi>=0.163.1",
     "httpx>=0.28.1",
+    "httpx2>=2.16.2",
     "magika>=1.0.3",
     "markitdown[docx,outlook,pdf,pptx,xls,xlsx]>=0.1.9",
+    "mistralai>=3.9.0",
+    "openai>=3.58.0",
     "pebble>=5.2.3",
     "pillow>=13.0.0",
     "playwright>=1.65.2",
@@ -20,6 +23,7 @@ dependencies = [
     "python-multipart>=0.0.34",
     "pyyaml>=6.0.3",
     "s3fs>=2026.9.0",
+    "tenacity>=9.2.1",
     "tiktoken>=0.14.0",
     "uvicorn>=0.54.0",
 ]
@@ -35,6 +39,9 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["test", "sdk/python/test"]
 pythonpath = [".", "sdk/python"]
-# the image runs `pytest -m "full or not full"` to include full tests (adr/development.md)
-addopts = "-m 'not full'"
-markers = ["full: needs the dev image (LibreOffice), deselected on the host"]
+# the image runs `pytest -m "not live"` to include full tests (adr/development.md)
+addopts = "-m 'not full and not live'"
+markers = [
+    "full: needs the dev image (LibreOffice), deselected on the host",
+    "live: calls a paid OCR backend, deselected everywhere",
+]

@@ -63,12 +63,13 @@
 
 ### OCR (spec: `adr/ocr.md`)
 
-- [ ] Spike gate: Qwen prompt and tables, Mistral tables and truncation, SDKs on Python 3.14, hidden slides
-- [ ] Adapters in `server/ocr/` (qwen, mistral) with prompts, cleaning and error types
+- [x] Adapters in `server/ocr/` (qwen, mistral) with prompts, cleaning and error types, `live` test mark
+- [ ] Validate `mistral` against the real API: tables, truncation, limits
+- [!] Quality and speed on real documents, hidden slides in the PDF export
 - [ ] `ocr` config section, `OcrService` with slots, render cap and retries, new error codes
 - [ ] `RenderSpec.max_pixels`, `options.readMode` in `/v1/markdown`: formats, fallback, page limit, page markers
 - [ ] `chunks[].page` from page markers
-- [ ] `config.example.yml`, Bruno, docs, README, chart `extraEgress` note, `live` test mark
+- [ ] `config.example.yml`, Bruno, docs, README, chart `extraEgress` note
 - [!] `readMode: auto`: OCR only for pages without a usable text layer
 - [!] `options.pages` to split documents over `ocr.max_pages`
 - [!] `options.onPageError: skip`

@@ -50,12 +50,12 @@ tasks:
     ready: { http: 'http://localhost:8002/health' }
     stop: { cmd: [ 'docker', 'stop', 'papyrus-prod' ], timeout: 40s }
 
-  # -m overrides the `not full` addopts filter, without it the LibreOffice tests are silently deselected
+  # -m overrides the addopts filter, without it the LibreOffice tests are silently deselected
   docker/test:
     cmd: [
       'docker', 'run', '--rm', '--init', '--name', 'papyrus-test',
       '-v', './server:/app/server:ro', '-v', './test:/app/test:ro', '-v', './scripts:/app/scripts:ro',
-      '-v', './sdk:/app/sdk:ro', 'papyrus:dev', 'pytest', '-m', 'full or not full',
+      '-v', './sdk:/app/sdk:ro', 'papyrus:dev', 'pytest', '-m', 'not live',
     ]
     type: job
     deps: [docker/build-dev]

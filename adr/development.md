@@ -21,7 +21,7 @@ full-fidelity image loop.
 | Image layout    | One multi-stage Dockerfile, `runtime` stays last so `docker build .` builds prod           |
 | CI              | Job `build`: stamp version and watermark, build `dev`, lint and test inside it, build `runtime`, push it to GHCR on release. Job `release`: GitHub release with the changelog |
 | Versioning      | Hand-pushed `vX.Y.Z` tags; `svaraborut/semver` (always preview) and `svaraborut/watermark` stamp the build |
-| Skip guard      | `full` marker deselected by `addopts` on the host, re-included with `-m "full or not full"` in the image |
+| Skip guard      | `full` marker deselected by `addopts` on the host, re-included with `-m "not live"` in the image; `live` deselected in both |
 
 ## Dockerfile
 
@@ -51,7 +51,7 @@ runtime  FROM base: prod venv, assets, server; HEALTHCHECK and CMD as today (las
 | `docker/dev`         | service | `docker/build-dev`   | `docker run --name papyrus-dev -p 8001:8000`, mounts, image CMD | 8001 |
 | `docker/build-prod`  | job     |                      | `docker build -t papyrus .`                                   |      |
 | `docker/prod`        | service | `docker/build-prod`  | `docker run --name papyrus-prod -p 8002:8000 -e PAPYRUS_API_KEY=dev papyrus` | 8002 |
-| `docker/test`        | job     | `docker/build-dev`   | `docker run --name papyrus-test`, mounts, `pytest -m "full or not full"` |      |
+| `docker/test`        | job     | `docker/build-dev`   | `docker run --name papyrus-test`, mounts, `pytest -m "not live"` |      |
 
 - Host tasks live in `local/`, container tasks in `docker/`.
 - `local/server`, `docker/dev` and `docker/prod` all read the gitignored `config.yml` at the repo root (copy
@@ -78,8 +78,10 @@ runtime  FROM base: prod venv, assets, server; HEALTHCHECK and CMD as today (las
 
 - Tests that need the image (LibreOffice today) carry `@pytest.mark.full` and no `skipif`. The marker is registered
   in `pyproject.toml`.
-- `pyproject.toml` sets `addopts = "-m 'not full'"`, so host `uv run pytest` deselects them.
-- The image runs `pytest -m "full or not full"`, which overrides the filter, so every test runs and a missing or
+- `pyproject.toml` sets `addopts = "-m 'not full and not live'"`, so host `uv run pytest` deselects them.
+- `@pytest.mark.live` tests call a paid OCR backend (`adr/ocr.md`). They run only by hand with `-m live`, take the
+  backend from `PAPYRUS_LIVE_*` env variables and skip when those are missing.
+- The image runs `pytest -m "not live"`, which overrides the filter, so every test runs and a missing or
   moved LibreOffice fails the `full` tests instead of skipping them. Not `-m ""`: dekit on Windows drops the empty
   argument.
 - The override appears in exactly two places, the dekit `docker/test` task and the CI step, each with a short
@@ -99,7 +101,7 @@ runtime  FROM base: prod venv, assets, server; HEALTHCHECK and CMD as today (las
 5. `docker/setup-buildx-action`, then `docker/build-push-action` with `target: dev`, `load: true`,
    `tags: papyrus:dev`, GHA cache in scope `dev`.
 6. Run inside `papyrus:dev` with the same mounts as dekit `docker/test` plus `ruff.toml`: `ruff format --check`,
-   `ruff check`, `pytest -m "full or not full"`.
+   `ruff check`, `pytest -m "not live"`.
 7. Docs bundle (`axelered-docs` skill): `scripts/openapi.py` inside `papyrus:dev` writes `openapi.json` (`jq empty`
    fails on stray stdout), then `docs.tar.gz` packs `bundle.json`, `openapi.json`, `docs/` and `bruno/` without
    `bruno/environments` and `.env*`, and the step fails if either slipped in. Packed on every run, uploaded as the

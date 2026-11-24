@@ -65,7 +65,7 @@ Remote service of `adr/architecture.md`; pages come from `adr/render.md`.
 - A page marker is not a section boundary (paragraphs continue across pages), a slide marker is. A table across two
   pages stays two tables.
 - Markers emitted by the model are stripped.
-- LibreOffice may leave hidden slides out of the PDF: N then counts exported slides. todo: confirm in the spike.
+- LibreOffice may leave hidden slides out of the PDF: N then counts exported slides. todo: confirm.
 
 ## Architecture
 
@@ -88,7 +88,10 @@ server/services/ocr.py   OcrService: slots, retries, errors to ProblemError
   (`max_retries=0`, no `retry_config`), otherwise they multiply with ours and hold the slot while waiting.
 - **Imports:** only the SDK of the configured `type`, in the API process, so deployments without OCR pay nothing.
 - The client does not use the SSRF guard: the URL comes from the operator, often on a private network.
-- New dependencies: `openai`, `mistralai`, `tenacity`.
+- New dependencies: `openai`, `mistralai`, `httpx2` (the HTTP client of both SDKs), `tenacity`.
+- SDK exceptions are never chained or logged: their messages carry the upstream body, and may quote the document.
+- `mistralai` ships tracing that stays off unless `MISTRAL_SDK_TELEMETRY` is set; it must stay unset, spans hold
+  content.
 
 ### Adapters
 
@@ -97,11 +100,12 @@ server/services/ocr.py   OcrService: slots, retries, errors to ProblemError
 | Call         | `chat.completions`, image data URL plus prompt            | `ocr.process`, image data URL          |
 | Parameters   | `temperature: 0`, `max_tokens: 8192`, `extra_body` from config | `include_image_base64: false`, `include_blocks: false` |
 | Cleaning     | `<think>` block, fence wrapping the whole answer          | References to images of the response   |
-| Truncation   | `finish_reason: length`                                   | todo: spike                            |
+| Truncation   | `finish_reason: length`                                   | todo: no signal in the SDK types       |
 
 - Own Qwen prompt: the built-in `qwenvl markdown` emits coordinates and LaTeX tables.
 - The openai SDK falls back to `OPENAI_API_KEY` from the environment: always pass a key (a placeholder when none is
   configured) so a foreign key never reaches `url`.
+- A null answer (reasoning only, gateway errors sent as `200`) is a transient failure, never a blank page.
 - `extra_body` exists because OpenAI compatible servers differ, e.g. vLLM turns Qwen reasoning off with
   `chat_template_kwargs: {enable_thinking: false}`; left on, reasoning eats `max_tokens`.
 
@@ -187,17 +191,18 @@ ocr:                                  # absent: OCR is disabled
   render slots bound the rest. Worker memory is not limited: an image inside a PDF can expand to gigabytes, as in
   `/v1/render` today (`AGENTS.md`, Future Issues).
 
-## Spike
+## Validation
 
-Gate before the feature. Findings replace the todos above.
+The spike was dropped by decision: live calls only check the shape of requests and responses (`live` tests).
 
-1. Qwen with our prompt: valid pipe tables, no repetition loops, seconds per page (10s assumed for `max_pages`).
-2. Mistral: tables inline as pipe tables by default, how truncation shows, request limits. Read from the SDK types
-   only so far, the documentation was unreachable.
-3. Both SDKs on Python 3.14: startup, RAM and image size.
-4. Hidden slides in the PDF export.
-
-Samples: scan, dense table, multi-column page, long receipt, photo, handwriting, blank page.
+- `qwen`: checked through OpenRouter with `qwen/qwen3-vl-8b-instruct`, pipe table included.
+- `mistral`: never called, no key. Request, response and errors follow the SDK types over a fake transport.
+  todo: confirm tables come inline as pipe tables, how truncation shows and the request limits.
+- todo: seconds per page (10s assumed for `max_pages`), repetition loops and quality on scans, dense tables, receipts
+  and handwriting.
+- todo: hidden slides in the PDF export.
+- Both SDKs work on Python 3.14: import in 0.3s and 0.2s, about 31 MB installed in total plus OpenTelemetry for
+  `mistralai`.
 
 ## Tests
 
@@ -206,8 +211,7 @@ Samples: scan, dense table, multi-column page, long receipt, photo, handwriting,
 - Service: fake adapter; slots, render cap, attempts, slot released while waiting, cancellation.
 - API: fake `OcrService`; fallback and effective mode, page limit before any call, page order, markers, chunks with
   `page`, `output=file`, destination, first frame only.
-- `live` mark against real backends, deselected by default and in CI: the image's `full or not full` expression must
-  exclude it (`adr/development.md`).
+- `live` mark against real backends, deselected by default and in CI (`adr/development.md`).
 
 ## Delivery
 
