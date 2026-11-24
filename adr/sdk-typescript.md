@@ -32,6 +32,7 @@ sdk/typescript/
     errors.ts
     version.ts
   test/
+  scripts/package.sh
 ```
 
 - Sources run unbuilt on Node and Bun: relative imports end in `.ts`, `erasableSyntaxOnly`, and `rewriteRelativeImportExtensions` for the build.
@@ -160,9 +161,9 @@ Allowed where the server sets `cors.allow_origins`, with no opt-in flag. README 
 3. `models.test.ts`: `text`, `bytes`, unknown fields and enum values, responses through `structuredClone` and JSON.
 4. `integration.test.ts`: every operation against a `papyrus:dev` container, with `Blob`, `Uint8Array` and `File`, a non-ASCII file name, real errors, `health` and `ready`. The SSRF guard refuses local pages, so for `screenshot` it checks the refusal; a successful capture is covered by the fake `fetch`.
 
-- Script `test` exports the OpenAPI document and runs 1 to 3 on Node and Bun, `test:integration` runs 4. A missing OpenAPI document or server fails, it does not skip: a silent skip would hide drift.
-- Script `test:package`: `npm pack`, install in a clean folder, `import` and `require` on Node 22, typecheck of a consumer.
-- dekit task `sdk/typescript`: exports OpenAPI with `scripts/openapi.py`, starts the container, runs typecheck, Biome and the tests on Node and Bun.
+- Script `test` exports the OpenAPI document and runs 1 to 3 on Node, Node 22 (container) and Bun, `test:integration` runs 4 on Node and Bun. A missing OpenAPI document or server fails, it does not skip: a silent skip would hide drift.
+- Script `test:package` (`scripts/package.sh`): `npm pack`, install in a clean folder, `import` and `require` on Node 22.12, `import` on Bun, typecheck of a consumer with `nodenext` and `bundler` resolution.
+- dekit task `sdk/typescript`: installs, starts its own server (`papyrus:dev` with authentication and the default configuration, port 8003) and runs `test:all`, i.e. typecheck, Biome and every test above.
 
 ## Documentation
 

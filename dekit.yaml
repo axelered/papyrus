@@ -61,5 +61,30 @@ tasks:
     deps: [docker/build-dev]
     stop: { cmd: [ 'docker', 'stop', 'papyrus-test' ] }
 
+  sdk/:
+    collapsed: false
+
+  sdk/typescript-install:
+    cmd: [ 'bun', 'install', '--cwd', 'sdk/typescript', '--frozen-lockfile' ]
+    type: job
+
+  # own server: authentication on, default configuration
+  sdk/typescript-server:
+    cmd: [
+      'docker', 'run', '--rm', '--init', '--name', 'papyrus-sdk', '-p', '8003:8000', '-e', 'PAPYRUS_API_KEY=dev',
+      '-v', './server:/app/server:ro', 'papyrus:dev',
+    ]
+    deps: [docker/build-dev]
+    ready: { http: 'http://localhost:8003/health' }
+    stop: { cmd: [ 'docker', 'stop', 'papyrus-sdk' ], timeout: 40s }
+
+  sdk/typescript:
+    cmd: [ 'bun', 'run', '--cwd', 'sdk/typescript', 'test:all' ]
+    type: job
+    env:
+      PAPYRUS_BASE_URL: http://localhost:8003
+      PAPYRUS_API_KEY: dev
+    deps: [sdk/typescript-install, sdk/typescript-server]
+
   docs:
     cmd: ['axelered-docs', 'dev']
