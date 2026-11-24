@@ -1,0 +1,156 @@
+---
+title: Python SDK
+description: Call Papyrus from Python with typed sync and async clients
+icon: Code
+---
+
+`papyrus-sdk` is the Python client of Papyrus. It has one method per operation, typed responses, and a sync and an async client. It requires Python 3.11 or later, and SDK `X.Y` is made for server `X.Y`.
+
+```shell
+pip install papyrus-sdk
+```
+
+```python
+from pathlib import Path
+
+from papyrus_sdk import ChunkingOptions, Papyrus
+
+with Papyrus(base_url='http://127.0.0.1:8000', api_key='dev') as client:
+    doc = client.markdown(Path('pricing.html'), chunking=ChunkingOptions(max_tokens=64))
+
+print(doc.source.title)
+for chunk in doc.chunks or []:
+    print(chunk.index, chunk.kind, chunk.headings, chunk.tokens)
+```
+
+```text
+Service levels
+0 text ['Service levels'] 16
+1 text ['Service levels', 'Response times'] 4
+2 table ['Service levels', 'Response times'] 51
+3 text ['Service levels', 'Escalation'] 28
+```
+
+## Configure the client
+
+| Argument | Default |
+|---|---|
+| `base_url` | The `PAPYRUS_BASE_URL` variable; required |
+| `api_key` | The `PAPYRUS_API_KEY` variable; without it requests carry no `Authorization` header |
+| `timeout` | 310 seconds to wait for a response and 5 to connect; every operation also accepts its own `timeout` |
+| `max_retries` | 2; `0` turns retries off |
+| `http_client` | Your own `httpx.Client` or `httpx.AsyncClient`, for proxies and private certificate authorities |
+
+`PAPYRUS_API_KEY` holds one key here. The server reads a comma-separated list from the variable of the same name, and the client rejects a value with a comma.
+
+Keep `timeout` above the server's `limits.deadline`, 300 seconds by default. The server answers only when it is done, and a shorter timeout hides `deadline_exceeded` behind a client timeout.
+
+## Choose how you send the document
+
+`markdown`, `render`, `thumbnail` and `inspect` take the document in one of three forms:
+
+| Form | What the client sends |
+|---|---|
+| `client.markdown('https://axelered.com')` | A string with `://` is a [URI](./uris). Any other string is the path of a local file to upload. `Path`, `bytes` and binary files are uploads |
+| `client.markdown(source='s3://prod/docs/report.pdf')` | The URI as is |
+| `client.markdown(file='sample.pdf')` | An upload, from a path, `bytes` or a binary file |
+
+<Callout type="warn">
+Pass strings that come from users or models as `source=`. The positional form uploads the local file a string names; `source=` never reads the local disk.
+</Callout>
+
+Name an upload sent as `bytes` with `filename='prices.csv'`: the extension refines [format detection](./formats). `screenshot` takes the URL of a page.
+
+## Set options
+
+Options are keyword arguments in snake_case. Papyrus applies its defaults to the ones you leave out and returns the resolved values in `options`:
+
+```python
+page = client.render(Path('sample.pdf'), page=1, width=800, format='webp')
+
+print(page.source.page_count, page.result.width, page.result.height)
+print(page.options)
+page.result.save('page.webp')
+```
+
+```text
+1 800 1133
+page=1 width=800 height=None dpi=None format=<ImageFormat.WEBP: 'webp'>
+```
+
+## Read the result
+
+| Accessor | Returns |
+|---|---|
+| `result.text` | Markdown as `str`; raises `ValueError` on an image |
+| `result.data` | The artifact as `bytes` |
+| `result.save(path)` | Writes the artifact to a local file and returns its path |
+
+With `destination`, Papyrus writes the result to [remote storage](./storage) and the response carries neither content nor chunks. `result.uri` is set, and the three accessors raise `ValueError`.
+
+```python
+stored = client.markdown(source='s3://prod/docs/report.pdf', destination='s3://prod/md/report.md')
+print(stored.result.uri)
+```
+
+## Use the async client
+
+`AsyncPapyrus` has the same methods and runs on asyncio. It uploads `bytes` only: paths and file objects raise `NotImplementedError`, and the client never reads the local disk.
+
+```python
+import asyncio
+
+from papyrus_sdk import AsyncPapyrus
+
+
+async def main() -> None:
+    async with AsyncPapyrus(base_url='http://127.0.0.1:8000', api_key='dev') as client:
+        page, upload = await asyncio.gather(
+            client.markdown(source='https://axelered.com'),
+            client.markdown(b'name,amount\nalpha,1\n', filename='prices.csv'),
+        )
+    print(page.source.title)
+    print(upload.result.text)
+
+
+asyncio.run(main())
+```
+
+```text
+Axelered · Intelligent process automation
+| name | amount |
+| --- | --- |
+| alpha | 1 |
+```
+
+## Handle errors
+
+Every error derives from `PapyrusError`.
+
+| Error | Meaning |
+|---|---|
+| `APIError` | The server answered with an error; branch on `code`, listed in [error codes](./errors). `code` is `None` when the answer comes from a proxy |
+| `ConnectionFailed` | The server is unreachable or the connection was lost |
+| `TimedOut` | A `ConnectionFailed` caused by the client timeout |
+| `InvalidResponse` | The answer is not a response this SDK version knows, for example an enum value added by a newer server |
+
+```python
+from papyrus_sdk import APIError
+
+try:
+    client.render(Path('sample.pdf'), page=5)
+except APIError as e:
+    print(e.status, e.code, e.detail)
+```
+
+```text
+422 page_out_of_range page 5 is out of range, the document has 1
+```
+
+`e.request_id` finds the request in the server logs, and `e.errors` lists the invalid fields of a `validation_error`.
+
+The client retries only requests the server did not process: `queue_full`, refused connections, and `502` or `503` answers from a proxy. It waits for `Retry-After` or an exponential backoff, at most 30 seconds. Timeouts, lost connections and every other error raise at once.
+
+## Check the server
+
+`health()` raises unless the server is up. `ready()` returns `False` when the server is at capacity and raises when it is unreachable. Both use public routes and do not verify the API key.

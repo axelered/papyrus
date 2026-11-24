@@ -61,7 +61,7 @@ carries the rest.
 | Group        | Reader  | Pages                                                                              |
 |--------------|---------|------------------------------------------------------------------------------------|
 | (top)        | builder | Introduction (`index`): what Papyrus does, one diagram · Quickstart: Docker run, first Markdown request, first chunked request |
-| Guides       | builder | Markdown extraction · RAG chunking · Image rendering · Web screenshots · Remote storage |
+| Guides       | builder | Markdown extraction · RAG chunking · Image rendering · Web screenshots · Remote storage · Python SDK |
 | Concepts     | both    | Request format (`source`, `options`, `result`) · URI formats · File formats · Error codes |
 | Deploy       | operator | Docker setup · Configuration · Security (SSRF, sandbox, limits, reverse proxy) · Sizing |
 

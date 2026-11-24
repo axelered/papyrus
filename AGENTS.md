@@ -91,8 +91,8 @@
 - [x] `sdk/` package: typed models and enums, errors, `Papyrus` and `AsyncPapyrus`, retries, `health` and `ready`
 - [x] `test/sdk/`: schema, parity, integration and client tests; mounts in dekit and `check.yml`
 - [x] `sdk/README.md`, `LICENSE` and `NOTICE`
-- [!] Publish to PyPI on release: version stamp, wheel check on 3.11, Trusted Publishing
-- [!] `docs/python.mdx` guide once `papyrus-sdk` is installable from PyPI
+- [!] Publish to PyPI before the next tag, the guide is already in `docs/`: version stamp, wheel check on 3.11, Trusted Publishing
+- [x] `docs/python.mdx` guide
 - [!] Add `hatchling` to the SBOM of `adr/license.md` once `feat/license` is merged
 
 ### Helm Chart (spec: `adr/chart.md`)
