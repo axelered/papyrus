@@ -22,6 +22,7 @@ from server.services.browser import BrowserService
 from server.services.convert import ConvertService
 from server.services.detect import DetectService
 from server.services.markdown import MarkdownService
+from server.services.ocr import OcrService
 from server.services.render import RenderService
 from server.utils.cors import CorsMiddleware
 from server.utils.logs import RequestIdMiddleware
@@ -39,12 +40,13 @@ logger = logging.getLogger(f'{LOGGER_NAMESPACE}.startup')
 
 @dataclass(frozen=True)
 class Topology:
-    """Worker processes per pool and concurrent browser pages, derived from `workers.processes`"""
+    """Worker processes per pool, concurrent browser pages and OCR renders, derived from `workers.processes`"""
 
     markdown: int
     convert: int
     render: int
     browser: int
+    ocr_renders: int
 
     @classmethod
     def of(cls, config: Config) -> Self:
@@ -52,7 +54,8 @@ class Topology:
         processes = config.workers.processes
         # LibreOffice workers weigh about 330 MB each, each open page 50 to 150 MB
         half = max(1, processes // 2)
-        return cls(markdown=processes, convert=half, render=processes, browser=half)
+        # OCR shares the render pool, a slow document must not take all of it
+        return cls(markdown=processes, convert=half, render=processes, browser=half, ocr_renders=half)
 
 
 @dataclass
@@ -64,6 +67,7 @@ class Services:
     convert: ConvertService
     render: RenderService
     browser: BrowserService
+    ocr: OcrService
     _stack: AsyncExitStack = field(default_factory=AsyncExitStack, init=False, repr=False)
 
     @classmethod
@@ -74,6 +78,7 @@ class Services:
             convert=ConvertService(processes=topology.convert, profiles=config.limits.tmp_dir / 'lo-profiles'),
             render=RenderService(processes=topology.render),
             browser=BrowserService(config.http, config.browser, concurrency=topology.browser),
+            ocr=OcrService(config.ocr, renders=topology.ocr_renders),
         )
 
     async def __aenter__(self) -> Self:
@@ -149,6 +154,12 @@ def log_startup(settings: Settings, config: Config, topology: Topology) -> None:
         _on(config.browser.sandbox),
         _on(config.workers.warmup),
     )
+    if ocr := config.ocr:
+        logger.info(
+            'ocr type=%s model=%s concurrency=%s max_pages=%s', ocr.type, ocr.model, ocr.concurrency, ocr.max_pages
+        )
+    else:
+        logger.info('ocr off')
     hosts = ','.join(http.allowed_hosts) or 'any'
     connectors = ','.join(f'{name}:{c.protocol}' for name, c in config.connectors.items()) or 'none'
     logger.info(

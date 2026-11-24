@@ -36,6 +36,12 @@ class ImageTooLarge(SourceTooLarge):
     code = 'image_too_large'
 
 
+class TooManyPages(SourceTooLarge):
+    """Document has more pages than ocr.max_pages"""
+
+    code = 'too_many_pages'
+
+
 class UnsupportedFormat(ProblemError):
     """Detected document format is not accepted by the operation"""
 
@@ -60,6 +66,12 @@ class UnknownConnector(ProblemError):
     status, code = 422, 'unknown_connector'
 
 
+class OcrNotConfigured(ProblemError):
+    """readMode ocr without an OCR backend in the config"""
+
+    status, code = 422, 'ocr_not_configured'
+
+
 class ProcessingFailed(ProblemError):
     """A service failed on the document (worker crash, library error, detection failure)"""
 
@@ -76,6 +88,22 @@ class DestinationFailed(ProblemError):
     """Result could not be written to the destination connector"""
 
     status, code = 502, 'destination_failed'
+
+
+class OcrFailed(ProblemError):
+    """OCR backend failed after retries, rejected a page or truncated its answer"""
+
+    status, code = 502, 'ocr_failed'
+
+
+class OcrRateLimited(ProblemError):
+    """OCR backend still rate limits after retries"""
+
+    status, code = 503, 'ocr_rate_limited'
+    retry_after: ClassVar[int] = 30
+
+    def headers(self) -> dict[str, str]:
+        return {'Retry-After': str(self.retry_after)}
 
 
 class QueueFull(ProblemError):

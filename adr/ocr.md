@@ -128,7 +128,7 @@ each page:  OCR slot { render slot { render }, model call } -> delete the JPEG
 join by page number, write the .md, chunk in the markdown pool
 ```
 
-- `OcrService.read(page: Callable[[], Awaitable[Path]]) -> str` takes an OCR slot (`asyncio.Semaphore(concurrency)`),
+- `OcrService.read(number, page: Callable[[], Awaitable[Path]]) -> str` takes an OCR slot (`asyncio.Semaphore(concurrency)`),
   awaits `page()` once, then calls the adapter. Rendering inside the slot bounds the OCR renders in flight per
   container; outside it, 64 requests would queue hundreds of tasks in the FIFO render pool and starve `/v1/thumbnail`.
 - `OcrService.rendering()` is a second semaphore of `max(1, processes // 2)` (`Topology`) around every OCR render,

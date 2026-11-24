@@ -2,9 +2,18 @@ import os
 import re
 import tempfile
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ByteSize, ConfigDict, Field, PositiveFloat, PositiveInt, field_validator
+from pydantic import (
+    BaseModel,
+    ByteSize,
+    ConfigDict,
+    Field,
+    PositiveFloat,
+    PositiveInt,
+    SecretStr,
+    field_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from server.utils.logs import LogFormat
@@ -14,6 +23,7 @@ DEFAULT_CONFIG_PATH = Path('/etc/papyrus/config.yml')
 _CONNECTOR_NAME = r'^[a-z0-9][a-z0-9_-]*$'
 # browsers send Origin as scheme://host[:port], a trailing slash or path never matches
 _ORIGIN = r'^https?://[^/\s]+$'
+_URL = r'^https?://\S+$'
 
 
 class ConfigError(Exception):
@@ -61,6 +71,30 @@ class BrowserConfig(_Section):
     sandbox: bool = False
 
 
+class _OcrConfig(_Section):
+    # per container, replicas multiply it
+    concurrency: PositiveInt = 8
+    max_pages: PositiveInt = 100
+
+
+class QwenConfig(_OcrConfig):
+    type: Literal['qwen']
+    model: str = Field(min_length=1)
+    url: str = Field(pattern=_URL)
+    api_key: SecretStr | None = Field(default=None, min_length=1)
+    extra_body: dict[str, Any] = Field(default_factory=dict)
+
+
+class MistralConfig(_OcrConfig):
+    type: Literal['mistral']
+    model: str = Field(default='mistral-ocr-latest', min_length=1)
+    url: str | None = Field(default=None, pattern=_URL)
+    api_key: SecretStr = Field(min_length=1)
+
+
+OcrConfig = Annotated[QwenConfig | MistralConfig, Field(discriminator='type')]
+
+
 class CorsConfig(_Section):
     # empty keeps the browser same-origin policy, ['*'] allows any web page that holds a key
     allow_origins: tuple[str, ...] = ()
@@ -86,6 +120,8 @@ class Config(_Section):
     limits: LimitsConfig = Field(default_factory=LimitsConfig)
     http: HttpConfig = Field(default_factory=HttpConfig)
     browser: BrowserConfig = Field(default_factory=BrowserConfig)
+    # None disables OCR: no document leaves the container
+    ocr: OcrConfig | None = None
     cors: CorsConfig = Field(default_factory=CorsConfig)
     connectors: dict[str, ConnectorConfig] = Field(default_factory=dict)
 

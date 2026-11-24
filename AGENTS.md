@@ -66,7 +66,7 @@
 - [x] Adapters in `server/ocr/` (qwen, mistral) with prompts, cleaning and error types, `live` test mark
 - [ ] Validate `mistral` against the real API: tables, truncation, limits
 - [!] Quality and speed on real documents, hidden slides in the PDF export
-- [ ] `ocr` config section, `OcrService` with slots, render cap and retries, new error codes
+- [x] `ocr` config section, `OcrService` with slots, render cap and retries, new error codes
 - [ ] `RenderSpec.max_pixels`, `options.readMode` in `/v1/markdown`: formats, fallback, page limit, page markers
 - [ ] `chunks[].page` from page markers
 - [ ] `config.example.yml`, Bruno, docs, README, chart `extraEgress` note

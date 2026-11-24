@@ -56,6 +56,33 @@ browser:
   # which the default Docker seccomp profile blocks. With true and no support, screenshots fail with a 500.
   sandbox: false
 
+# Reading page images with a vision model, for Markdown requests with readMode: ocr.
+# Not set by default: those requests are rejected and no document leaves the server. One backend per deployment.
+# Pages are sent to the backend as images, with "mistral" that means a third party.
+# Example with a Qwen VL model on any OpenAI compatible server (vLLM, Ollama, OpenRouter):
+# ocr:
+#   type: qwen
+#   # Name of the model on the server. It must accept images.
+#   model: Qwen/Qwen3-VL-8B-Instruct
+#   # Base URL of the API. Private addresses are allowed.
+#   url: http://vllm:8000/v1
+#   # Optional.
+#   api_key: ${OCR_API_KEY}
+#   # Pages read at once by this container. Every replica adds its own.
+#   concurrency: 8
+#   # Longest document accepted. Raise limits.deadline with it: the whole document is read within one request.
+#   max_pages: 100
+#   # Extra fields sent as is with every request, for options of the server. This one turns off reasoning on vLLM.
+#   extra_body:
+#     chat_template_kwargs: { enable_thinking: false }
+#
+# Example with Mistral OCR. It takes concurrency and max_pages too, and an optional url.
+# ocr:
+#   type: mistral
+#   api_key: ${MISTRAL_API_KEY}
+#   # Default.
+#   model: mistral-ocr-latest
+
 # Browser access from web pages on other origins (CORS). Servers and agents calling the API don't need this.
 cors:
   # Origins allowed to call the API from a browser, as scheme://host[:port] without a trailing slash,

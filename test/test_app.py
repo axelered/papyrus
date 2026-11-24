@@ -51,7 +51,8 @@ def test_entrypoint_configures_logging_and_defers_settings():
 
 def test_startup_logs_topology_without_secrets(write_config, caplog: pytest.LogCaptureFixture):
     path = write_config(
-        'workers: { processes: 4, max_queue: 3, warmup: false }\nconnectors: { prod: { protocol: memory } }'
+        'workers: { processes: 4, max_queue: 3, warmup: false }\nconnectors: { prod: { protocol: memory } }\n'
+        'ocr: { type: qwen, model: qwen-vl, url: "http://vllm:8000/v1", api_key: secret-key }'
     )
     app = create_app(settings=Settings(api_key='secret-key', config=path))
     caplog.set_level(logging.INFO, logger='papyrus.startup')
@@ -63,14 +64,22 @@ def test_startup_logs_topology_without_secrets(write_config, caplog: pytest.LogC
     assert 'warmup=off' in caplog.text
     assert 'warmup off, services start on first use' in caplog.text
     assert 'connectors=prod:memory' in caplog.text
+    assert 'ocr type=qwen model=qwen-vl concurrency=8 max_pages=100' in caplog.text
     assert 'auth=on (1 keys)' in caplog.text
-    assert 'secret-key' not in caplog.text
+    assert 'secret-key' not in caplog.text and 'vllm' not in caplog.text
 
 
 @pytest.mark.parametrize('module', ['server.services.render', 'server.services.markdown', 'server.services.convert'])
 def test_pool_worker_modules_stay_light(module: str):
     # a fresh interpreter, as a pool worker: the app and fastapi would cost every worker its first task
     code = f'import sys, {module}; print(sorted(m for m in ("fastapi", "server.factory") if m in sys.modules))'
+    result = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True, check=True)
+
+    assert result.stdout.strip() == '[]'
+
+
+def test_ocr_sdks_load_only_when_configured():
+    code = 'import sys, server.factory; print(sorted(m for m in ("openai", "mistralai") if m in sys.modules))'
     result = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True, check=True)
 
     assert result.stdout.strip() == '[]'
@@ -123,7 +132,7 @@ class FakeService(Service):
 
 
 def _fakes(**overrides: FakeService) -> Services:
-    names = ('detect', 'markdown', 'convert', 'render', 'browser')
+    names = ('detect', 'markdown', 'convert', 'render', 'browser', 'ocr')
     return Services(**{name: overrides.get(name, FakeService()) for name in names})  # type: ignore[arg-type]
 
 

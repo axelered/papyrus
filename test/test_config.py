@@ -5,7 +5,7 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
-from server.config import Config, ConfigError, Settings
+from server.config import Config, ConfigError, MistralConfig, QwenConfig, Settings
 
 
 def _parse(content: str) -> Config:
@@ -57,11 +57,34 @@ def test_accepts_bcp47_locales(locale: str | None):
         'http: { locale: it_IT }',
         'http: { locale: italian }',
         "http: { locale: '' }",
+        'ocr: {}',
+        'ocr: { type: dots, model: m, url: "http://vllm/v1" }',
+        'ocr: { type: qwen, model: m }',
+        'ocr: { type: qwen, url: "http://vllm/v1" }',
+        'ocr: { type: qwen, model: m, url: vllm }',
+        'ocr: { type: qwen, model: m, url: "http://vllm/v1", api_key: "" }',
+        'ocr: { type: qwen, model: m, url: "http://vllm/v1", concurrency: 0 }',
+        'ocr: { type: mistral }',
+        'ocr: { type: mistral, api_key: k, extra_body: {} }',
     ],
 )
 def test_rejects_invalid_config(content: str):
     with pytest.raises(ValidationError):
         _parse(content)
+
+
+def test_ocr_is_off_by_default():
+    assert Config().ocr is None
+
+
+def test_parses_ocr_backends():
+    qwen = _parse('ocr: { type: qwen, model: qwen-vl, url: "http://vllm:8000/v1", extra_body: { top_k: 1 } }').ocr
+    mistral = _parse('ocr: { type: mistral, api_key: secret, max_pages: 5 }').ocr
+
+    assert isinstance(qwen, QwenConfig) and isinstance(mistral, MistralConfig)
+    assert (qwen.api_key, qwen.extra_body, qwen.concurrency, qwen.max_pages) == (None, {'top_k': 1}, 8, 100)
+    assert (mistral.model, mistral.url, mistral.max_pages) == ('mistral-ocr-latest', None, 5)
+    assert 'secret' not in repr(mistral)
 
 
 def test_settings_reads_prefixed_env(monkeypatch: pytest.MonkeyPatch):
