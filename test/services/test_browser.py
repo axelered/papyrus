@@ -180,8 +180,8 @@ async def test_full_page_is_cut_at_max_side(browser: BrowserService, site: Site,
     assert _png_size(target) == (800, MAX_IMAGE_SIDE) == (capture.width, capture.height)
 
 
-@pytest.mark.parametrize(('locale', 'header'), [('it-IT', 'it-IT,it;q=0.9'), ('en-US', 'en-US,en;q=0.9')])
-async def test_page_follows_the_configured_locale(site: Site, tmp_path: Path, locale: str, header: str):
+@pytest.mark.parametrize('locale', ['it-IT', 'en-US'])
+async def test_page_follows_the_configured_locale(site: Site, tmp_path: Path, locale: str):
     service = _service(locale=locale)
     try:
         options = ScreenshotOptions(wait_until=WaitUntil.NETWORKIDLE)
@@ -190,7 +190,8 @@ async def test_page_follows_the_configured_locale(site: Site, tmp_path: Path, lo
         await service.aclose()
 
     assert f'/nav/{locale}' in site.paths()
-    assert site.languages[0] == header
+    # Playwright's locale override sends the bare tag, without the fetcher's base language fallback
+    assert site.languages[0] == locale
 
 
 async def test_error_status_is_captured(browser: BrowserService, site: Site, tmp_path: Path):

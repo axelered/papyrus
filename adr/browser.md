@@ -209,7 +209,8 @@ Concurrency, timeout and recycle count are code heuristics like the other servic
 
 `http.locale` (`adr/architecture.md`, Request Identity) is passed as `new_context(locale=…)`: it sets
 `Accept-Language`, `navigator.language` and `Intl` formatting, so pages that pick their language in JavaScript
-follow it too. `null` keeps the Playwright default.
+follow it too. `null` keeps the Playwright default. The header carries the bare tag (`it-IT`), unlike the fetcher's
+`it-IT,it;q=0.9`: the override wins over `extra_http_headers`, so the two are not aligned.
 
 > [!NOTE]
 > The user agent stays Chromium's own (`HeadlessChrome/…`). Replacing `HeadlessChrome` with `Chrome` in the context
