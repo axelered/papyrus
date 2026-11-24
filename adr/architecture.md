@@ -23,6 +23,7 @@ and returns the result as a file or JSON, or writes it to a configured destinati
 | Markdown extraction  | markitdown with `pdf,docx,pptx,xlsx,xls,outlook` extras        |
 | Rendering            | pypdfium2 + Pillow (PyMuPDF rejected: AGPL)                    |
 | Browser              | Playwright + chrome-headless-shell, see `adr/browser.md`       |
+| OCR                  | `openai` and `mistralai` SDKs, `tenacity`, see `adr/ocr.md`    |
 | Errors               | RFC 9457 `application/problem+json`                            |
 | Packaging            | Docker, `python:3.14-slim`, uv multi-stage, non-root           |
 
@@ -63,7 +64,7 @@ backend and hides its kind from coordinators. Services compose in coordinators
 |-----------|-----------------------------------------|--------------------------------------|-------------------------|
 | Pool      | `pebble.ProcessPool`, top-level worker fn | `processes`, `timeout`, `max_tasks`  | markdown, render, convert |
 | Daemon    | N supervised long-lived processes       | async queue of instances or semaphore | browser (one Chromium, context per request) |
-| Remote    | TCP / HTTP client                       | `asyncio.Semaphore(concurrency)`     | OCR API                 |
+| Remote    | TCP / HTTP client                       | `asyncio.Semaphore(concurrency)`     | ocr (`adr/ocr.md`)      |
 | Inline    | In-process, `asyncio.to_thread`         | admission only (ms-scale, GIL-free)  | detect (magika)         |
 
 Rules:
@@ -73,6 +74,7 @@ Rules:
 - **Registry:** services extend `services/base.py` `Service` (`warm()`, `aclose()`, async context manager), are
   constructed in the FastAPI lifespan, exposed via a dependency, and closed on shutdown through an `AsyncExitStack`.
 - **Heavy imports** (markitdown, pypdfium2, Pillow) happen only inside worker functions so the API process stays light.
+  OCR SDKs load in the API process, only the one of the configured backend.
 - **Pool helper** (`utils/pool.py`): wraps `pool.schedule(fn, args, timeout)` with `asyncio.wrap_future`, raises
   `PoolTimeout` and `PoolFailed` (worker crash), and cancels the future on `CancelledError`; `services/base.py`
   `pool_errors()` maps them to `504 processing_timeout` and `500 processing_failed`.
@@ -183,7 +185,7 @@ Defined in `adr/api.md`: every JSON response is the `{source, options, result}` 
 | `GET /`               | no   | Service name                                                  |
 | `GET /health`         | no   | Liveness, always 200                                          |
 | `GET /ready`          | no   | 503 when admission is exhausted so the LB drains the replica  |
-| `POST /v1/markdown`   | yes  | Extract markdown (markitdown), see `adr/markdown.md`          |
+| `POST /v1/markdown`   | yes  | Extract markdown (markitdown or OCR), see `adr/markdown.md`, `adr/ocr.md` |
 | `POST /v1/thumbnail`  | yes  | Render one page / image into a fixed box, see `adr/render.md`  |
 | `POST /v1/render`     | yes  | Render one page / image by width, height or dpi, see `adr/render.md` |
 | `POST /v1/screenshot` | yes  | Screenshot a web page in headless Chromium, see `adr/browser.md` |
@@ -230,6 +232,11 @@ http:
 browser:
   sandbox: false           # see adr/browser.md
 
+ocr:                       # absent: readMode ocr is disabled, see adr/ocr.md
+  type: qwen
+  model: Qwen/Qwen3-VL-8B-Instruct
+  url: http://vllm:8000/v1
+
 cors:
   allow_origins: []        # empty: no CORS headers; ["*"] or exact scheme://host[:port]
 
@@ -262,12 +269,12 @@ RFC 9457 problem+json with a stable `code` extension. Codes are part of the publ
 | 403    | `source_forbidden`                                                                 |
 | 404    | `source_not_found`, `not_found` (unknown route)                                    |
 | 405    | `method_not_allowed`                                                               |
-| 413    | `payload_too_large` (request body, upload), `source_too_large` (http, connector), `image_too_large` (pixel bomb guard) |
+| 413    | `payload_too_large` (request body, upload), `source_too_large` (http, connector), `image_too_large` (pixel bomb guard), `too_many_pages` (OCR) |
 | 415    | `unsupported_format` (document), `unsupported_media_type` (request body)           |
-| 422    | `validation_error`, `unsupported_uri`, `unknown_connector`, `page_out_of_range`    |
+| 422    | `validation_error`, `unsupported_uri`, `unknown_connector`, `page_out_of_range`, `ocr_not_configured` |
 | 500    | `processing_failed`, `internal_error` (unhandled, details only in logs)            |
-| 502    | `source_fetch_failed`, `destination_failed`                                        |
-| 503    | `queue_full` (with `Retry-After`), `not_ready` (`/ready`), `service_unavailable`   |
+| 502    | `source_fetch_failed`, `destination_failed`, `ocr_failed`                          |
+| 503    | `queue_full` (with `Retry-After`), `not_ready` (`/ready`), `service_unavailable`, `ocr_rate_limited` (with `Retry-After`) |
 | 504    | `processing_timeout`, `deadline_exceeded`                                          |
 
 ## Conventions
@@ -298,7 +305,7 @@ server/
   types/               wire contract: request, result and option models, public enums
     common.py          ApiModel, OpRequest, OpResponse, FileInfo, Source, Result, Encoding, OutputMode,
                        FormatGroup, FormatLabel, ImageFormat, health responses
-    markdown.py        markdown request, options, result, Chunk, Tokenizer, ChunkKind, CodeLanguage
+    markdown.py        markdown request, options, result, ReadMode, Chunk, Tokenizer, ChunkKind, CodeLanguage
     convert.py         ConvertFormat
     render.py          thumbnail and render requests, options, responses, Fit
     screenshot.py      screenshot request, options, result, WaitUntil
@@ -326,6 +333,7 @@ server/
     http.py            SSRF-safe httpx fetch
     connectors.py      fsspec filesystem registry
     transfer.py        materialize(uri) -> Path, deliver(Path, uri)
+  ocr/                 one adapter per OCR model family: SDK call, prompt, cleaning (adr/ocr.md)
   services/
     base.py            Service base (warm(), aclose(), async context manager), pool_errors()
     detect.py          DetectService (magika, inline), format table and resolution
@@ -335,6 +343,7 @@ server/
     lok.py             LibreOfficeKit ctypes binding
     render.py          RenderService + worker fn (pypdfium2, Pillow)
     browser.py         BrowserService (Playwright), egress policy wiring
+    ocr.py             OcrService: slots, retries and error mapping over an adapter
 test/                  mirrors server/, shared fixtures in test/fixtures/
 Dockerfile
 ```
@@ -346,9 +355,9 @@ Imports only point down; a violation is a design bug, not a style nit.
 | Layer                    | May import                                   |
 |--------------------------|----------------------------------------------|
 | `types/`                 | stdlib, pydantic                             |
-| `utils/`                 | stdlib, third-party; never `server.*`        |
+| `utils/`, `ocr/`         | stdlib, third-party; never other `server.*`  |
 | `errors.py`, `config.py` | `utils/`                                     |
-| `io/`, `services/`       | `types/`, `utils/`, `errors.py`, `config.py` |
+| `io/`, `services/`       | `types/`, `utils/`, `errors.py`, `config.py`; `services/` also `ocr/` |
 | `api/`, `auth.py`        | everything above                             |
 | `factory.py`             | everything (wiring)                          |
 
@@ -384,6 +393,6 @@ Imports only point down; a violation is a design bug, not a style nit.
 
 ## Out of Scope
 
-- Printing, OCR: future ADRs, plugging into the service kinds above. Conversion: `adr/convert.md`, rendering:
-  `adr/render.md`, browser: `adr/browser.md`.
+- Printing: future ADR, plugging into the service kinds above. Conversion: `adr/convert.md`, rendering:
+  `adr/render.md`, browser: `adr/browser.md`, OCR: `adr/ocr.md`.
 - Metrics, async/webhook delivery, per-service queue caps, pipeline DSL.

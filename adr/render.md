@@ -144,9 +144,10 @@ class RenderSpec:              # services/render.py, internal
     page: int
     width: int | None          # box, or a single side
     height: int | None
-    dpi: int | None            # render route only, ignored for raster images
+    dpi: int | None            # render route and OCR, ignored for raster images
     fit: Fit                   # thumbnail: contain | cover; render: contain
     format: ImageFormat
+    max_pixels: int | None = None  # OCR only (adr/ocr.md): caps the area, aspect kept
 
 
 @dataclass(frozen=True)

@@ -1,11 +1,13 @@
 # Markdown Extraction
 
-`POST /v1/markdown` extracts markdown from a document with markitdown. Follows the request, output, error and
+`POST /v1/markdown` extracts markdown from a document with markitdown (`readMode: text`, the default) or by reading
+page images with a vision model (`readMode: ocr`, `adr/ocr.md`). This document covers `text`. Follows the request, output, error and
 service conventions of `adr/architecture.md`.
 
 ## Contract
 
-- Request: the common `OpRequest` fields plus `options.chunking` (optional, see `adr/chunking.md`).
+- Request: the common `OpRequest` fields plus `options.readMode` (`text` | `ocr`, see `adr/ocr.md`) and
+  `options.chunking` (optional, see `adr/chunking.md`).
 - `output` defaults to `json`. Responses follow `adr/api.md`: `source.title` is the extracted title, `result` is
   `<source stem>.md` (`text/markdown; charset=utf-8`, `utf-8` content), `chunks` is a data section.
 - Without chunking the op file is the markdown; with chunking it is the JSON document (`<stem>.json`), for
@@ -50,7 +52,7 @@ curl -H "Authorization: Bearer $KEY" -H 'content-type: application/json' \
 
 | Case                                                  | Code                        |
 |-------------------------------------------------------|-----------------------------|
-| Detected format not in the allowlist (before worker)  | `415 unsupported_format`    |
+| Detected format not in the allowlist (before worker)  | `415 unsupported_format`, for images `detail` points to `readMode: ocr` |
 | No converter accepts the file                         | `415 unsupported_format`    |
 | Converter accepted but failed (corrupt, mislabeled)   | `415 unsupported_format`    |
 | Unexpected worker error or crash                      | `500 processing_failed`     |
@@ -59,4 +61,4 @@ curl -H "Authorization: Bearer $KEY" -H 'content-type: application/json' \
 ## Out of Scope
 
 - markitdown plugins, LLM image descriptions, audio transcription, Azure Document Intelligence.
-- todo: OCR for scanned PDFs (produces empty markdown today), via the future OCR service.
+- Scanned PDFs give empty markdown in `text` mode; `readMode: ocr` reads them (`adr/ocr.md`).

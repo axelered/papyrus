@@ -20,7 +20,6 @@
 - [!] Per-service sizing, timeouts and `max_tasks` configurable in YAML
 - [!] Per-service queue caps against head-of-line blocking
 - [!] Metrics
-- [!] External OCR API service
 - [!] Embedding-based semantic chunking strategy (chonkie `SemanticChunker`)
 
 ### Inspect (spec: `adr/inspect.md`)
@@ -61,6 +60,21 @@
 - [x] HTML thumbnails as browser screenshots: routed document origin, scheme guard, security spike tests
 - [!] HTML in `/v1/render` through Chromium (HTML > PDF > image), uploaded HTML for `/v1/screenshot`
 - [!] Pin the validated IP in the httpx transport via `utils/net.py`
+
+### OCR (spec: `adr/ocr.md`)
+
+- [ ] Spike gate: Qwen prompt and tables, Mistral tables and truncation, SDKs on Python 3.14, hidden slides
+- [ ] Adapters in `server/ocr/` (qwen, mistral) with prompts, cleaning and error types
+- [ ] `ocr` config section, `OcrService` with slots, render cap and retries, new error codes
+- [ ] `RenderSpec.max_pixels`, `options.readMode` in `/v1/markdown`: formats, fallback, page limit, page markers
+- [ ] `chunks[].page` from page markers
+- [ ] `config.example.yml`, Bruno, docs, README, chart `extraEgress` note, `live` test mark
+- [!] `readMode: auto`: OCR only for pages without a usable text layer
+- [!] `options.pages` to split documents over `ocr.max_pages`
+- [!] `options.onPageError: skip`
+- [!] Whole document in one call for Mistral
+- [!] Image descriptions, option to drop page headers and footers
+- [!] Token and cost reporting
 
 ### Request Identity (spec: `adr/architecture.md`, `adr/browser.md`)
 
@@ -131,6 +145,7 @@
 - Starlette parses multipart bodies before size checks; the request body limit must also be enforced at the reverse proxy
 - SSRF guard is vulnerable to DNS rebinding until the validated IP is pinned on connect (`server/io/http.py`)
 - Chromium runs without its sandbox by default (Docker seccomp blocks user namespaces): a renderer exploit runs as the API user with access to secrets and workspaces
+- Pool workers have no memory limit: an image inside a hostile PDF can expand to gigabytes in pdfium, outside Pillow's bomb guard, and the OOM kill can take the API process
 - LibreOffice workers keep network access; deny egress for the worker (network namespace or deployment policy)
 - LibreOffice adds about 630 MB to the image and about 330 MB RAM per convert worker, 1 GB+ spikes on large files
 - `workers.processes: auto` uses `os.cpu_count()`, which ignores container CPU limits: a 2 CPU container on a 32 core host starts 32 processes per pool

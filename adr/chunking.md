@@ -61,12 +61,13 @@ The markdown response gains the `chunks` section, ordered by offset; empty markd
       "text": "## Revenue\n\nRevenue grew 12% ...",
       "language": "python",                                // CodeLanguage, code only, omitted if not curated
       "headings": ["Quarterly Report", "Revenue"],        // heading path at chunk start
-      "slide": 2,                                          // pptx only, omitted otherwise
+      "slide": 2,                                          // pptx, any presentation with readMode ocr
+      "page": 3,                                           // readMode ocr only, omitted for presentations
       "start": 20, "end": 139, "tokens": 31 }             // offsets into result.content
   ] }
 ```
 
-- todo: `page` for PDFs; markitdown's PDF converter emits no page markers today.
+- todo: `page` for PDFs in `text` mode; markitdown's PDF converter emits no page markers today.
 
 ## Pipeline
 
@@ -89,9 +90,11 @@ markdown --MarkdownChef--+-- prose  --> RecursiveChunker (Papyrus rules)
   missing grammar triggers a download of the whole 524 MB pack.
 - **Sections:** prose is split at headings and slide markers before `RecursiveChunker` runs, so a chunk never spans
   two sections even when both would fit; heading-only runs (an H1 directly followed by an H2) join the next section.
-- **Headings** path and **slide**: taken at the chunk's first body line (not a heading, marker or blank line), from
+- **Headings** path, **slide** and **page**: taken at the chunk's first body line (not a heading, marker or blank line), from
   ATX headings outside code blocks, so `#` comments in code never become headings.
-- **Slides:** taken from markitdown's `<!-- Slide number: N -->` markers.
+- **Slides:** taken from `<!-- Slide number: N -->` markers (markitdown, `adr/ocr.md`).
+- **Pages:** taken from the `<!-- Page number: N -->` markers of `adr/ocr.md`. Metadata only: unlike slide markers
+  they never split a section, but they count as marker lines for heading-only runs and the first body line.
 - **Overlap** is applied between prose chunks only, so fences and table rows are never cut; `start`/`end` always
   refer to the chunk's own span, the appended overlap is not included.
 - **Tokens:** tiktoken encodings are wrapped in a subclass of chonkie's tiktoken adapter that uses

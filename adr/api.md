@@ -53,7 +53,7 @@ Shared by `source` and `result`.
 | `extension` | str    | Normalized extension                                                            |
 | `label`     | str    | Papyrus format label or magika label; the language for code                     |
 | `group`     | enum   | `FormatGroup`                                                                   |
-| `pageCount` | int?   | Pages or frames, when the op knows it (render and thumbnail of PDF and images)  |
+| `pageCount` | int?   | Pages or frames, when the op knows it (render and thumbnail of PDF and images, OCR) |
 | `width`     | int?   | Pixels, raster images only (source images, image results)                       |
 | `height`    | int?   | Pixels, raster images only                                                      |
 | `title`     | str?   | Document title, when extracted (markdown)                                       |
@@ -97,7 +97,7 @@ inline JSON body, `result.content` included). The stored file is then self-descr
 
 | Op                        | `source` extras                         | `result`                                   | Data       |
 |---------------------------|-----------------------------------------|--------------------------------------------|------------|
-| `/v1/markdown`            | `title`                                 | `<stem>.md`, `text/markdown`, `utf-8`      | `chunks`   |
+| `/v1/markdown`            | `title`; with `readMode: ocr` `pageCount`, `width`/`height` (images) | `<stem>.md`, `text/markdown`, `utf-8`      | `chunks`   |
 | `/v1/thumbnail`           | `pageCount`, `width`/`height` (images)  | `<stem>.<ext>`, `width`, `height`, `base64`| none       |
 | `/v1/render`              | `pageCount`, `width`/`height` (images)  | `<stem>-<page>.<ext>`, `width`, `height`, `base64` | none |
 | `/v1/screenshot`          | `uri`, `fetch` only                     | `<host>.<ext>`, `width`, `height`, `base64`| none       |
@@ -146,7 +146,8 @@ The problem+json shape of `adr/architecture.md` is unchanged except for camelCas
   `504 processing_timeout | deadline_exceeded`. It is documented once, in the Error codes guide, and covered on every
   operation by `4XX` and `5XX` Problem responses (OpenAPI status ranges; explicit statuses take precedence) instead
   of being repeated per route, so each reference page shows the errors that matter for it.
-- Routes list only their own errors, as error classes: markdown `UnsupportedFormat`; thumbnail and render
+- Routes list only their own errors, as error classes: markdown `UnsupportedFormat`,
+  `ImageTooLarge`, `TooManyPages`, `OcrNotConfigured`, `OcrFailed`, `OcrRateLimited`; thumbnail and render
   `UnsupportedFormat`, `ImageTooLarge`, `PageOutOfRange`; screenshot none.
 - A listed status carries every code it can return, shared ones included (render `422`: `page_out_of_range`,
   `validation_error`, `unsupported_uri`, `unknown_connector`). Headers come from the error classes' `headers()`;
