@@ -1,3 +1,4 @@
+from papyrus_sdk.client import Papyrus
 from papyrus_sdk.errors import APIError, ConnectionFailed, InvalidResponse, PapyrusError, TimedOut
 from papyrus_sdk.models import (
     Chunk,
@@ -47,6 +48,7 @@ __all__ = [
     'InvalidResponse',
     'MarkdownOptions',
     'MarkdownResponse',
+    'Papyrus',
     'PapyrusError',
     'ProblemIssue',
     'RenderOptions',

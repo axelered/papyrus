@@ -1,11 +1,13 @@
 """The SDK mirrors the API contract: a change only on the server fails here (adr/sdk.md)"""
 
+import inspect
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal, get_args, get_origin, get_type_hints
 
 import pytest
 from fastapi.testclient import TestClient
-from papyrus_sdk import models
+from papyrus_sdk import Papyrus, models
+from pydantic.alias_generators import to_camel
 
 # facts of the schema the client does not mirror: bounds are the server's, texts are not part of the contract
 _IGNORED = {'title', 'description', 'minimum', 'maximum', 'additionalProperties'}
@@ -88,3 +90,37 @@ def test_models_match(components: dict[str, Any], name: str):
 
     assert fields == expected, f'update {name} in sdk/papyrus_sdk/models.py'
     assert set(mine.get('required', [])) == set(theirs.get('required', []))
+
+
+OPS = ['markdown', 'render', 'thumbnail', 'screenshot', 'inspect']
+# how a document is passed and the call itself, not options of the operation
+_INPUT = {'document', 'source', 'file', 'filename', 'url', 'timeout'}
+
+
+def _parameters(operation: str) -> set[str]:
+    return set(inspect.signature(getattr(Papyrus, operation)).parameters) - {'self'} - _INPUT
+
+
+def test_every_operation_has_a_method(client: TestClient):
+    paths = client.get('/openapi.json').json()['paths']
+
+    assert {path for path in paths if path.startswith('/v1/')} == {f'/v1/{operation}' for operation in OPS}
+
+
+@pytest.mark.parametrize('operation', OPS)
+def test_parameters_match_the_request(components: dict[str, Any], operation: str):
+    request = components[f'{operation.capitalize()}Request']['properties']
+    options = components[f'{operation.capitalize()}Options']['properties']
+    expected = set(options) | ({'destination'} & set(request))
+
+    assert {to_camel(name) for name in _parameters(operation)} == expected, 'update sdk/papyrus_sdk/client.py'
+    # `output` is fixed to json, everything else of the envelope has a parameter
+    assert set(request) <= {'source', 'options', 'output', 'destination'}
+
+
+@pytest.mark.parametrize('operation', OPS)
+def test_literals_match_their_enum(operation: str):
+    for annotation in get_type_hints(getattr(Papyrus, operation)).values():
+        enums = [arg for arg in get_args(annotation) if isinstance(arg, type) and issubclass(arg, StrEnum)]
+        literals = [arg for arg in get_args(annotation) if get_origin(arg) is Literal]
+        assert [get_args(literal) for literal in literals] == [tuple(enum) for enum in enums]

@@ -17,7 +17,7 @@ Official Python client of the Papyrus API, published on PyPI as `papyrus-sdk`. I
 | Location | `sdk/` in this repository, standalone project. No uv workspace: it would resolve on the server's `requires-python` and couple the Dockerfile to the SDK |
 | Names | Distribution `papyrus-sdk`, import `papyrus_sdk` (`papyrus` on PyPI is an unrelated package) |
 | Python | `>=3.11` |
-| Dependencies | `httpx`, `pydantic>=2`, low lower bounds, no upper bounds |
+| Dependencies | `httpx>=0.27`, `pydantic>=2.7`, low lower bounds, no upper bounds |
 | Build | `hatchling`, dynamic version from `papyrus_sdk/version.py` (`uv_build` has no dynamic version) |
 | Clients | `Papyrus` and `AsyncPapyrus`, native, on `httpx.Client` and `httpx.AsyncClient` |
 | Version | Same `vX.Y.Z` tag as the server |
@@ -70,6 +70,8 @@ with Papyrus(base_url='http://127.0.0.1:8000', api_key='dev') as client:
 | `http_client` | none | Own `httpx` client for proxies, private CAs and tests |
 
 - Both clients are context managers with `close()` / `aclose()`. They close only the `httpx` client they created.
+- The SDK `timeout` also applies to a custom `http_client`, whose 5 s `httpx` default would fail every slow document. Connection limits stay the custom client's own.
+- Keys with whitespace, control or non-ASCII characters are rejected too: the HTTP layer would echo them in its error.
 - `User-Agent: papyrus-sdk/<version>`. Redirects are never followed, also with a custom `http_client`.
 - The key never appears in `repr` or exceptions. `.env` files are not read.
 
@@ -154,8 +156,8 @@ Operations are safe to repeat, but expensive: only failures where the server did
 
 - A proxy can turn a lost connection into a `502`, so the last protection is partial.
 - Wait: `max(Retry-After, exponential backoff)` plus jitter, capped at 30 s. Jitter matters because the server's `Retry-After` is a constant 2 s.
-- Uploads restart from the beginning of the file; file objects that cannot seek are never retried.
-- `keepalive_expiry` is 2 s: uvicorn closes idle connections at 5 s, the `httpx` default, and reusing a just closed one would be a lost connection, which is not retried.
+- File objects are always sent from their beginning, also when partly read (`httpx` rewinds them). Those that cannot seek (pipes) are read into memory: `httpx` would declare a zero length, and a retry could not read them again.
+- `keepalive_expiry` is 2 s (not with a custom `http_client`): uvicorn closes idle connections at 5 s, the `httpx` default, and reusing a just closed one would be a lost connection, which is not retried.
 - A short loop, no retry library.
 
 ## Versioning and Compatibility
