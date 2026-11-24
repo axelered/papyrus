@@ -102,8 +102,8 @@
 - [x] `sdk/typescript/` package: schemas and types, errors, `Papyrus`, retries, `health` and `ready`
 - [x] Schema, client, model, integration and package tests on Node and Bun, dekit task
 - [x] `sdk/typescript/README.md`, `LICENSE` and `NOTICE`
-- [ ] `docs/typescript.mdx` guide
-- [!] Publish to npm before the next tag once the guide is in `docs/`: `axelered` organization, version stamp, Trusted Publishing
+- [x] `docs/typescript.mdx` guide
+- [!] Publish to npm before the next tag, the guide is already in `docs/`: `axelered` organization, version stamp, Trusted Publishing
 - [!] Run the TypeScript tests in `check.yml`, until then drift is caught only locally
 - [!] Expose `Retry-After` to browsers in `server/utils/cors.py`
 - [!] Add `zod` and the development tools to `adr/license.md` once `feat/license` is merged

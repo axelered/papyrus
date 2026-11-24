@@ -1,0 +1,164 @@
+---
+title: TypeScript SDK
+description: Call Papyrus from Node, Bun and browsers with a typed client
+icon: Braces
+---
+
+`@axelered/papyrus` is the TypeScript client of Papyrus. It has one method per operation and typed, validated responses. It requires Node 22.12 or later, or Bun, and SDK `X.Y` is made for server `X.Y`. Deno, edge runtimes and browsers work but are not tested.
+
+```shell
+npm install @axelered/papyrus
+```
+
+```ts
+import { openAsBlob } from 'node:fs'
+import { Papyrus } from '@axelered/papyrus'
+
+const client = new Papyrus({ baseUrl: 'http://127.0.0.1:8000', apiKey: 'dev' })
+const doc = await client.markdown(await openAsBlob('pricing.html'), {
+  filename: 'pricing.html',
+  chunking: { maxTokens: 64 },
+})
+
+console.log(doc.source.title)
+for (const chunk of doc.chunks ?? []) {
+  console.log(chunk.index, chunk.kind, chunk.headings, chunk.tokens)
+}
+```
+
+```text
+Service levels
+0 text [ 'Service levels' ] 16
+1 text [ 'Service levels', 'Response times' ] 4
+2 table [ 'Service levels', 'Response times' ] 51
+3 text [ 'Service levels', 'Escalation' ] 28
+```
+
+## Configure the client
+
+| Option | Default |
+|---|---|
+| `baseUrl` | The `PAPYRUS_BASE_URL` variable; required |
+| `apiKey` | The `PAPYRUS_API_KEY` variable; without it requests carry no `Authorization` header |
+| `timeout` | 310000 milliseconds for one attempt, upload and response included; every operation also accepts its own `timeout` |
+| `maxRetries` | 2; `0` turns retries off |
+| `fetch` | The global `fetch`; replace it for proxies, private certificate authorities and longer timeouts |
+
+`PAPYRUS_API_KEY` holds one key here. The server reads a comma-separated list from the variable of the same name, and the client rejects a value with a comma.
+
+Keep `timeout` above the server's `limits.deadline`, 300 seconds by default. The server answers only when it is done, and a shorter timeout hides `deadline_exceeded` behind a client timeout.
+
+## Wait longer than 300 seconds on Node
+
+Node's `fetch` stops waiting after 300 seconds whatever `timeout` is, and the client rejects with `TimedOut`. When the server has a longer `limits.deadline`, install `undici@7`, which works with Node 22 and later, and pass a `fetch` that uses its agent:
+
+```ts
+import { Papyrus } from '@axelered/papyrus'
+import { Agent } from 'undici'
+
+const extra: object = { dispatcher: new Agent({ headersTimeout: 0, bodyTimeout: 0 }) }
+const client = new Papyrus({
+  timeout: 900_000,
+  fetch: (url, init) => fetch(url, { ...init, ...extra }),
+})
+```
+
+<Callout type="warn">
+Call the global `fetch`, not the one exported by `undici`: that one sends uploads as the text `[object FormData]`.
+</Callout>
+
+## Choose how you send the document
+
+`markdown`, `render`, `thumbnail` and `inspect` take the document as their first argument:
+
+| Value | What the client sends |
+|---|---|
+| `string`, `URL` | A [URI](./uris), as is. A string without `://` is a `TypeError`, never a local path |
+| `Blob`, `File` | An upload |
+| `ArrayBuffer`, `Uint8Array`, `Buffer` | An upload |
+
+```ts
+await client.markdown('s3://prod/docs/report.pdf')
+await client.markdown(await openAsBlob('sample.pdf'), { filename: 'sample.pdf' })
+await client.markdown(Bun.file('sample.pdf'))
+```
+
+Name uploads that have no name of their own with `filename`: the extension refines [format detection](./formats). `File` and `Bun.file` keep theirs. `screenshot` takes the URL of a page. Streams are a `TypeError`; read them into a `Blob` with `await new Response(stream).blob()`.
+
+## Set options
+
+Options are fields of the second argument, named as in the API. Papyrus applies its defaults to the ones you leave out and returns the resolved values in `options`:
+
+```ts
+import { writeFile } from 'node:fs/promises'
+import { bytes } from '@axelered/papyrus'
+
+const page = await client.render(await openAsBlob('sample.pdf'), { page: 1, width: 800, format: 'webp' })
+
+console.log(page.source.pageCount, page.result.width, page.result.height)
+console.log(page.options)
+await writeFile('page.webp', bytes(page.result))
+```
+
+```text
+1 800 1133
+{ page: 1, width: 800, format: 'webp' }
+```
+
+The same argument takes `timeout` and `signal`. An abort rejects with the reason of the signal.
+
+## Read the result
+
+| Function | Returns |
+|---|---|
+| `text(result)` | Markdown as a `string`; throws `TypeError` on an image |
+| `bytes(result)` | The artifact as a `Uint8Array` |
+
+Responses are plain objects: they can be cached as JSON, cloned, and passed from React Server Components to Client Components. Fields the server omits are `undefined`.
+
+With `destination`, Papyrus writes the result to [remote storage](./storage) and the response carries neither content nor chunks. `result.uri` is set, and both functions throw `TypeError`.
+
+```ts
+const stored = await client.markdown('s3://prod/docs/report.pdf', { destination: 's3://prod/md/report.md' })
+console.log(stored.result.uri)
+```
+
+## Call Papyrus from a browser
+
+Add the origin of the page to `cors.allow_origins` in the [server configuration](./configuration).
+
+<Callout type="warn">
+The API key is visible to whoever opens the page. Call Papyrus from your own backend unless every user of the page may have the key.
+</Callout>
+
+## Handle errors
+
+| Error | Meaning |
+|---|---|
+| `APIError` | The server answered with an error; branch on `code`, listed in [error codes](./errors). `code` is `undefined` when the answer comes from a proxy |
+| `ConnectionFailed` | The server is unreachable or the connection was lost |
+| `TimedOut` | A `ConnectionFailed` caused by a timeout |
+| `InvalidResponse` | The answer is not a response this SDK version knows, for example an enum value added by a newer server |
+
+```ts
+import { APIError } from '@axelered/papyrus'
+
+try {
+  await client.render(await openAsBlob('sample.pdf'), { page: 5 })
+} catch (error) {
+  if (!(error instanceof APIError)) throw error
+  console.log(error.status, error.code, error.detail)
+}
+```
+
+```text
+422 page_out_of_range page 5 is out of range, the document has 1
+```
+
+The four errors derive from `PapyrusError`. `error.requestId` finds the request in the server logs, and `error.errors` lists the invalid fields of a `validation_error`. A file deleted or changed after `openAsBlob` rejects with the error of the runtime.
+
+The client retries only requests the server did not process: `queue_full`, refused connections, unknown hosts, and `502` or `503` answers from a proxy. It waits for `Retry-After` or an exponential backoff, at most 30 seconds. Timeouts, lost connections and every other error reject at once. Browsers do not tell connection failures apart and do not expose `Retry-After`, so there the client retries only error answers, with the backoff.
+
+## Check the server
+
+`health()` rejects unless the server is up. `ready()` returns `false` when the server is at capacity and rejects when it is unreachable. Both use public routes and do not verify the API key.
