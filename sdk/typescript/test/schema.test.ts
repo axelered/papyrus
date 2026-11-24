@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import * as z from 'zod/mini'
+import { Papyrus } from '../src/index.ts'
 import * as models from '../src/models.ts'
 import { loadOpenAPI, type Schema } from './openapi.ts'
 
 // the client mirrors the API contract: a change only on the server fails here (adr/sdk-typescript.md)
 
-const { components } = loadOpenAPI()
+const { components, paths } = loadOpenAPI()
 
 // bounds and defaults are the server's, texts are not part of the contract
 const IGNORED = new Set(['$schema', 'title', 'description', 'minimum', 'maximum', 'additionalProperties', 'default'])
@@ -90,6 +91,53 @@ describe('models match', () => {
 
       assert.deepEqual(normalize(mine), normalize(theirs), `update ${name} in src/models.ts`)
       assert.deepEqual(present(mine), present(theirs), `update what is optional in ${name} in src/models.ts`)
+    })
+  }
+})
+
+type Operation = Exclude<keyof Papyrus, 'health' | 'ready'>
+
+/** Whether the parameters take a destination, checked against the client by the compiler */
+const DESTINATION: {
+  [K in Operation]: 'destination' extends keyof NonNullable<Parameters<Papyrus[K]>[1]> ? true : false
+} = { markdown: true, render: true, thumbnail: true, screenshot: true, inspect: false }
+
+// what the client keeps for itself among the parameters of an operation
+const CLIENT_FIELDS = ['filename', 'destination', 'timeout', 'signal']
+
+test('every operation has a method', () => {
+  const operations = Object.keys(paths).filter((path) => path.startsWith('/v1/'))
+  const methods = Object.getOwnPropertyNames(Papyrus.prototype).filter((name) => name !== 'constructor')
+
+  assert.deepEqual(
+    Object.keys(DESTINATION)
+      .map((name) => `/v1/${name}`)
+      .sort(),
+    operations.sort(),
+  )
+  assert.deepEqual(methods.sort(), [...Object.keys(DESTINATION), 'health', 'ready'].sort(), 'update src/client.ts')
+})
+
+describe('requests match', () => {
+  for (const [name, destination] of Object.entries(DESTINATION)) {
+    test(name, () => {
+      const prefix = name.charAt(0).toUpperCase() + name.slice(1)
+      const { properties } = component(`${prefix}Request`)
+      const options = component(`${prefix}Options`).properties
+      assert.ok(isRecord(properties) && isRecord(options) && isRecord(properties.options))
+
+      assert.equal(properties.options.$ref, `#/components/schemas/${prefix}Options`)
+      assert.equal('destination' in properties, destination, 'update src/client.ts')
+      const envelope = new Set(['source', 'options', 'output', 'destination'])
+      assert.deepEqual(
+        Object.keys(properties).filter((field) => !envelope.has(field)),
+        [],
+        'update src/wire.ts',
+      )
+      assert.deepEqual(
+        Object.keys(options).filter((option) => CLIENT_FIELDS.includes(option)),
+        [],
+      )
     })
   }
 })

@@ -1,3 +1,15 @@
+export {
+  type DestinationParams,
+  type InspectParams,
+  type MarkdownParams,
+  Papyrus,
+  type ProbeParams,
+  type RenderParams,
+  type RequestParams,
+  type ScreenshotParams,
+  type ThumbnailParams,
+  type UploadParams,
+} from './client.ts'
 export { APIError, ConnectionFailed, InvalidResponse, PapyrusError, TimedOut } from './errors.ts'
 export type {
   Chunk,
@@ -30,3 +42,4 @@ export type {
 } from './models.ts'
 export { bytes, text } from './models.ts'
 export { VERSION } from './version.ts'
+export type { FetchFunction, Input, PapyrusOptions } from './wire.ts'

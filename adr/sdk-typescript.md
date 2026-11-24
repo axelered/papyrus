@@ -60,16 +60,16 @@ bytes(page.result)
 
 | Field | Default | Notes |
 |---|---|---|
-| `baseUrl` | `PAPYRUS_BASE_URL`, else `TypeError` | `http(s)://` |
+| `baseUrl` | `PAPYRUS_BASE_URL`, else `TypeError` | `http(s)://`, without credentials: `fetch` refuses them, echoing the URL |
 | `apiKey` | `PAPYRUS_API_KEY`, else no header | Same checks as Python, the key is never echoed |
-| `timeout` | `310_000` ms | Total for one attempt: connection, upload, wait and read. Also per call |
-| `maxRetries` | 2 | Negative is a `RangeError` |
+| `timeout` | `310_000` ms | Total for one attempt: connection, upload, wait and read. Also per call. `RangeError` unless positive and within 32 bits |
+| `maxRetries` | 2 | `RangeError` unless an integer, zero or more |
 | `fetch` | global | For proxies, private CAs, longer timeouts and tests |
 
 - The environment is read through `globalThis.process?.env`, absent in browsers.
 - The key is in a `#private` field: not in `console.log`, `util.inspect` or `JSON.stringify`.
 - `redirect: 'manual'`. No `close()`, the connection pool belongs to the runtime.
-- `User-Agent: papyrus-typescript/<version>`, not sent by browsers: it is not among the server's CORS headers and would fail the preflight.
+- `User-Agent: papyrus-typescript/<version>`, sent where `process.versions.node` exists, so not by browsers: it is not among the server's CORS headers and would fail the preflight.
 - The constructor throws, methods reject.
 
 ### Timeouts
@@ -111,6 +111,7 @@ const client = new Papyrus({
 
 - A string is never a local path: the untrusted input risk of the Python SDK does not exist here, and `source=` and `file=` are not needed.
 - Types are checked at runtime too.
+- One byte of an upload is read before every attempt. A file deleted or changed after `openAsBlob` rejects there, with the runtime's own error and before anything is sent; inside Node's `fetch` it would be an unhandled rejection that ends the process. It narrows the window, it does not close it.
 - `filename` defaults to the last segment of `File.name` (`Bun.file` has a whole path there), else `file`. `TypeError` with a URI. It matters: the server ignores the part's `Content-Type` and refines detection by extension.
 
 ## Models
@@ -139,13 +140,12 @@ Same tree and meaning as Python: `PapyrusError`, `ConnectionFailed`, `TimedOut`,
 
 ## Retries
 
-Same table as Python. `fetch` reports every connection failure as a `TypeError`, so a failure before the connection is recognized by a closed list of codes: `ECONNREFUSED`, `ENOTFOUND`, `EAI_AGAIN`, `UND_ERR_CONNECT_TIMEOUT` (`cause.code` on Node) and their Bun equivalents. Any other code, and every failure in browsers, is `ConnectionFailed` and is not retried.
+Same table as Python. `fetch` reports every connection failure as a `TypeError`, so a failure before the connection is recognized by a closed list of codes: `ECONNREFUSED`, `ENOTFOUND`, `EAI_AGAIN`, `UND_ERR_CONNECT_TIMEOUT`. They are in `cause.code` on Node and in `code` on Bun, with the same names (checked on Bun 1.4). Any other code, and every failure in browsers, is `ConnectionFailed` and is not retried.
 
 - No connect timeout of its own: `undici` has 10 s on Node, elsewhere an unreachable host can take the whole `timeout`.
-- `undici` drops idle connections at 4 s, below uvicorn's 5 s.
+- `undici` drops idle connections at 4 s, below uvicorn's 5 s. On Bun, POSTs sent around the 5 s mark never failed against uvicorn. Neither runtime sends a POST again by itself; Bun does for GETs, so for probes only.
 - The same `FormData` can be sent again, file-backed blobs included (checked on Node and Bun).
 - In browsers `Retry-After` is not readable (CORS), only the backoff applies.
-- todo: during implementation, verify connection error codes and idle connection reuse on Bun against a real uvicorn, and reconcile this section.
 
 ## Browsers
 
@@ -156,7 +156,7 @@ Allowed where the server sets `cors.allow_origins`, with no opt-in flag. README 
 `sdk/typescript/test/`, on Node 22, the current Node and Bun. Running the sources needs Node 22.18 (type stripping), the built package 22.12.
 
 1. `schema.test.ts`: `z.toJSONSchema` against the app's OpenAPI. Components, fields, enums, problem codes, `destination` and one method per `/v1/*` path. A field added only to the server fails, naming where to add it; so does a server option named as a client field (`filename`, `destination`, `timeout`, `signal`).
-2. `client.test.ts`: fake `fetch` and a local `node:http` server. Retries, timeouts, `signal`, connection codes, redirects, non `problem+json` errors, inputs, configuration, key secrecy.
+2. `client.test.ts`: fake `fetch` and a local `node:http` server. Retries, timeouts, `signal`, connection codes, unreadable files, redirects, non `problem+json` errors, inputs, configuration, key secrecy.
 3. `models.test.ts`: `text`, `bytes`, unknown fields and enum values, responses through `structuredClone` and JSON.
 4. `integration.test.ts`: every operation against a `papyrus:dev` container, with `Blob`, `Uint8Array` and `File`, a non-ASCII file name, real errors, `health` and `ready`. The SSRF guard refuses local pages, so for `screenshot` it checks the refusal; a successful capture is covered by the fake `fetch`.
 

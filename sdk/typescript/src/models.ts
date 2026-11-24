@@ -191,7 +191,7 @@ export const screenshotResponse = z.object({ source, result, options: screenshot
 export const inspectResponse = z.object({ source, options: inspectOptions, checks: inspectChecks })
 export const statusResponse = z.object({ status: z.literal('ok') })
 
-interface Traced {
+export interface Traced {
   /** `X-Request-ID` of the response, to find the request in the server logs */
   requestId?: string
 }

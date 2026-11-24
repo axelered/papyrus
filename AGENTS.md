@@ -99,7 +99,7 @@
 ### TypeScript SDK (spec: `adr/sdk-typescript.md`)
 
 - [x] Spec: handwritten `@axelered/papyrus` in `sdk/typescript/`, on web standard APIs
-- [ ] `sdk/typescript/` package: schemas and types, errors, `Papyrus`, retries, `health` and `ready`
+- [x] `sdk/typescript/` package: schemas and types, errors, `Papyrus`, retries, `health` and `ready`
 - [ ] Schema, client, model, integration and package tests on Node and Bun, dekit task
 - [ ] `sdk/typescript/README.md`, `LICENSE` and `NOTICE`, `docs/typescript.mdx` guide
 - [!] Publish to npm before the next tag once the guide is in `docs/`: `axelered` organization, version stamp, Trusted Publishing
