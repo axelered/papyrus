@@ -2,6 +2,7 @@
 name = "papyrus-sdk"
 dynamic = ["version"]
 description = "Python client for Papyrus, the self-hosted document processing API"
+readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
 authors = [{ name = "Axelered" }]

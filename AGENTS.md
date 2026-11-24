@@ -90,7 +90,7 @@
 - [x] Spec: handwritten `papyrus-sdk` in `sdk/`, sync and async clients
 - [x] `sdk/` package: typed models and enums, errors, `Papyrus` and `AsyncPapyrus`, retries, `health` and `ready`
 - [x] `test/sdk/`: schema, parity, integration and client tests; mounts in dekit and `check.yml`
-- [ ] `sdk/README.md`, `LICENSE` and `NOTICE`
+- [x] `sdk/README.md`, `LICENSE` and `NOTICE`
 - [!] Publish to PyPI on release: version stamp, wheel check on 3.11, Trusted Publishing
 - [!] `docs/python.mdx` guide once `papyrus-sdk` is installable from PyPI
 - [!] Add `hatchling` to the SBOM of `adr/license.md` once `feat/license` is merged
