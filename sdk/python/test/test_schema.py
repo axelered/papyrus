@@ -71,7 +71,7 @@ def _mirror(name: str) -> dict[str, Any]:
 def test_every_component_is_mirrored(components: dict[str, Any]):
     expected = {name for name in components if not name.endswith('Request')} - _NOT_MIRRORED
 
-    assert set(MODELS) - BASES == expected, 'update sdk/papyrus_sdk/models.py'
+    assert set(MODELS) - BASES == expected, 'update sdk/python/papyrus_sdk/models.py'
 
 
 @pytest.mark.parametrize('name', sorted(n for n, m in MODELS.items() if issubclass(m, StrEnum)))
@@ -88,7 +88,7 @@ def test_models_match(components: dict[str, Any], name: str):
     if name == 'Problem':
         expected['code'].pop('enum')
 
-    assert fields == expected, f'update {name} in sdk/papyrus_sdk/models.py'
+    assert fields == expected, f'update {name} in sdk/python/papyrus_sdk/models.py'
     assert set(mine.get('required', [])) == set(theirs.get('required', []))
 
 
@@ -113,7 +113,7 @@ def test_parameters_match_the_request(components: dict[str, Any], operation: str
     options = components[f'{operation.capitalize()}Options']['properties']
     expected = set(options) | ({'destination'} & set(request))
 
-    assert {to_camel(name) for name in _parameters(operation)} == expected, 'update sdk/papyrus_sdk/client.py'
+    assert {to_camel(name) for name in _parameters(operation)} == expected, 'update sdk/python/papyrus_sdk/client.py'
     # `output` is fixed to json, everything else of the envelope has a parameter
     assert set(request) <= {'source', 'options', 'output', 'destination'}
 

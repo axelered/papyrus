@@ -87,14 +87,14 @@
 
 ### Python SDK (spec: `adr/sdk-python.md`)
 
-- [x] Spec: handwritten `papyrus-sdk` in `sdk/`, sync and async clients
-- [x] `sdk/` package: typed models and enums, errors, `Papyrus` and `AsyncPapyrus`, retries, `health` and `ready`
-- [x] `test/sdk/`: schema, parity, integration and client tests; mounts in dekit and `check.yml`
-- [x] `sdk/README.md`, `LICENSE` and `NOTICE`
+- [x] Spec: handwritten `papyrus-sdk` in `sdk/python/`, sync and async clients
+- [x] `sdk/python/` package: typed models and enums, errors, `Papyrus` and `AsyncPapyrus`, retries, `health` and `ready`
+- [x] `sdk/python/test/`: schema, parity, integration and client tests; mounts in dekit and `check.yml`
+- [x] `sdk/python/README.md`, `LICENSE` and `NOTICE`
 - [!] Publish to PyPI before the next tag, the guide is already in `docs/`: version stamp, wheel check on 3.11, Trusted Publishing
 - [x] `docs/python.mdx` guide
 - [!] Add `hatchling` to the SBOM of `adr/license.md` once `feat/license` is merged
-- [ ] Move the project to `sdk/python/` and its tests from `test/sdk/` to `sdk/python/test/`
+- [x] Move the project to `sdk/python/` and its tests from `test/sdk/` to `sdk/python/test/`
 
 ### TypeScript SDK (spec: `adr/sdk-typescript.md`)
 

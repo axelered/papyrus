@@ -33,8 +33,8 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["test"]
-pythonpath = [".", "sdk"]
+testpaths = ["test", "sdk/python/test"]
+pythonpath = [".", "sdk/python"]
 # the image runs `pytest -m "full or not full"` to include full tests (adr/development.md)
 addopts = "-m 'not full'"
 markers = ["full: needs the dev image (LibreOffice), deselected on the host"]

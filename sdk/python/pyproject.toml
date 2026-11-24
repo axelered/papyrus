@@ -23,3 +23,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.version]
 path = "papyrus_sdk/version.py"
+
+# tests need the server of this repository
+[tool.hatch.build.targets.sdist]
+exclude = ["/test"]

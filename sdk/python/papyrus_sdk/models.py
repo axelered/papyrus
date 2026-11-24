@@ -6,7 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
-# mirrors server/types without bounds and validators, test/sdk/test_schema.py fails when they drift (adr/sdk-python.md)
+# mirrors server/types without bounds and validators, test/test_schema.py fails when they drift (adr/sdk-python.md)
 
 
 class ImageFormat(StrEnum):
