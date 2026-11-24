@@ -3,6 +3,9 @@ indent-width = 4
 
 target-version = "py312"
 
+# the SDK supports older Pythons than the server (adr/sdk.md)
+per-file-target-version = { "sdk/**" = "py311" }
+
 # adr snippets are illustrative and keep their aligned comments
 extend-exclude = ["*.md"]
 

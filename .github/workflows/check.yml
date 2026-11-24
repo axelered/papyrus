@@ -69,14 +69,14 @@ jobs:
           cache-to: type=gha,scope=dev,mode=max
 
       - name: Format
-        run: docker run --rm -v ./server:/app/server:ro -v ./test:/app/test:ro -v ./scripts:/app/scripts:ro -v ./ruff.toml:/app/ruff.toml:ro papyrus:dev ruff format --check
+        run: docker run --rm -v ./server:/app/server:ro -v ./test:/app/test:ro -v ./scripts:/app/scripts:ro -v ./sdk:/app/sdk:ro -v ./ruff.toml:/app/ruff.toml:ro papyrus:dev ruff format --check
 
       - name: Lint
-        run: docker run --rm -v ./server:/app/server:ro -v ./test:/app/test:ro -v ./scripts:/app/scripts:ro -v ./ruff.toml:/app/ruff.toml:ro papyrus:dev ruff check
+        run: docker run --rm -v ./server:/app/server:ro -v ./test:/app/test:ro -v ./scripts:/app/scripts:ro -v ./sdk:/app/sdk:ro -v ./ruff.toml:/app/ruff.toml:ro papyrus:dev ruff check
 
       # -m overrides the `not full` addopts filter, without it the LibreOffice tests are silently deselected
       - name: Test
-        run: docker run --rm --init -v ./server:/app/server:ro -v ./test:/app/test:ro -v ./scripts:/app/scripts:ro papyrus:dev pytest -m "full or not full"
+        run: docker run --rm --init -v ./server:/app/server:ro -v ./test:/app/test:ro -v ./scripts:/app/scripts:ro -v ./sdk:/app/sdk:ro papyrus:dev pytest -m "full or not full"
 
       # docs bundle for docs.axelered.com (axelered-docs skill), packed on every run so a broken export or a leaked
       # Bruno environment fails the check, uploaded only on release

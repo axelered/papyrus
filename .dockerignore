@@ -7,6 +7,7 @@
 **/__pycache__
 adr
 test
+sdk
 *.local*
 *.nogit*
 .env
