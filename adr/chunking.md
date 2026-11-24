@@ -80,7 +80,8 @@ markdown --MarkdownChef--+-- prose  --> RecursiveChunker (Papyrus rules)
 
 - **Prose rules** are defined in code (`RecursiveRules`), never loaded with `from_recipe`, which downloads from the
   Hugging Face Hub: level 1 markdown headings, then blank lines, then lines, then sentences, then whitespace.
-- **Tables** are chunked with the request tokenizer and `maxTokens`, so every piece repeats the header row.
+- **Tables** are chunked with the request tokenizer and `maxTokens`, so every piece repeats the header row. chonkie
+  misses a last row without a newline and drops tables without data rows: both are handled in `chunk_markdown`.
 - **Code** blocks keep their fence in the chunk text (` ```python ... ``` `), so each chunk carries its language
   for embedding. Derived code sources (`adr/mime.md`) are one fenced block and go through the same path as code
   embedded in documents.

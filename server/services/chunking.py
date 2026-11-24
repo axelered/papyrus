@@ -156,19 +156,24 @@ def chunk_markdown(markdown: str, options: ChunkingOptions) -> list[Chunk]:
     from chonkie import MarkdownChef
 
     tokenizer = _tokenizer(options.tokenizer)
-    document = MarkdownChef().parse(markdown)
+    # MarkdownChef only sees a table row that ends with a newline
+    source = f'{markdown}\n' if markdown.rsplit('\n', 1)[-1].startswith('|') else markdown
+    document = MarkdownChef().parse(source)
     pieces = [
-        *_prose(markdown, document.chunks, tokenizer, options),
-        *_tables(markdown, document.tables, tokenizer, options),
-        *_code(markdown, document.code, tokenizer, options),
+        *_prose(document.chunks, tokenizer, options),
+        *_tables(source, document.tables, tokenizer, options),
+        *_code(source, document.code, tokenizer, options),
     ]
     pieces.sort(key=lambda piece: piece.start)
+    for piece in pieces:
+        if piece.end > len(markdown):
+            piece.text, piece.end = piece.text.removesuffix('\n'), len(markdown)
     if options.overlap:
         _add_overlap([piece for piece in pieces if piece.kind == ChunkKind.TEXT], tokenizer, options.overlap)
     return _finalize(markdown, pieces, document.code, tokenizer)
 
 
-def _prose(markdown: str, segments: list[Any], tokenizer: Any, options: ChunkingOptions) -> list[_Piece]:
+def _prose(segments: list[Any], tokenizer: Any, options: ChunkingOptions) -> list[_Piece]:
     from chonkie import RecursiveChunker
 
     chunker = RecursiveChunker(tokenizer=tokenizer, chunk_size=options.max_tokens, rules=_rules()[0])
@@ -227,8 +232,11 @@ def _tables(markdown: str, tables: list[Any], tokenizer: Any, options: ChunkingO
     pieces = []
     for table in tables:
         offset = _content_offset(markdown, table.content, table.start_index)
-        for chunk in chunker.chunk(table.content):
+        chunks = chunker.chunk(table.content)
+        for chunk in chunks:
             pieces.append(_Piece(offset + chunk.start_index, offset + chunk.end_index, ChunkKind.TABLE, chunk.text))
+        if not chunks:  # TableChunker drops tables without data rows
+            pieces.append(_Piece(offset, offset + len(table.content), ChunkKind.TABLE, table.content))
     return pieces
 
 

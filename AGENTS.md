@@ -152,4 +152,3 @@
 - `workers.processes: auto` uses `os.cpu_count()`, which ignores container CPU limits: a 2 CPU container on a 32 core host starts 32 processes per pool
 - The docs site drops Bruno error examples: `json` bodies map to `application/json`, errors are `application/problem+json`, and statuses covered only by the `4XX` and `5XX` ranges are skipped as not in the contract (axelered/docs `scripts/bruno.ts`)
 - Chunking: a heading directly followed by a table becomes a heading-only chunk, and `overlap` skips the table to the next prose chunk
-- Chunking: a table at the very end of a document without a final newline loses its last row to a `text` chunk without header (chonkie `MarkdownChef`); a table with one row loses its header

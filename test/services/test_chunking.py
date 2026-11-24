@@ -97,6 +97,36 @@ def test_tables_split_by_rows_with_repeated_header():
     assert tables[0].headings == ['Quarterly Report', 'Revenue']
 
 
+@pytest.mark.parametrize('rows', [0, 1, 2])
+@pytest.mark.parametrize('tail', ['', '\n', '\n\nEnd.'])
+def test_table_without_final_newline_stays_whole(rows: int, tail: str):
+    table = '| a | b |\n| --- | --- |' + ''.join(f'\n| {row} | x |' for row in range(rows))
+    markdown = f'Intro.\n\n{table}{tail}'
+
+    chunks = chunk_markdown(markdown, _options(max_tokens=64))
+
+    assert [chunk.text.strip() for chunk in _of(chunks, ChunkKind.TABLE)] == [table]
+    assert [chunk.text.strip() for chunk in _of(chunks, ChunkKind.TEXT)] == ['Intro.', *tail.split()]
+    assert all(markdown[chunk.start : chunk.end] == chunk.text for chunk in chunks)
+
+
+def test_split_table_without_final_newline_keeps_header_on_last_row():
+    header = '| a | b |\n| --- | --- |\n'
+    markdown = header + '\n'.join(f'| item {row} | value {row} |' for row in range(40))
+
+    chunks = chunk_markdown(markdown, _options(max_tokens=64))
+
+    assert all(chunk.kind == ChunkKind.TABLE and chunk.text.startswith(header) for chunk in chunks)
+    assert chunks[-1].text.endswith('| item 39 | value 39 |')
+    assert chunks[-1].end == len(markdown)
+
+
+def test_last_line_with_a_pipe_outside_tables_is_untouched():
+    chunks = chunk_markdown('Intro.\n\n| not a table', _options(max_tokens=64))
+
+    assert [(chunk.kind, chunk.text) for chunk in chunks] == [(ChunkKind.TEXT, 'Intro.\n\n| not a table')]
+
+
 def test_code_is_split_along_syntax_and_refenced():
     code = _of(chunk_markdown(REPORT, _options(max_tokens=64)), ChunkKind.CODE)
 
