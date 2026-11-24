@@ -174,6 +174,7 @@ ocr:                                  # absent: OCR is disabled
 | `readMode: ocr` without a configured backend, for every format    | `422 ocr_not_configured`                |
 | More pages than `ocr.max_pages`                                   | `413 too_many_pages` (`TooManyPages(SourceTooLarge)`), page count in `detail` |
 | Source image trips the bomb guard                                 | `413 image_too_large`                   |
+| Corrupt or encrypted PDF, PDF without pages                       | `415 unsupported_format`                |
 | Backend fails after retries, rejects the request or answers garbage | `502 ocr_failed`                      |
 | Output truncated                                                  | `502 ocr_failed`, page in `detail`      |
 | Still rate limited after retries                                  | `503 ocr_rate_limited` with `Retry-After` |
@@ -195,7 +196,8 @@ ocr:                                  # absent: OCR is disabled
 
 The spike was dropped by decision: live calls only check the shape of requests and responses (`live` tests).
 
-- `qwen`: checked through OpenRouter with `qwen/qwen3-vl-8b-instruct`, pipe table included.
+- `qwen`: checked through OpenRouter with `qwen/qwen3-vl-8b-instruct`, adapter and endpoint: pipe table, two-page PDF
+  with markers (3.4s at `concurrency: 2`), PNG. No quality claim: both samples are clean synthetic pages.
 - `mistral`: never called, no key. Request, response and errors follow the SDK types over a fake transport.
   todo: confirm tables come inline as pipe tables, how truncation shows and the request limits.
 - todo: seconds per page (10s assumed for `max_pages`), repetition loops and quality on scans, dense tables, receipts
@@ -209,7 +211,7 @@ The spike was dropped by decision: live calls only check the shape of requests a
 - Adapters: real SDKs over a fake httpx transport; cleaning, truncation, error mapping, no SDK retry, no environment
   key.
 - Service: fake adapter; slots, render cap, attempts, slot released while waiting, cancellation.
-- API: fake `OcrService`; fallback and effective mode, page limit before any call, page order, markers, chunks with
+- API: real `OcrService` over a fake adapter; fallback and effective mode, page limit before any call, page order, markers, chunks with
   `page`, `output=file`, destination, first frame only.
 - `live` mark against real backends, deselected by default and in CI (`adr/development.md`).
 

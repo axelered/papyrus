@@ -31,7 +31,7 @@ def test_returns_structured_chunks(client: TestClient, auth_headers: dict[str, s
     assert revenue['headings'] == ['Report', 'Revenue']
     assert body['result']['content'][revenue['start'] : revenue['end']] == revenue['text']
     assert set(revenue) == {'index', 'kind', 'text', 'headings', 'start', 'end', 'tokens'}
-    assert body['options'] == {'chunking': {'maxTokens': 64, 'overlap': 0, 'tokenizer': 'o200k_base'}}
+    assert body['options']['chunking'] == {'maxTokens': 64, 'overlap': 0, 'tokenizer': 'o200k_base'}
 
 
 def test_without_chunking_has_no_chunks_key(client: TestClient, auth_headers: dict[str, str]):

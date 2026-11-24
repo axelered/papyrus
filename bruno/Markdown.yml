@@ -25,7 +25,7 @@ docs:
   content: |-
     Extracts Markdown from a document or web page, ready to pass to an LLM or index for retrieval. The format is detected from the content, and `options.chunking` adds structure-aware chunks sized for your embedding model, with the headings they sit under and their offsets in the Markdown.
 
-    Papyrus does not run OCR: images fail with `415 unsupported_format` and scanned PDFs return little or no text. Legacy formats such as `.doc` and `.ppt` are converted with LibreOffice first and take longer.
+    Set `options.readMode` to `ocr` for scanned PDFs and images: every page is read by the vision model configured on the server. The default `text` extracts the text stored in the file, so scans return little or nothing and images fail with `415 unsupported_format`. Legacy formats such as `.doc` and `.ppt` are converted with LibreOffice first and take longer.
   type: text/markdown
 
 examples:
@@ -68,7 +68,7 @@ examples:
               "encoding": "utf-8",
               "content": "[Axelered](/)[01Platform](/platform)…\n\n# Automatethe process.\n\nWe automate your processes end to end and own the outcome after go-live.…"
             },
-            "options": {}
+            "options": { "readMode": "text" }
           }
   - name: Convert an uploaded PDF
     description: Upload a file as multipart. Without a `metadata` part the source is the `file` part and every option takes its default.
@@ -109,7 +109,139 @@ examples:
               "encoding": "utf-8",
               "content": "Sample PDF\nThis is a simple PDF ﬁle. Fun fun fun.\n\n…"
             },
-            "options": {}
+            "options": { "readMode": "text" }
+          }
+  - name: Read a scanned PDF
+    description: Read every page with the vision model of the server. Each page starts with a marker comment and `source.pageCount` is the number of pages.
+    request:
+      url: "{{host}}/v1/markdown"
+      method: POST
+      body:
+        type: multipart-form
+        data:
+          - name: metadata
+            type: text
+            value: '{"options": {"readMode": "ocr"}}'
+            contentType: application/json
+          - name: file
+            type: file
+            value:
+              - scan.pdf
+            contentType: application/pdf
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: json
+        data: |-
+          {
+            "source": {
+              "uri": "file://file",
+              "name": "scan.pdf",
+              "size": 125261,
+              "mimeType": "application/pdf",
+              "extension": "pdf",
+              "label": "pdf",
+              "group": "document",
+              "pageCount": 2
+            },
+            "result": {
+              "name": "scan.md",
+              "size": 392,
+              "mimeType": "text/markdown",
+              "extension": "md",
+              "label": "markdown",
+              "group": "markup",
+              "encoding": "utf-8",
+              "content": "<!-- Page number: 1 -->\n\nAxelered LLC\n\n# Delivery note 2026-117\n\nShipped on 12 November 2026 from Ljubljana.\n\n…\n\n| Item    | Quantity | Weight |\n|---------|----------|--------|\n| Widget  | 3        | 4.5 kg |\n| Gadget  | 1        | 1.2 kg |\n\n<!-- Page number: 2 -->\n\nAxelered LLC\n\n# Terms\n\n…"
+            },
+            "options": { "readMode": "ocr" }
+          }
+  - name: Read an image
+    description: Images are read in `ocr` mode only. Animated images are read from their first frame.
+    request:
+      url: "{{host}}/v1/markdown"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "source": "https://axelered.com/_og/platform.png",
+            "options": { "readMode": "ocr" }
+          }
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: json
+        data: |-
+          {
+            "source": {
+              "uri": "https://axelered.com/_og/platform.png",
+              "name": "platform.png",
+              "size": 80238,
+              "mimeType": "image/png",
+              "extension": "png",
+              "label": "png",
+              "group": "image",
+              "pageCount": 1,
+              "width": 1200,
+              "height": 630,
+              "fetch": { "url": "https://axelered.com/_og/platform.png", "status": 200 }
+            },
+            "result": {
+              "name": "platform.md",
+              "size": 81,
+              "mimeType": "text/markdown",
+              "extension": "md",
+              "label": "markdown",
+              "group": "markup",
+              "encoding": "utf-8",
+              "content": "<!-- Page number: 1 -->\n\naxelered\nPLATFORM\nOne platform from\nintake to write-back"
+            },
+            "options": { "readMode": "ocr" }
+          }
+  - name: Fall back to text
+    description: Formats without pages, such as web pages and spreadsheets, are extracted as text. `options.readMode` in the response is the mode used.
+    request:
+      url: "{{host}}/v1/markdown"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "source": "https://axelered.com",
+            "options": { "readMode": "ocr" }
+          }
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: json
+        data: |-
+          {
+            "source": {
+              "uri": "https://axelered.com",
+              "name": "source.html",
+              "size": 95359,
+              "mimeType": "text/html",
+              "extension": "html",
+              "label": "html",
+              "group": "markup",
+              "title": "Axelered · Intelligent process automation",
+              "fetch": { "url": "https://axelered.com", "status": 200 }
+            },
+            "result": {
+              "name": "source.md",
+              "size": 6972,
+              "mimeType": "text/markdown",
+              "extension": "md",
+              "label": "markdown",
+              "group": "markup",
+              "encoding": "utf-8",
+              "content": "[Axelered](/)[01Platform](/platform)…"
+            },
+            "options": { "readMode": "text" }
           }
   - name: Chunk a web page for embeddings
     description: Return the Markdown and chunks of at most 256 tokens. Each chunk carries the headings it sits under and its offsets in `result.content`.
@@ -152,6 +284,7 @@ examples:
               "content": "[Axelered](/)[01Platform](/platform)…"
             },
             "options": {
+              "readMode": "text",
               "chunking": { "maxTokens": 256, "overlap": 0, "tokenizer": "o200k_base" }
             },
             "chunks": [
@@ -219,6 +352,7 @@ examples:
               "content": "Sample PDF\nThis is a simple PDF ﬁle. Fun fun fun.\n\n…"
             },
             "options": {
+              "readMode": "text",
               "chunking": { "maxTokens": 512, "overlap": 0, "tokenizer": "o200k_base" }
             },
             "chunks": [
@@ -270,7 +404,7 @@ examples:
               "label": "markdown",
               "group": "markup"
             },
-            "options": {}
+            "options": { "readMode": "text" }
           }
   - name: Store chunks in a bucket
     description: With chunking and a destination, the full JSON document is uploaded and the response describes the stored `.json` file, without chunks.
@@ -311,6 +445,7 @@ examples:
               "group": "data"
             },
             "options": {
+              "readMode": "text",
               "chunking": { "maxTokens": 256, "overlap": 0, "tokenizer": "o200k_base" }
             }
           }
@@ -342,7 +477,7 @@ examples:
             "detail": "connector 'demo-s3' is not configured"
           }
   - name: Reject an image
-    description: Markdown extraction does not run OCR, so images fail with `unsupported_format`. Use render or thumbnail for images.
+    description: Images have no stored text, so they fail with `unsupported_format` in the default `text` mode. Set `readMode` to `ocr` to read them.
     request:
       url: "{{host}}/v1/markdown"
       method: POST
@@ -366,7 +501,63 @@ examples:
             "title": "Unsupported Media Type",
             "status": 415,
             "code": "unsupported_format",
-            "detail": "image/png (png) is not supported for markdown extraction"
+            "detail": "image/png (png) is not supported for markdown extraction, set readMode to ocr to read images"
+          }
+  - name: Use OCR without a backend
+    description: Servers without an `ocr` section in their configuration reject `ocr` mode before reading the source.
+    request:
+      url: "{{host}}/v1/markdown"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "source": "https://axelered.com",
+            "options": { "readMode": "ocr" }
+          }
+    response:
+      status: 422
+      statusText: Unprocessable Content
+      headers:
+        - name: content-type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "about:blank",
+            "title": "Unprocessable Content",
+            "status": 422,
+            "code": "ocr_not_configured",
+            "detail": "readMode ocr needs an OCR backend, this server has none"
+          }
+  - name: Exceed the page limit
+    description: Documents over the page limit of the server fail before any page is read.
+    request:
+      url: "{{host}}/v1/markdown"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "source": "s3://demo-s3/papyrus-test/long.pdf",
+            "options": { "readMode": "ocr" }
+          }
+    response:
+      status: 413
+      statusText: Content Too Large
+      headers:
+        - name: content-type
+          value: application/problem+json
+      body:
+        type: json
+        data: |-
+          {
+            "type": "about:blank",
+            "title": "Content Too Large",
+            "status": 413,
+            "code": "too_many_pages",
+            "detail": "the document has 4 pages, at most 3 can be read"
           }
   - name: Reject snake_case keys
     description: Field names are camelCase only. Any other spelling is an unknown field and `errors[].loc` points at it.

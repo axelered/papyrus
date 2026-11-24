@@ -60,6 +60,11 @@ def fence_code(
     _write(fence(text.replace('\r\n', '\n'), language), target, chunking, chunks_target)
 
 
+def chunk_file(source: str, chunks_target: str, chunking: ChunkingOptions) -> None:
+    """Pool worker for markdown produced elsewhere (OCR)"""
+    _chunk(Path(source).read_text(encoding='utf-8'), chunking, chunks_target)
+
+
 def _ensure_converter() -> Any:
     global _converter
     if _converter is None:
@@ -71,8 +76,11 @@ def _ensure_converter() -> Any:
 
 def _write(markdown: str, target: str, chunking: ChunkingOptions | None, chunks_target: str | None) -> None:
     Path(target).write_text(markdown, encoding='utf-8', newline='')
-    if chunking is None or chunks_target is None:
-        return
+    if chunking is not None and chunks_target is not None:
+        _chunk(markdown, chunking, chunks_target)
+
+
+def _chunk(markdown: str, chunking: ChunkingOptions, chunks_target: str) -> None:
     from server.services.chunking import chunk_markdown
 
     try:
@@ -109,6 +117,10 @@ class MarkdownService(Service):
     ) -> None:
         with pool_errors():
             await self._pool.run(fence_code, str(source), str(target), language, chunking, _optional(chunks_target))
+
+    async def chunk(self, source: Path, chunks_target: Path, chunking: ChunkingOptions) -> None:
+        with pool_errors():
+            await self._pool.run(chunk_file, str(source), str(chunks_target), chunking)
 
     async def aclose(self) -> None:
         await self._pool.aclose()

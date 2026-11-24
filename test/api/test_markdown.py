@@ -36,7 +36,7 @@ def test_upload_returns_json_by_default(client: TestClient, auth_headers: dict[s
             'group': 'markup',
             'title': 'Quarterly',
         },
-        'options': {},
+        'options': {'readMode': 'text'},
         'result': {
             'name': 'report.md',
             'size': len('# Report\n\nRevenue grew.'),
@@ -114,6 +114,7 @@ def test_known_binary_format_names_detected_type(client: TestClient, auth_header
 
     assert response.status_code == 415
     assert 'image/png (png)' in response.json()['detail']
+    assert 'readMode' in response.json()['detail']
 
 
 def _png() -> bytes:

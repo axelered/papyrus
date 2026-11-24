@@ -10,36 +10,11 @@ from server.errors import ImageTooLarge, OcrFailed, OcrNotConfigured, OcrRateLim
 from server.ocr.base import OcrAdapter, OcrRejected, OcrTimeout, OcrTransient, OcrTruncated
 from server.ocr.base import OcrRateLimited as BackendRateLimited
 from server.services.ocr import ATTEMPTS, MAX_WAIT, OcrService
+from test.fixtures.ocr import FakeAdapter
 
 pytestmark = pytest.mark.anyio
 
 IMAGE = Path('page.jpg')
-
-
-class FakeAdapter(OcrAdapter):
-    """Raises the scripted errors first, then answers; `gate` holds calls in flight"""
-
-    def __init__(self, *errors: Exception, gate: asyncio.Event | None = None):
-        self.errors = list(errors)
-        self.gate = gate
-        self.calls = self.in_flight = self.peak = 0
-        self.closed = False
-
-    async def read(self, image: Path) -> str:
-        self.calls += 1
-        self.in_flight += 1
-        self.peak = max(self.peak, self.in_flight)
-        try:
-            if self.gate is not None:
-                await self.gate.wait()
-            if self.errors:
-                raise self.errors.pop(0)
-            return f'read {image.name}'
-        finally:
-            self.in_flight -= 1
-
-    async def aclose(self) -> None:
-        self.closed = True
 
 
 def _service(adapter: OcrAdapter, concurrency: int = 2, timeout: float = 5) -> OcrService:

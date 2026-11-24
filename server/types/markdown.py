@@ -6,6 +6,11 @@ from pydantic import Field, model_validator
 from server.types.common import OPTIONS, OUTPUT, RESOLVED, ApiModel, OpRequest, OpResponse, OptionsModel, OutputMode
 
 
+class ReadMode(StrEnum):
+    TEXT = 'text'
+    OCR = 'ocr'
+
+
 class Tokenizer(StrEnum):
     O200K_BASE = 'o200k_base'
     CL100K_BASE = 'cl100k_base'
@@ -69,6 +74,13 @@ class ChunkingOptions(OptionsModel):
 
 
 class MarkdownOptions(OptionsModel):
+    read_mode: ReadMode = Field(
+        default=ReadMode.TEXT,
+        description=(
+            '`text` extracts the text stored in the file, `ocr` reads page images with a vision model. Formats without '
+            'pages fall back to `text`; the response reports the mode used'
+        ),
+    )
     chunking: ChunkingOptions | None = Field(
         default=None, description='Structure-aware chunks; the file and destination output become the JSON document'
     )
@@ -85,7 +97,7 @@ class Chunk(ApiModel):
     text: str = Field(description='Markdown of the chunk, with the overlap appended for prose')
     language: CodeLanguage | None = Field(default=None, description='Code chunks only, omitted if not curated')
     headings: list[str] = Field(description='Headings the chunk sits under, outermost first')
-    slide: int | None = Field(default=None, description='pptx only')
+    slide: int | None = Field(default=None, description='pptx, and every presentation read with `ocr`')
     start: int = Field(description='Offset of the chunk span in `result.content` (overlap not included)')
     end: int = Field(description='End offset of the chunk span in `result.content`, exclusive')
     tokens: int = Field(description='Tokens in `text`, counted with the requested tokenizer')

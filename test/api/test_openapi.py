@@ -10,7 +10,7 @@ from server.utils.problem import PROBLEM_JSON
 OPS = ['/v1/markdown', '/v1/thumbnail', '/v1/render', '/v1/screenshot', '/v1/inspect']
 # only op-specific statuses are listed, the shared catalog falls under `4XX` and `5XX` (adr/api.md)
 OP_STATUSES = {
-    '/v1/markdown': {'200', '415', '4XX', '5XX'},
+    '/v1/markdown': {'200', '413', '415', '422', '502', '503', '4XX', '5XX'},
     '/v1/thumbnail': {'200', '413', '415', '422', '4XX', '5XX'},
     '/v1/render': {'200', '413', '415', '422', '4XX', '5XX'},
     '/v1/screenshot': {'200', '4XX', '5XX'},
