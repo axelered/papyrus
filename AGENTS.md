@@ -101,7 +101,8 @@
 - [x] Spec: handwritten `@axelered/papyrus` in `sdk/typescript/`, on web standard APIs
 - [x] `sdk/typescript/` package: schemas and types, errors, `Papyrus`, retries, `health` and `ready`
 - [x] Schema, client, model, integration and package tests on Node and Bun, dekit task
-- [ ] `sdk/typescript/README.md`, `LICENSE` and `NOTICE`, `docs/typescript.mdx` guide
+- [x] `sdk/typescript/README.md`, `LICENSE` and `NOTICE`
+- [ ] `docs/typescript.mdx` guide
 - [!] Publish to npm before the next tag once the guide is in `docs/`: `axelered` organization, version stamp, Trusted Publishing
 - [!] Run the TypeScript tests in `check.yml`, until then drift is caught only locally
 - [!] Expose `Retry-After` to browsers in `server/utils/cors.py`

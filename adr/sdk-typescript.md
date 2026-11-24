@@ -83,13 +83,14 @@ bytes(page.result)
 ```ts
 import { Agent } from 'undici'
 
-const dispatcher = new Agent({ headersTimeout: 0, bodyTimeout: 0 })
+const extra: object = { dispatcher: new Agent({ headersTimeout: 0, bodyTimeout: 0 }) }
 const client = new Papyrus({
   timeout: 900_000,
-  fetch: (url, init) => fetch(url, { ...init, dispatcher }),
+  fetch: (url, init) => fetch(url, { ...init, ...extra }),
 })
 ```
 
+- `undici@7` is the version that works with the `fetch` of both Node 22 and Node 26: 6 fails on 26, 8 on 22. `object` keeps it compiling, its types and Node's own differ.
 - The `fetch` exported by `undici` must not be passed: it does not recognize the global `FormData` and silently sends `[object FormData]` as text. README and guide say so.
 - `signal` per call, combined with the timeout by `AbortSignal.any`, also interrupts the wait between retries. An abort rejects with `signal.reason` unchanged, not with a `PapyrusError`.
 
