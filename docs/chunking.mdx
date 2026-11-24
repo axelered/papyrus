@@ -18,6 +18,7 @@ curl http://127.0.0.1:8000/v1/markdown \
   "source": {"uri": "file://file", "name": "pricing.html", "size": 610, "mimeType": "text/html", "extension": "html", "label": "html", "group": "markup", "title": "Service levels"},
   "result": {"name": "pricing.md", "size": 412, "mimeType": "text/markdown", "extension": "md", "label": "markdown", "group": "markup", "encoding": "utf-8", "content": "# Service levels\n\n…"},
   "options": {
+    "readMode": "text",
     "chunking": {"maxTokens": 64, "overlap": 0, "tokenizer": "o200k_base"}
   },
   "chunks": [
@@ -76,7 +77,8 @@ Every chunk reports:
 | `headings` | Prefix the chunk with its section path before embedding, or show it as a breadcrumb in results |
 | `start`, `end` | Highlight the hit in `result.content`; the span excludes any overlap |
 | `tokens` | Check the budget, or sum the cost of an index before you send it |
-| `slide` | Link a hit to its slide, for PowerPoint sources |
+| `slide` | Link a hit to its slide, for `.pptx` sources and any presentation read with `ocr` |
+| `page` | Link a hit to the page it starts on, for documents and images read with `ocr` |
 
 ## Pick the options
 
@@ -92,6 +94,7 @@ Every chunk reports:
 
 - A heading directly followed by a table becomes its own small text chunk, as `## Response times` above. The table chunk still lists the heading in `headings`, so filter chunks with only a heading line if they add noise to your index.
 - Overlap applies to prose only and is taken from the next prose chunk, which may come after a table.
+- With [`readMode: ocr`](./markdown#read-scans-and-images), headings are recognized page by page, so `headings` is less reliable than for a Word file. A paragraph can continue across pages inside one chunk, and `page` is where the chunk starts.
 - Content without headings, such as most PDFs, splits by size only and every chunk has empty `headings`.
 
 ## Store or download the chunks

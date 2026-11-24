@@ -60,7 +60,7 @@ The response describes the page Papyrus fetched in `source` and the Markdown it 
     "encoding": "utf-8",
     "content": "…# Automatethe process.\n\nWe automate your processes end to end and own the outcome after go-live.…"
   },
-  "options": {}
+  "options": {"readMode": "text"}
 }
 ```
 
@@ -97,7 +97,7 @@ curl http://127.0.0.1:8000/v1/markdown \
     "encoding": "utf-8",
     "content": "Sample PDF\nThis is a simple PDF ﬁle. Fun fun fun.\n\n…"
   },
-  "options": {}
+  "options": {"readMode": "text"}
 }
 ```
 
@@ -118,6 +118,7 @@ The response gains `chunks` next to the envelope, each with its text, token coun
 ```json
 {
   "options": {
+    "readMode": "text",
     "chunking": {"maxTokens": 512, "overlap": 0, "tokenizer": "o200k_base"}
   },
   "chunks": [

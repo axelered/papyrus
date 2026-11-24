@@ -145,7 +145,8 @@ Chromium without its sandbox.
   `::/0` except private, loopback, link-local (cloud metadata `169.254.169.254`) and CGNAT ranges
   (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `127.0.0.0/8`, `169.254.0.0/16`, `100.64.0.0/10`,
   `fc00::/7`, `fe80::/10`, `::1/128`).
-- `extraEgress` rules are appended for connectors that reach in-cluster or private storage.
+- `extraEgress` rules are appended for connectors that reach in-cluster or private storage, and for an OCR backend on a
+  private address.
 - Works only on CNIs that enforce policies. Off by default because it breaks private connectors on first install.
 
 ## Stage Values

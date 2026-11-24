@@ -69,7 +69,7 @@
 - [x] `ocr` config section, `OcrService` with slots, render cap and retries, new error codes
 - [x] `RenderSpec.max_pixels`, `options.readMode` in `/v1/markdown`: formats, fallback, page limit, page markers
 - [x] `chunks[].page` from page markers
-- [ ] Docs, README, chart `extraEgress` note
+- [x] Docs, README, chart `extraEgress` note
 - [!] `readMode: auto`: OCR only for pages without a usable text layer
 - [!] `options.pages` to split documents over `ocr.max_pages`
 - [!] `options.onPageError: skip`

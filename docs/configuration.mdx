@@ -4,7 +4,7 @@ description: Every setting of the configuration file and the environment variabl
 icon: Settings
 ---
 
-Papyrus reads one YAML file and a few environment variables. Every key is optional and shows its default below; change only what your deployment needs.
+Papyrus reads one YAML file and a few environment variables. Every key is optional and shows its default below; change only what your deployment needs. `ocr` is not set by default, see [OCR](#ocr).
 
 ```yaml
 workers:
@@ -71,6 +71,40 @@ These settings apply to URL sources and to everything a screenshot page loads.
 | Key | Default | Meaning |
 |---|---|---|
 | `sandbox` | `false` | Run Chromium in its sandbox. Needs a runtime that allows unprivileged user namespaces; see [security](./security) |
+
+## OCR
+
+`readMode: ocr` reads page images with a vision model on a remote server. Without this section OCR is off: those requests fail with `422 ocr_not_configured` and no document leaves the server. A deployment has one backend, and requests cannot choose another.
+
+With a Qwen VL model on any OpenAI-compatible server, such as vLLM, Ollama or OpenRouter:
+
+```yaml
+ocr:
+  type: qwen
+  model: Qwen/Qwen3-VL-8B-Instruct
+  url: http://vllm:8000/v1
+  api_key: ${OCR_API_KEY}
+```
+
+With Mistral OCR:
+
+```yaml
+ocr:
+  type: mistral
+  api_key: ${MISTRAL_API_KEY}
+```
+
+| Key | Default | Meaning |
+|---|---|---|
+| `type` | required | `qwen` or `mistral`. Selects the API and the prompt, so use `qwen` with Qwen VL models |
+| `model` | `mistral-ocr-latest` | Model name on the server. Required for `qwen` |
+| `url` | Mistral API | Base URL of the API, private addresses included. Required for `qwen`, optional for `mistral` |
+| `api_key` | none | Key of the backend. Required for `mistral` |
+| `concurrency` | `8` | Pages read at once by one container; every replica adds its own |
+| `max_pages` | `100` | Longest document. Longer ones fail with `413 too_many_pages`. Raise `limits.deadline` with it |
+| `extra_body` | `{}` | `qwen` only. Extra fields sent with every call, for example `chat_template_kwargs: {enable_thinking: false}` to turn off reasoning on vLLM |
+
+The backend is not contacted at startup, so its outages do not affect `/ready`. See [security](./security#ocr) for where documents go.
 
 ## CORS
 

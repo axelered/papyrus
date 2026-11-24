@@ -87,12 +87,19 @@ ingress:
 # NetworkPolicy (Calico, Cilium, kube-router; not plain Flannel).
 # Ingress is limited to the http port. Egress allows DNS to the cluster DNS (kube-system pods labelled
 # k8s-app=kube-dns) and the public internet, and blocks private, loopback, link-local (cloud metadata) and CGNAT
-# addresses. Connectors to in-cluster or private storage need an extra rule, e.g. for an S3 service in the cluster:
+# addresses. Connectors to in-cluster or private storage, and an OCR backend (config.ocr.url) on a private address, need an
+# extra rule, e.g. for an S3 service in the cluster:
 #   - to:
 #       - namespaceSelector:
 #           matchLabels: { kubernetes.io/metadata.name: storage }
 #     ports:
 #       - port: 9000
+# and for a vLLM server in the cluster:
+#   - to:
+#       - namespaceSelector:
+#           matchLabels: { kubernetes.io/metadata.name: vllm }
+#     ports:
+#       - port: 8000
 networkPolicy:
   enabled: false
   extraEgress: []

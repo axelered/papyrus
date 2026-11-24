@@ -8,24 +8,26 @@ Papyrus detects the format of every document from its content, then checks it ag
 
 ## By operation
 
-| Format | Extensions | Markdown | Render and thumbnail |
-|---|---|---|---|
-| PDF | `.pdf` | yes, text layer only | yes |
-| Word | `.docx`, `.doc`, `.rtf` | yes | yes, through LibreOffice |
-| PowerPoint | `.pptx`, `.ppt` | yes, slide text, tables and notes | yes, through LibreOffice |
-| Excel | `.xlsx`, `.xls` | yes, one table per sheet | yes, through LibreOffice |
-| OpenDocument | `.odt`, `.odp`, `.ods` | yes | yes, through LibreOffice |
-| Outlook | `.msg` | yes, headers and body | no |
-| HTML | `.html`, `.htm` | yes | yes; thumbnails are browser captures |
-| EPUB | `.epub` | yes | no |
-| CSV and TSV | `.csv`, `.tsv` | yes, as a table | no |
-| Jupyter | `.ipynb` | yes | no |
-| RSS and Atom | `.rss`, `.atom`, `.xml` | yes | no |
-| JSON | `.json`, `.jsonl` | yes, passed through | no |
-| ZIP | `.zip` | yes, every entry converted | no |
-| Text and Markdown | `.txt`, `.md`, … | yes, passed through | no |
-| Code and config | `.py`, `.ts`, `.go`, `.sql`, `.yaml`, … | yes, as one fenced block | no |
-| Images | `.png`, `.jpg`, `.webp`, `.gif`, `.bmp`, `.tiff`, `.avif` | no | yes |
+| Format | Extensions | Markdown | Markdown with OCR | Render and thumbnail |
+|---|---|---|---|---|
+| PDF | `.pdf` | yes, text layer only | every page | yes |
+| Word | `.docx`, `.doc`, `.rtf` | yes | every page | yes, through LibreOffice |
+| PowerPoint | `.pptx`, `.ppt` | yes, slide text, tables and notes | every slide, without notes | yes, through LibreOffice |
+| Excel | `.xlsx`, `.xls` | yes, one table per sheet | as text | yes, through LibreOffice |
+| OpenDocument | `.odt`, `.odp`, `.ods` | yes | every page; `.ods` as text | yes, through LibreOffice |
+| Outlook | `.msg` | yes, headers and body | as text | no |
+| HTML | `.html`, `.htm` | yes | as text | yes; thumbnails are browser captures |
+| EPUB | `.epub` | yes | as text | no |
+| CSV and TSV | `.csv`, `.tsv` | yes, as a table | as text | no |
+| Jupyter | `.ipynb` | yes | as text | no |
+| RSS and Atom | `.rss`, `.atom`, `.xml` | yes | as text | no |
+| JSON | `.json`, `.jsonl` | yes, passed through | as text | no |
+| ZIP | `.zip` | yes, every entry converted | as text | no |
+| Text and Markdown | `.txt`, `.md`, … | yes, passed through | as text | no |
+| Code and config | `.py`, `.ts`, `.go`, `.sql`, `.yaml`, … | yes, as one fenced block | as text | no |
+| Images | `.png`, `.jpg`, `.webp`, `.gif`, `.bmp`, `.tiff`, `.avif` | no | yes; every frame of a TIFF, the first frame of others | yes |
+
+"As text" means that `readMode: ocr` has no effect on the format: it is extracted as in the default `text` mode, and `options.readMode` in the response says so.
 
 Screenshot takes `http(s)://` URLs only and captures whatever the browser shows.
 
@@ -33,11 +35,11 @@ A format an operation does not accept fails with `415 unsupported_format`, befor
 
 ## What to expect per format
 
-- **Scanned PDFs** have no text layer, and Papyrus does not run OCR, so Markdown extraction returns little or no text. Render still produces page images you can send to an OCR or vision model.
+- **Scanned PDFs** have no text layer, so Markdown extraction returns little or no text by default. Set [`readMode: ocr`](./markdown#read-scans-and-images) to read the page images with a vision model, when the server has one configured.
 - **Legacy and OpenDocument files** (`.doc`, `.ppt`, `.rtf`, `.odt`, `.odp`, `.ods`) are converted with LibreOffice before Markdown extraction, which adds time to every request.
 - **Office files and HTML in render and thumbnail**, `.docx`, `.pptx` and `.xlsx` included, are exported by LibreOffice one page at a time, so `source.pageCount` is not reported. HTML thumbnails are the exception: they are browser captures.
 - **HTML** keeps headings, lists, links and tables. Site navigation and footers come through as text, as on the page.
-- **Animated and multi-page images** (GIF, TIFF, animated WebP) render one frame per request, chosen with `page`.
+- **Animated and multi-page images** (GIF, TIFF, animated WebP) render one frame per request, chosen with `page`. OCR reads every frame of a TIFF and the first frame of the others.
 
 ## How detection works
 

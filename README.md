@@ -6,7 +6,7 @@ Axelered Papyrus is your single point stop for Agentic document processing.
 
 | Format     | Extensions             | Notes                                   |
 |------------|------------------------|-----------------------------------------|
-| PDF        | `.pdf`                 | Text layer only, scanned PDFs need OCR  |
+| PDF        | `.pdf`                 | Text layer, or OCR for scans            |
 | Word       | `.docx`, `.doc`, `.rtf` | Legacy formats converted with LibreOffice |
 | PowerPoint | `.pptx`, `.ppt`        | Slide text, tables and notes            |
 | Excel      | `.xlsx`, `.xls`        | One table per sheet                     |
@@ -21,7 +21,7 @@ Axelered Papyrus is your single point stop for Agentic document processing.
 | Data       | `.json`, `.jsonl`      | Passed through                          |
 | Text       | `.txt`, `.md`, `.rst`, `.tex`, ... | Passed through              |
 | Code       | `.py`, `.ts`, `.go`, `.sql`, `.yaml`, ... | Any text format magika knows |
-| Images     | `.png`, `.jpg`, `.webp`, `.gif`, `.bmp`, `.tiff`, `.avif` | Thumbnail and render only |
+| Images     | `.png`, `.jpg`, `.webp`, `.gif`, `.bmp`, `.tiff`, `.avif` | Thumbnail, render, Markdown with OCR |
 
 The format is detected from the content (magika); the extension only refines generic matches such as `.csv` or
 `.rss`. Mislabeled files are processed by their real type and reported in `source`.
@@ -32,7 +32,7 @@ Full documentation: [docs.axelered.com/papyrus](https://docs.axelered.com/papyru
 
 | Endpoint              | Does                                                              | Default output |
 |-----------------------|-------------------------------------------------------------------|----------------|
-| `POST /v1/markdown`   | Markdown from a document or web page, optionally chunked for RAG  | `json`         |
+| `POST /v1/markdown`   | Markdown from a document or web page, with optional OCR and RAG chunks | `json`         |
 | `POST /v1/render`     | One page or image frame at a readable size                        | `file`         |
 | `POST /v1/thumbnail`  | One page, image or web page fitted into a box                     | `file`         |
 | `POST /v1/screenshot` | A web page captured in headless Chromium                          | `file`         |
@@ -55,13 +55,15 @@ curl -H "Authorization: Bearer <key>" -H 'content-type: application/json' \
   http://localhost:8000/v1/markdown
 ```
 
+`"options": {"readMode": "ocr"}` reads scans and images with a Qwen VL or Mistral OCR backend, off until you add `ocr` to the configuration.
+
 JSON responses are the `{source, result, options}` envelope, plus data sections such as `chunks`:
 
 ```json
 {
   "source": {"uri": "file://file", "name": "report.docx", "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "extension": "docx", "label": "docx", "group": "document"},
   "result": {"name": "report.md", "mimeType": "text/markdown", "extension": "md", "label": "markdown", "group": "markup", "encoding": "utf-8", "content": "# Report ..."},
-  "options": {}
+  "options": {"readMode": "text"}
 }
 ```
 

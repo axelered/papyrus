@@ -34,7 +34,7 @@ curl http://127.0.0.1:8000/v1/markdown \
     "encoding": "utf-8",
     "content": "# Service levels\n\nEvery plan includes monitoring, incident response and a named engineer.\n\n## Response times\n\n| Severity | First response | Resolution target |\n| --- | --- | --- |\n| Critical | 15 minutes | 4 hours |\n…"
   },
-  "options": {}
+  "options": {"readMode": "text"}
 }
 ```
 
@@ -47,6 +47,47 @@ curl http://127.0.0.1:8000/v1/markdown \
 | A file in your service | A multipart upload, as above |
 | A public URL | `{"source": "https://…"}` as JSON |
 | An object in a bucket | `{"source": "s3://<connector>/<key>"}`; see [remote storage](./storage) |
+
+## Read scans and images
+
+Set `readMode` to `ocr` to read every page from its image with a vision model, instead of from the text layer. Use it for scans, photos of documents and PDFs whose text layer is broken. Your operator connects the model once, see [configuration](./configuration#ocr); without one, the request fails with `422 ocr_not_configured`.
+
+```shell
+curl http://127.0.0.1:8000/v1/markdown \
+  -H 'Authorization: Bearer dev' \
+  -F 'metadata={"options": {"readMode": "ocr"}};type=application/json' \
+  -F file=@scan.pdf
+```
+
+Each page starts with a marker, and `source.pageCount` is the number of pages:
+
+```markdown
+<!-- Page number: 1 -->
+
+Axelered LLC
+
+# Delivery note 2026-117
+
+Shipped on 12 November 2026 from Ljubljana.
+
+…
+
+<!-- Page number: 2 -->
+
+Axelered LLC
+
+# Terms
+
+…
+```
+
+- PDF, TIFF, Word, PowerPoint, RTF and OpenDocument text and presentations are read page by page. Other images are read as one page, the first frame of an animation.
+- Presentations use `<!-- Slide number: N -->` markers.
+- Formats without pages, such as HTML or CSV, and spreadsheets are read as in `text` mode. `options.readMode` in the response is the mode that was used.
+- Tables become Markdown tables, page headers and footers are kept, pictures are left out.
+- One model call per page makes OCR slower than `text`, and `limits.deadline` covers the whole document. Keep the default `text` for documents with a good text layer.
+- A page that cannot be read fails the request; you never receive a document with missing pages.
+- A model can misread a page or follow instructions written on it, so treat the Markdown as untrusted content.
 
 ## Get a file instead of JSON
 
@@ -64,7 +105,7 @@ The response is `text/markdown; charset=utf-8` with `Content-Disposition: attach
 
 ## What each format gives you
 
-- **PDF**: the text layer. Scanned pages have no text layer and come back empty; render them and use an OCR or vision model instead.
+- **PDF**: the text layer. Scanned pages have no text layer and come back empty; read them with [`readMode: ocr`](#read-scans-and-images).
 - **Word, PowerPoint, Excel**: headings, lists and tables. Slides keep their text, tables and notes; spreadsheets become one table per sheet.
 - **Legacy and OpenDocument** (`.doc`, `.ppt`, `.rtf`, `.odt`, `.odp`, `.ods`): converted with LibreOffice first, so expect a slower response than the OOXML equivalents.
 - **HTML and web pages**: the page as Markdown, including navigation and footer text. Links stay relative when the page uses relative links.
@@ -76,6 +117,8 @@ The full list is in [file formats](./formats).
 
 ## Handle failures
 
-- `415 unsupported_format`: the detected format cannot become Markdown, for example an image. Check `group` before sending, or route images to [render](./images).
+- `415 unsupported_format`: the detected format cannot become Markdown, for example a video, or an image in `text` mode. Check `group` before sending, and read images with `readMode: ocr`.
+- `413 too_many_pages`: the document has more pages than the server reads with OCR, 100 by default. Split it.
+- `502 ocr_failed` or `503 ocr_rate_limited`: the OCR model failed or is at capacity. Retry later; see [error codes](./errors).
 - `413 payload_too_large` or `source_too_large`: the document exceeds the server limit, 100 MB by default.
 - `504 deadline_exceeded`: the conversion took longer than the server deadline, 300 seconds by default.

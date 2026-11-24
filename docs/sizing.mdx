@@ -20,7 +20,7 @@ From `processes`, Papyrus sizes every pool:
 | Pool | Size | Runs |
 |---|---|---|
 | Markdown | `processes` | Text extraction and chunking |
-| Render | `processes` | Page and image rendering |
+| Render | `processes` | Page and image rendering, page images for OCR |
 | Convert | half of `processes`, at least 1 | LibreOffice, for legacy and office formats |
 | Browser | half of `processes`, at least 1, pages | Screenshots and website thumbnails, in one Chromium |
 
@@ -42,6 +42,15 @@ Add headroom for the documents in flight. Each LibreOffice worker uses about 330
 - Clients should retry `503 queue_full` after `Retry-After`, with backoff.
 
 Lower `max_queue` when your requests are long, so a burst waits on other replicas instead of queuing behind slow conversions; keep `limits.deadline` above the slowest document you expect.
+
+## OCR
+
+The model runs on its own server, so OCR adds little load to the container: one page render and one open request per page. The limits that matter:
+
+- `ocr.concurrency` is per container. Keep it times the number of replicas within what the backend accepts, or requests fail with `503 ocr_rate_limited`.
+- OCR shares the render pool with render and thumbnail, and uses at most half of it, at least one worker.
+- A document takes about `pages / concurrency` times the seconds your model needs per page, longer when other OCR requests are running. Measure your model, then set `max_pages` so that the slowest document fits in `limits.deadline`: at 10 seconds per page, 100 pages with `concurrency: 8` take about 2 minutes.
+- Word and PowerPoint files are exported to PDF first and need a Convert worker.
 
 ## Scale out
 
