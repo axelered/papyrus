@@ -5,7 +5,7 @@ Classes:
 - `empty`: almost no text and almost nothing drawn (blank pages, a lone line or page number).
 - `graphic`: visible content but almost no text (scans, text drawn as outlines).
 - `garbage`: a text layer with too many glyphs pdfium could not map to Unicode (fonts without ToUnicode).
-- `scan`: a page-sized image with a little text on top (a stamped header or page number).
+- `scan`: a page-sized image behind a thin invisible OCR layer (an earlier OCR pass that recovered little text). Visible text on a page-sized image is a photo cover with a title, and stays `text`.
 - `text`: a usable text layer, including scans that already carry one.
 
 Functions
@@ -29,6 +29,7 @@ GARBAGE_RATIO = 0.1  # unmapped glyph share that makes a text layer unusable
 SCAN_CHARS = 200  # text a scan can carry (stamp, header, page number)
 SCAN_COVERAGE = 0.8  # image share of the page that makes it a scan
 BACKGROUND = 0.9  # paths larger than this share of the page are backgrounds
+INVISIBLE_RATIO = 0.5  # invisible text share that marks an OCR layer behind a scanned image
 
 
 def classify_pdf(path: str | PathLike[str]) -> PageClass:
@@ -57,7 +58,7 @@ def classify_pdf_page(page: pdfium.PdfPage) -> PageClass:
         return 'graphic' if content_area > CONTENT_COVERAGE else 'empty'
     if _garbage_ratio(text) > GARBAGE_RATIO:
         return 'garbage'
-    if len(text) < SCAN_CHARS and image_area > SCAN_COVERAGE:
+    if len(text) < SCAN_CHARS and image_area > SCAN_COVERAGE and _invisible_ratio(page) > INVISIBLE_RATIO:
         return 'scan'
     return 'text'
 
@@ -91,6 +92,17 @@ def _coverage(page: pdfium.PdfPage) -> tuple[float, float]:
         elif box < BACKGROUND * area:
             paths += box
     return min(1.0, images / area), min(1.0, (images + paths) / area)
+
+
+def _invisible_ratio(page: pdfium.PdfPage) -> float:
+    """Share of text objects drawn invisible (render mode 3): the OCR layer a scanner puts behind its image"""
+    modes = [
+        pdfium_c.FPDFTextObj_GetTextRenderMode(obj.raw)
+        for obj in page.get_objects(filter=(pdfium_c.FPDF_PAGEOBJ_TEXT,))
+    ]
+    if not modes:
+        return 0.0
+    return sum(m == pdfium_c.FPDF_TEXTRENDERMODE_INVISIBLE for m in modes) / len(modes)
 
 
 def _garbage_ratio(text: list[str]) -> float:
