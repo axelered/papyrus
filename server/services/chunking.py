@@ -86,6 +86,7 @@ def resolve_language(tag: str | None) -> CodeLanguage | None:
 
 _HEADING = re.compile(r'^(#{1,6})[ \t]+(.+?)[ \t#]*$', re.MULTILINE)
 _SLIDE = re.compile(r'<!--\s*Slide number:\s*(\d+)\s*-->')
+_PAGE = re.compile(r'<!--\s*Page number:\s*(\d+)\s*-->')
 _MIN_CODE_BUDGET = 16
 
 
@@ -175,7 +176,8 @@ def _prose(markdown: str, segments: list[Any], tokenizer: Any, options: Chunking
     for segment in segments:
         for offset, section in _sections(segment.text):
             for chunk in chunker.chunk(section):
-                if chunk.text.strip():
+                # a page starting with a table or code leaves its marker alone in the prose
+                if _PAGE.sub('', chunk.text).strip():
                     start = segment.start_index + offset + chunk.start_index
                     pieces.append(_Piece(start, start + len(chunk.text), ChunkKind.TEXT, chunk.text))
     return pieces
@@ -205,11 +207,11 @@ def _is_heading_only(section: str) -> bool:
 
 
 def _is_marker(line: str) -> bool:
-    return bool(_HEADING.fullmatch(line.strip()) or _SLIDE.fullmatch(line.strip()))
+    return any(pattern.fullmatch(line.strip()) for pattern in (_HEADING, _SLIDE, _PAGE))
 
 
 def _body_offset(text: str) -> int:
-    """Offset of the first line that is neither blank, a heading nor a slide marker (0 for heading-only text)"""
+    """Offset of the first line that is neither blank, a heading nor a marker (0 for heading-only text)"""
     offset = 0
     for line in text.splitlines(keepends=True):
         if line.strip() and not _is_marker(line):
@@ -272,8 +274,7 @@ def _add_overlap(pieces: list[_Piece], tokenizer: Any, overlap: int) -> None:
 def _finalize(markdown: str, pieces: list[_Piece], blocks: list[Any], tokenizer: Any) -> list[Chunk]:
     headings = _headings(markdown, [(block.start_index, block.end_index) for block in blocks])
     heading_offsets = [offset for offset, _, _ in headings]
-    slides = [(match.start(), int(match.group(1))) for match in _SLIDE.finditer(markdown)]
-    slide_offsets = [offset for offset, _ in slides]
+    slides, pages = _numbers(_SLIDE, markdown), _numbers(_PAGE, markdown)
     chunks = []
     for index, piece in enumerate(pieces):
         anchor = piece.start + _body_offset(piece.text) if piece.kind == ChunkKind.TEXT else piece.start
@@ -284,13 +285,23 @@ def _finalize(markdown: str, pieces: list[_Piece], blocks: list[Any], tokenizer:
                 text=piece.text,
                 language=piece.language,
                 headings=_heading_path(headings[: bisect.bisect_right(heading_offsets, anchor)]),
-                slide=slides[position - 1][1] if (position := bisect.bisect_right(slide_offsets, anchor)) else None,
+                slide=_number_at(slides, anchor),
+                page=_number_at(pages, anchor),
                 start=piece.start,
                 end=piece.end,
                 tokens=tokenizer.count_tokens(piece.text),
             )
         )
     return chunks
+
+
+def _numbers(marker: re.Pattern[str], markdown: str) -> list[tuple[int, int]]:
+    return [(match.start(), int(match.group(1))) for match in marker.finditer(markdown)]
+
+
+def _number_at(numbers: list[tuple[int, int]], offset: int) -> int | None:
+    position = bisect.bisect_right(numbers, offset, key=lambda number: number[0])
+    return numbers[position - 1][1] if position else None
 
 
 def _headings(markdown: str, code_spans: list[tuple[int, int]]) -> list[tuple[int, int, str]]:

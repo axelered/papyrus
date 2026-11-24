@@ -235,7 +235,21 @@ def test_chunks_of_slides_carry_their_number(
     body = _post(client, auth_headers, 'deck.pptx', samples.pptx(), {'chunking': {'maxTokens': 64}}).json()
 
     assert [chunk['slide'] for chunk in body['chunks']] == [1, 2, 3]
+    assert all('page' not in chunk for chunk in body['chunks'])
     assert all(body['result']['content'][chunk['start'] : chunk['end']] == chunk['text'] for chunk in body['chunks'])
+
+
+@pytest.mark.usefixtures('chunking_assets')
+def test_chunks_of_pages_carry_their_number(client: TestClient, auth_headers: dict[str, str], adapter: FakeAdapter):
+    adapter.answer = lambda image: f'# {image_size(image)}\n\nBody.'
+    options = {'chunking': {'maxTokens': 64}}
+
+    body = _post(client, auth_headers, 'scan.pdf', samples.pdf_pages(*SIZES), options).json()
+
+    assert [(chunk['page'], chunk['headings']) for chunk in body['chunks']] == [
+        (number, [pixels]) for number, pixels in enumerate(PIXELS, start=1)
+    ]
+    assert all('slide' not in chunk for chunk in body['chunks'])
 
 
 # - - - Errors

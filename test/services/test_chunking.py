@@ -131,6 +131,55 @@ def test_slide_numbers_from_markitdown_markers():
     assert {chunk.text.strip().splitlines()[-1]: chunk.slide for chunk in chunks} == {'Hello.': 1, 'Ship it.': 2}
 
 
+def _document(*pages: str) -> str:
+    return '\n\n'.join(f'<!-- Page number: {number} -->\n\n{page}' for number, page in enumerate(pages, 1))
+
+
+def test_page_is_where_the_chunk_body_starts():
+    markdown = _document('# Intro\n\nHello.', '# Terms\n\nPay.', '# Annex')
+
+    chunks = chunk_markdown(markdown, _options(max_tokens=64))
+
+    assert [(chunk.page, chunk.headings[-1]) for chunk in chunks if 'Annex' not in chunk.headings] == [
+        (1, 'Intro'),
+        (2, 'Terms'),
+    ]
+    assert all(chunk.slide is None for chunk in chunks)
+
+
+def test_paragraph_continues_across_pages():
+    chunks = chunk_markdown(_document('The contract', 'ends in May.'), _options(max_tokens=64))
+
+    assert [chunk.page for chunk in chunks] == [1]
+    assert 'ends in May.' in chunks[0].text
+
+
+def test_page_split_by_the_budget_keeps_its_number():
+    chunks = chunk_markdown(_document('alpha beta. ' * 60, 'gamma delta. ' * 60), _options(max_tokens=32))
+
+    assert {chunk.page for chunk in chunks if 'alpha' in chunk.text} == {1}
+    assert {chunk.page for chunk in chunks if 'gamma' in chunk.text and 'alpha' not in chunk.text} == {2}
+
+
+@pytest.mark.parametrize(
+    ('body', 'kind'),
+    [('| a | b |\n| --- | --- |\n| 1 | 2 |', ChunkKind.TABLE), ('```python\nx = 1\n```', ChunkKind.CODE)],
+)
+def test_page_marker_alone_is_not_a_chunk(body: str, kind: ChunkKind):
+    chunks = chunk_markdown(_document('Intro.', body, body, 'End.'), _options(max_tokens=64))
+
+    expected = [(ChunkKind.TEXT, 1), (kind, 2), (kind, 3), (ChunkKind.TEXT, 4)]
+    assert [(chunk.kind, chunk.page) for chunk in chunks] == expected
+
+
+def test_blank_pages_give_no_chunks():
+    assert chunk_markdown(_document('', '', ''), _options(max_tokens=64)) == []
+
+
+def test_no_page_without_markers():
+    assert all(chunk.page is None for chunk in chunk_markdown(REPORT, _options(max_tokens=64)))
+
+
 def test_special_token_text_is_plain_text():
     chunks = chunk_markdown('# Prompt\n\nUse <|endoftext|> as separator.\n', _options())
 

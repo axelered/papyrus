@@ -94,7 +94,8 @@ markdown --MarkdownChef--+-- prose  --> RecursiveChunker (Papyrus rules)
   ATX headings outside code blocks, so `#` comments in code never become headings.
 - **Slides:** taken from `<!-- Slide number: N -->` markers (markitdown, `adr/ocr.md`).
 - **Pages:** taken from the `<!-- Page number: N -->` markers of `adr/ocr.md`. Metadata only: unlike slide markers
-  they never split a section, but they count as marker lines for heading-only runs and the first body line.
+  they never split a section, but they count as marker lines for heading-only runs and the first body line. A prose chunk with nothing but page
+  markers (page starting with a table or code, blank pages) is dropped, so a blank document gives `[]`.
 - **Overlap** is applied between prose chunks only, so fences and table rows are never cut; `start`/`end` always
   refer to the chunk's own span, the appended overlap is not included.
 - **Tokens:** tiktoken encodings are wrapped in a subclass of chonkie's tiktoken adapter that uses

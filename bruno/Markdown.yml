@@ -367,6 +367,77 @@ examples:
               }
             ]
           }
+  - name: Chunk a scanned PDF
+    description: Combine OCR and chunking. Each chunk carries the `page` it starts on, so you can cite the page in search results.
+    request:
+      url: "{{host}}/v1/markdown"
+      method: POST
+      body:
+        type: multipart-form
+        data:
+          - name: metadata
+            type: text
+            value: '{"options": {"readMode": "ocr", "chunking": {"maxTokens": 256}}}'
+            contentType: application/json
+          - name: file
+            type: file
+            value:
+              - scan.pdf
+            contentType: application/pdf
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: json
+        data: |-
+          {
+            "source": {
+              "uri": "file://file",
+              "name": "scan.pdf",
+              "size": 125261,
+              "mimeType": "application/pdf",
+              "extension": "pdf",
+              "label": "pdf",
+              "group": "document",
+              "pageCount": 2
+            },
+            "result": {
+              "name": "scan.md",
+              "size": 392,
+              "mimeType": "text/markdown",
+              "extension": "md",
+              "label": "markdown",
+              "group": "markup",
+              "encoding": "utf-8",
+              "content": "<!-- Page number: 1 -->\n\nAxelered LLC\n\n# Delivery note 2026-117\n\n…"
+            },
+            "options": {
+              "readMode": "ocr",
+              "chunking": { "maxTokens": 256, "overlap": 0, "tokenizer": "o200k_base" }
+            },
+            "chunks": [
+              {
+                "index": 2,
+                "kind": "table",
+                "text": "| Item    | Quantity | Weight |\n|---------|----------|--------|\n| Widget  | 3        | 4.5 kg |\n| Gadget  | 1        | 1.2 kg |\n",
+                "headings": ["Delivery note 2026-117"],
+                "page": 1,
+                "start": 146,
+                "end": 274,
+                "tokens": 43
+              },
+              {
+                "index": 4,
+                "kind": "text",
+                "text": "# Terms\n\nReport missing items within 8 days.\n\nReturns need a written approval.",
+                "headings": ["Terms"],
+                "page": 2,
+                "start": 314,
+                "end": 392,
+                "tokens": 17
+              }
+            ]
+          }
   - name: Store Markdown in a bucket
     description: Read from and write to a configured storage connector, here an S3 connector named `demo-s3`. The response omits `content` and `result.uri` is the stored file.
     request:

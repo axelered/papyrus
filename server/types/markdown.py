@@ -98,6 +98,7 @@ class Chunk(ApiModel):
     language: CodeLanguage | None = Field(default=None, description='Code chunks only, omitted if not curated')
     headings: list[str] = Field(description='Headings the chunk sits under, outermost first')
     slide: int | None = Field(default=None, description='pptx, and every presentation read with `ocr`')
+    page: int | None = Field(default=None, description='Page the chunk starts on, read with `ocr`, not presentations')
     start: int = Field(description='Offset of the chunk span in `result.content` (overlap not included)')
     end: int = Field(description='End offset of the chunk span in `result.content`, exclusive')
     tokens: int = Field(description='Tokens in `text`, counted with the requested tokenizer')
