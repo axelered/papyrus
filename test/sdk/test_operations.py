@@ -176,7 +176,7 @@ def test_queue_full_is_retried(sdk: Papyrus, app: FastAPI, sleeps: list[float], 
         sleeps.append(delay)
         admission.in_flight = 0
 
-    monkeypatch.setattr('papyrus_sdk.client.time.sleep', free)
+    monkeypatch.setattr('papyrus_sdk.client.sleep', free)
 
     assert sdk.inspect(CSV, filename='data.csv').source.label == 'csv'
     assert len(sleeps) == 1 and 2 <= sleeps[0] <= 3

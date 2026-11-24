@@ -6,7 +6,7 @@ from typing import Any, Literal, get_args, get_origin, get_type_hints
 
 import pytest
 from fastapi.testclient import TestClient
-from papyrus_sdk import Papyrus, models
+from papyrus_sdk import AsyncPapyrus, Papyrus, models
 from pydantic.alias_generators import to_camel
 
 # facts of the schema the client does not mirror: bounds are the server's, texts are not part of the contract
@@ -124,3 +124,24 @@ def test_literals_match_their_enum(operation: str):
         enums = [arg for arg in get_args(annotation) if isinstance(arg, type) and issubclass(arg, StrEnum)]
         literals = [arg for arg in get_args(annotation) if get_origin(arg) is Literal]
         assert [get_args(literal) for literal in literals] == [tuple(enum) for enum in enums]
+
+
+def _public(client: type) -> dict[str, inspect.Signature]:
+    methods = inspect.getmembers(client, inspect.isfunction)
+    return {name: inspect.signature(method) for name, method in methods if not name.startswith('_')}
+
+
+def test_both_clients_have_the_same_methods_and_parameters():
+    mine, theirs = _public(Papyrus), _public(AsyncPapyrus)
+    close, aclose = mine.pop('close'), theirs.pop('aclose')
+
+    assert close.parameters == aclose.parameters
+    assert set(mine) == set(theirs)
+    for name, signature in mine.items():
+        # uploads are typed narrower in the async client
+        for ours, other in zip(signature.parameters.values(), theirs[name].parameters.values(), strict=True):
+            narrowed = {'document', 'file'}
+            assert (ours.name, ours.kind, ours.default) == (other.name, other.kind, other.default)
+            assert ours.name in narrowed or ours.annotation == other.annotation
+        assert signature.return_annotation == theirs[name].return_annotation
+        assert inspect.iscoroutinefunction(getattr(AsyncPapyrus, name))

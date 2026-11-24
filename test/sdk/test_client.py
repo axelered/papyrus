@@ -9,36 +9,15 @@ import httpx
 import pytest
 from papyrus_sdk import APIError, ChunkingOptions, ConnectionFailed, InvalidResponse, Papyrus, TimedOut, __version__
 
-from test.fixtures.sdk import Handler
+from test.fixtures.sdk import Server, problem
 
 INSPECTED = {'source': {'uri': 'file://file'}, 'options': {}, 'checks': {}}
 URL = 'https://axelered.com'
 
 
-def _papyrus(handler: Handler, **options: Any) -> Papyrus:
+def _papyrus(handler: Server, **options: Any) -> Papyrus:
     options = {'base_url': 'http://papyrus', 'api_key': 'dev', **options}
     return Papyrus(**options, http_client=httpx.Client(transport=httpx.MockTransport(handler)))
-
-
-class Server:
-    """Replays the outcomes in order, the last one forever, and records the requests"""
-
-    def __init__(self, *outcomes: httpx.Response | Exception):
-        self.outcomes = list(outcomes) or [httpx.Response(200, json=INSPECTED)]
-        self.requests: list[httpx.Request] = []
-
-    def __call__(self, request: httpx.Request) -> httpx.Response:
-        self.requests.append(request)
-        request.read()
-        outcome = self.outcomes[min(len(self.requests), len(self.outcomes)) - 1]
-        if isinstance(outcome, Exception):
-            raise outcome
-        return outcome
-
-
-def _problem(status: int, code: str, **headers: str) -> httpx.Response:
-    body = {'title': 'Error', 'status': status, 'code': code, 'detail': 'why'}
-    return httpx.Response(status, json=body, headers={**headers, 'content-type': 'application/problem+json'})
 
 
 OK = httpx.Response(200, json=INSPECTED)
@@ -48,7 +27,7 @@ OK = httpx.Response(200, json=INSPECTED)
 
 
 def test_request_headers_and_url():
-    server = Server()
+    server = Server(OK)
 
     _papyrus(server, base_url='http://papyrus/prefix/').inspect(URL)
 
@@ -77,7 +56,7 @@ def test_only_set_options_are_sent():
 
 
 def test_read_timeout_outlasts_the_server_deadline():
-    server = Server()
+    server = Server(OK)
     client = _papyrus(server)
 
     client.inspect(URL)
@@ -104,7 +83,7 @@ def test_read_timeout_outlasts_the_server_deadline():
     ],
 )
 def test_invalid_input_sends_nothing(args: tuple[Any, ...], kwargs: dict[str, Any], message: str):
-    server = Server()
+    server = Server(OK)
 
     with pytest.raises(TypeError, match=message):
         _papyrus(server).markdown(*args, **kwargs)
@@ -116,18 +95,18 @@ def test_text_files_are_rejected(tmp_path: Path):
     path.write_text('x')
 
     with path.open() as file, pytest.raises(TypeError, match='binary mode'):
-        _papyrus(Server()).markdown(file)
+        _papyrus(Server(OK)).markdown(file)
 
 
 def test_string_without_scheme_is_a_local_path():
     with pytest.raises(FileNotFoundError):
-        _papyrus(Server()).markdown('axelered.com')
+        _papyrus(Server(OK)).markdown('axelered.com')
 
 
 def test_file_from_a_descriptor_has_no_name(tmp_path: Path):
     path = tmp_path / 'a.txt'
     path.write_bytes(b'x')
-    server = Server()
+    server = Server(OK)
 
     with open(os.open(path, os.O_RDONLY), 'rb') as file:
         _papyrus(server).inspect(file)
@@ -141,7 +120,7 @@ def test_file_from_a_descriptor_has_no_name(tmp_path: Path):
 def test_settings_come_from_the_environment(sdk_env: pytest.MonkeyPatch):
     sdk_env.setenv('PAPYRUS_BASE_URL', 'http://from-env')
     sdk_env.setenv('PAPYRUS_API_KEY', 'env-key')
-    server = Server()
+    server = Server(OK)
 
     _papyrus(server, base_url=None, api_key=None).inspect(URL)
 
@@ -151,7 +130,7 @@ def test_settings_come_from_the_environment(sdk_env: pytest.MonkeyPatch):
 
 @pytest.mark.usefixtures('sdk_env')
 def test_no_key_sends_no_authorization():
-    server = Server()
+    server = Server(OK)
 
     _papyrus(server, api_key=None).inspect(URL)
 
@@ -172,13 +151,13 @@ def test_no_key_sends_no_authorization():
 )
 def test_invalid_settings(options: dict[str, Any], message: str):
     with pytest.raises(ValueError, match=message) as error:
-        _papyrus(Server(), **options)
+        _papyrus(Server(OK), **options)
 
     assert 'secr' not in str(error.value)
 
 
 def test_key_is_never_shown():
-    client = _papyrus(Server(_problem(401, 'unauthorized')), api_key='hidden')
+    client = _papyrus(Server(problem(401, 'unauthorized')), api_key='hidden')
 
     with pytest.raises(APIError) as error:
         client.inspect(URL)
@@ -243,7 +222,7 @@ def test_unexpected_success_is_invalid(response: httpx.Response):
 
 @pytest.mark.parametrize('retry_after', ['Wed, 21 Oct 2026 07:28:00 GMT', '-1', ''])
 def test_odd_retry_after_is_ignored(retry_after: str):
-    response = _problem(503, 'not_ready', **{'retry-after': retry_after})
+    response = problem(503, 'not_ready', **{'retry-after': retry_after})
 
     with pytest.raises(APIError) as error:
         _papyrus(Server(response)).inspect(URL)
@@ -257,7 +236,7 @@ def test_odd_retry_after_is_ignored(retry_after: str):
 @pytest.mark.parametrize(
     'failure',
     [
-        _problem(503, 'queue_full'),
+        problem(503, 'queue_full'),
         httpx.Response(502, text='bad gateway'),
         httpx.Response(503, text='unavailable'),
         httpx.ConnectError('refused'),
@@ -277,11 +256,11 @@ def test_untouched_requests_are_retried(failure: httpx.Response | Exception, sle
 @pytest.mark.parametrize(
     ('failure', 'kind'),
     [
-        (_problem(500, 'processing_failed'), APIError),
-        (_problem(502, 'source_fetch_failed'), APIError),
-        (_problem(502, 'destination_failed'), APIError),
-        (_problem(503, 'not_ready'), APIError),
-        (_problem(504, 'deadline_exceeded'), APIError),
+        (problem(500, 'processing_failed'), APIError),
+        (problem(502, 'source_fetch_failed'), APIError),
+        (problem(502, 'destination_failed'), APIError),
+        (problem(503, 'not_ready'), APIError),
+        (problem(504, 'deadline_exceeded'), APIError),
         (httpx.Response(504, text='gateway timeout'), APIError),
         (httpx.Response(500, text='oops'), APIError),
         (httpx.ReadTimeout('slow'), TimedOut),
@@ -302,7 +281,7 @@ def test_work_is_never_repeated(failure: httpx.Response | Exception, kind: type[
 
 
 def test_retries_give_up(sleeps: list[float]):
-    server = Server(_problem(503, 'queue_full'))
+    server = Server(problem(503, 'queue_full'))
 
     with pytest.raises(APIError) as error:
         _papyrus(server, max_retries=1).inspect(URL)
@@ -322,7 +301,7 @@ def test_retries_can_be_disabled(sleeps: list[float]):
 
 @pytest.mark.parametrize(('asked', 'low', 'high'), [('4', 4, 6), ('3600', 30, 30)])
 def test_retry_after_is_honored_up_to_a_cap(asked: str, low: float, high: float, sleeps: list[float]):
-    _papyrus(Server(_problem(503, 'queue_full', **{'retry-after': asked}), OK)).inspect(URL)
+    _papyrus(Server(problem(503, 'queue_full', **{'retry-after': asked}), OK)).inspect(URL)
 
     assert low <= sleeps[0] <= high
 
@@ -330,7 +309,7 @@ def test_retry_after_is_honored_up_to_a_cap(asked: str, low: float, high: float,
 def test_files_are_sent_again_from_the_beginning(tmp_path: Path, sleeps: list[float]):
     path = tmp_path / 'a.txt'
     path.write_bytes(b'content')
-    server = Server(_problem(503, 'queue_full'), OK, _problem(503, 'queue_full'), OK)
+    server = Server(problem(503, 'queue_full'), OK, problem(503, 'queue_full'), OK)
 
     _papyrus(server).inspect(path)
     with path.open('rb') as file:

@@ -1,4 +1,4 @@
-from papyrus_sdk.client import Papyrus
+from papyrus_sdk.client import AsyncPapyrus, Papyrus
 from papyrus_sdk.errors import APIError, ConnectionFailed, InvalidResponse, PapyrusError, TimedOut
 from papyrus_sdk.models import (
     Chunk,
@@ -32,6 +32,7 @@ from papyrus_sdk.version import __version__
 
 __all__ = [
     'APIError',
+    'AsyncPapyrus',
     'Chunk',
     'ChunkKind',
     'ChunkingOptions',

@@ -19,7 +19,7 @@ Official Python client of the Papyrus API, published on PyPI as `papyrus-sdk`. I
 | Python | `>=3.11` |
 | Dependencies | `httpx>=0.27`, `pydantic>=2.7`, low lower bounds, no upper bounds |
 | Build | `hatchling`, dynamic version from `papyrus_sdk/version.py` (`uv_build` has no dynamic version) |
-| Clients | `Papyrus` and `AsyncPapyrus`, native, on `httpx.Client` and `httpx.AsyncClient` |
+| Clients | `Papyrus` and `AsyncPapyrus`, native, on `httpx.Client` and `httpx.AsyncClient` (asyncio only) |
 | Version | Same `vX.Y.Z` tag as the server |
 | License | Apache-2.0, as the repository (`feat/license`) |
 
@@ -170,7 +170,7 @@ Operations are safe to repeat, but expensive: only failures where the server did
 `test/sdk/`, part of the root suite:
 
 1. Schema, against the app's OpenAPI: method keywords match the `options` properties, models match the response schemas (`options` included), enums and literals match their values. A field added only to the server fails, naming where to add it.
-2. Parity: both clients have the same methods and parameters.
+2. Parity: both clients have the same methods and parameters; only the upload types are narrower in `AsyncPapyrus`.
 3. Integration against the real app: `TestClient` for `Papyrus`, `ASGITransport` for `AsyncPapyrus`, existing fixtures. The lifespan must be entered explicitly, `ASGITransport` does not run it. LibreOffice and Chromium follow the suite's fakes and `full` mark.
 4. Client with `MockTransport`: retries, timeouts, non `problem+json` errors, input forms, `AsyncPapyrus` refusals, configuration, probes.
 5. Unknown fields are ignored, unknown enum values raise `InvalidResponse`.

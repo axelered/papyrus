@@ -1,4 +1,5 @@
-import time
+from asyncio import sleep as async_sleep
+from time import sleep
 from types import TracebackType
 from typing import Any, Literal, Self, TypeVar
 
@@ -193,7 +194,7 @@ class Papyrus:
                     if attempt >= self._settings.max_retries or not wire.retryable(e):
                         raise
                     delay = wire.wait(attempt, e)
-                time.sleep(delay)
+                sleep(delay)
                 attempt += 1
 
     def _attempt(self, call: wire.Call[M], content: dict[str, Any], timeout: httpx.Timeout) -> M:
@@ -203,6 +204,182 @@ class Papyrus:
                 call.method, settings.base_url + call.path, headers=settings.headers(), timeout=timeout, **content
             )
             response = self._http.send(request, follow_redirects=False)
+        except httpx.HTTPError as e:
+            raise wire.connection_error(e) from e
+        return wire.parse(call, response)
+
+
+class AsyncPapyrus:
+    """Asynchronous client, on asyncio
+
+    Same operations as `Papyrus`, but it never reads the local disk: besides URIs (positional with `://`, or
+    `source=`) it uploads only bytes, anything else raises NotImplementedError.
+    """
+
+    def __init__(
+        self,
+        base_url: str | None = None,
+        api_key: str | None = None,
+        *,
+        timeout: Timeout = wire.DEFAULT_TIMEOUT,
+        max_retries: int = 2,
+        http_client: httpx.AsyncClient | None = None,
+    ):
+        """`base_url` and `api_key` default to PAPYRUS_BASE_URL and PAPYRUS_API_KEY
+
+        `timeout` must exceed the server's `limits.deadline`; it applies to `http_client` too, which stays open on
+        aclose().
+        """
+        self._settings = wire.Settings.resolve(base_url, api_key, timeout, max_retries)
+        self._owned = http_client is None
+        self._http = http_client or httpx.AsyncClient(limits=wire.LIMITS)
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(
+        self, exc_type: type[BaseException] | None, exc: BaseException | None, traceback: TracebackType | None
+    ) -> None:
+        await self.aclose()
+
+    async def aclose(self) -> None:
+        if self._owned:
+            await self._http.aclose()
+
+    async def markdown(
+        self,
+        document: str | bytes | None = None,
+        /,
+        *,
+        source: str | None = None,
+        file: bytes | None = None,
+        filename: str | None = None,
+        chunking: ChunkingOptions | None = None,
+        destination: str | None = None,
+        timeout: Timeout | None = None,
+    ) -> MarkdownResponse:
+        """Markdown of a document or web page, split into chunks with `chunking`"""
+        target = wire.resolve_input(document, source, file, filename, disk=False)
+        options = {'chunking': chunking}
+        return await self._send(wire.op_call('/v1/markdown', MarkdownResponse, target, options, destination), timeout)
+
+    async def render(
+        self,
+        document: str | bytes | None = None,
+        /,
+        *,
+        source: str | None = None,
+        file: bytes | None = None,
+        filename: str | None = None,
+        page: int | None = None,
+        width: int | None = None,
+        height: int | None = None,
+        dpi: int | None = None,
+        format: ImageFormatName | None = None,
+        destination: str | None = None,
+        timeout: Timeout | None = None,
+    ) -> RenderResponse:
+        """One page or image frame at a readable size"""
+        target = wire.resolve_input(document, source, file, filename, disk=False)
+        options = {'page': page, 'width': width, 'height': height, 'dpi': dpi, 'format': format}
+        return await self._send(wire.op_call('/v1/render', RenderResponse, target, options, destination), timeout)
+
+    async def thumbnail(
+        self,
+        document: str | bytes | None = None,
+        /,
+        *,
+        source: str | None = None,
+        file: bytes | None = None,
+        filename: str | None = None,
+        page: int | None = None,
+        width: int | None = None,
+        height: int | None = None,
+        fit: FitName | None = None,
+        format: ImageFormatName | None = None,
+        destination: str | None = None,
+        timeout: Timeout | None = None,
+    ) -> ThumbnailResponse:
+        """One page, image or web page fitted into a box"""
+        target = wire.resolve_input(document, source, file, filename, disk=False)
+        options = {'page': page, 'width': width, 'height': height, 'fit': fit, 'format': format}
+        return await self._send(wire.op_call('/v1/thumbnail', ThumbnailResponse, target, options, destination), timeout)
+
+    async def screenshot(
+        self,
+        url: str,
+        *,
+        width: int | None = None,
+        height: int | None = None,
+        full_page: bool | None = None,
+        scale: int | None = None,
+        wait_until: WaitUntilName | None = None,
+        delay: int | None = None,
+        format: ImageFormatName | None = None,
+        destination: str | None = None,
+        timeout: Timeout | None = None,
+    ) -> ScreenshotResponse:
+        """A web page captured in headless Chromium"""
+        options = {
+            'width': width,
+            'height': height,
+            'full_page': full_page,
+            'scale': scale,
+            'wait_until': wait_until,
+            'delay': delay,
+            'format': format,
+        }
+        return await self._send(wire.op_call('/v1/screenshot', ScreenshotResponse, url, options, destination), timeout)
+
+    async def inspect(
+        self,
+        document: str | bytes | None = None,
+        /,
+        *,
+        source: str | None = None,
+        file: bytes | None = None,
+        filename: str | None = None,
+        timeout: Timeout | None = None,
+    ) -> InspectResponse:
+        """Detected format and checks of a document, without processing it"""
+        target = wire.resolve_input(document, source, file, filename, disk=False)
+        return await self._send(wire.op_call('/v1/inspect', InspectResponse, target, {}), timeout)
+
+    async def health(self) -> StatusResponse:
+        """Raises unless the server is up; a public route, the API key is not verified"""
+        return await self._attempt(wire.HEALTH, {}, wire.timeout_of(wire.PROBE_TIMEOUT))
+
+    async def ready(self) -> bool:
+        """False when the server is at capacity, raises when it is unreachable; the API key is not verified"""
+        try:
+            await self._attempt(wire.READY, {}, wire.timeout_of(wire.PROBE_TIMEOUT))
+        except APIError as e:
+            if e.code == 'not_ready':
+                return False
+            raise
+        return True
+
+    async def _send(self, call: wire.Call[M], timeout: Timeout | None) -> M:
+        limit = self._settings.timeout if timeout is None else wire.timeout_of(timeout)
+        attempt = 0
+        with call.content() as content:
+            while True:
+                try:
+                    return await self._attempt(call, content, limit)
+                except PapyrusError as e:
+                    if attempt >= self._settings.max_retries or not wire.retryable(e):
+                        raise
+                    delay = wire.wait(attempt, e)
+                await async_sleep(delay)
+                attempt += 1
+
+    async def _attempt(self, call: wire.Call[M], content: dict[str, Any], timeout: httpx.Timeout) -> M:
+        settings = self._settings
+        try:
+            request = self._http.build_request(
+                call.method, settings.base_url + call.path, headers=settings.headers(), timeout=timeout, **content
+            )
+            response = await self._http.send(request, follow_redirects=False)
         except httpx.HTTPError as e:
             raise wire.connection_error(e) from e
         return wire.parse(call, response)
