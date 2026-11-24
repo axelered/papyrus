@@ -225,7 +225,7 @@ def connection_error(error: httpx.HTTPError) -> ConnectionFailed:
 
 
 def retryable(error: PapyrusError) -> bool:
-    """Only failures where the server did no work, documents are expensive to process twice (adr/sdk.md, Retries)"""
+    """Only failures where the server did no work, documents are expensive to repeat (adr/sdk-python.md, Retries)"""
     if isinstance(error, APIError):
         return error.code == 'queue_full' or (error.code is None and error.status in {502, 503})
     return isinstance(error.__cause__, (httpx.ConnectError, httpx.ConnectTimeout))

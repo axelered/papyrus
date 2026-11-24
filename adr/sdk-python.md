@@ -2,6 +2,8 @@
 
 Official Python client of the Papyrus API, published on PyPI as `papyrus-sdk`. It wraps the contract of `adr/api.md` and adds no behavior of its own.
 
+Reference for the rules shared by every SDK: options, errors, retries, probes and versions. `adr/sdk-typescript.md` lists only its differences.
+
 ## Goals
 
 - One typed method per operation, sync and async, with the same response shape whatever the operation.
@@ -14,7 +16,7 @@ Official Python client of the Papyrus API, published on PyPI as `papyrus-sdk`. I
 | Concern | Choice |
 |---|---|
 | Implementation | Handwritten, own models. Not generated (polymorphic responses and multipart with JSON `metadata` generate poorly), not sharing `server/types` (server models are strict on input: `extra='forbid'`, bounds, validators) |
-| Location | `sdk/` in this repository, standalone project. No uv workspace: it would resolve on the server's `requires-python` and couple the Dockerfile to the SDK |
+| Location | `sdk/python/` in this repository, next to `sdk/typescript/`, standalone project. No uv workspace: it would resolve on the server's `requires-python` and couple the Dockerfile to the SDK |
 | Names | Distribution `papyrus-sdk`, import `papyrus_sdk` (`papyrus` on PyPI is an unrelated package) |
 | Python | `>=3.11` |
 | Dependencies | `httpx>=0.27`, `pydantic>=2.7`, low lower bounds, no upper bounds |
@@ -26,10 +28,11 @@ Official Python client of the Papyrus API, published on PyPI as `papyrus-sdk`. I
 ## Layout
 
 ```
-sdk/
+sdk/python/
   pyproject.toml
   README.md          PyPI page
   LICENSE, NOTICE
+  test/              every SDK test, no __init__.py
   papyrus_sdk/
     __init__.py      public names
     client.py        Papyrus, AsyncPapyrus: I/O and retry loop only
@@ -38,11 +41,12 @@ sdk/
     errors.py
     version.py       __version__ = '0.0.0'
     py.typed
-test/sdk/            every SDK test
 ```
 
-- The SDK has no lockfile, dev group or tests of its own: `test/sdk/` runs in the root environment with `pythonpath = [".", "sdk"]`.
-- `ruff.toml` stays the only Ruff config, with `[per-file-target-version] "sdk/**" = "py311"` so it rejects newer syntax.
+- The SDK has no lockfile or dev group of its own: `sdk/python/test/` runs in the root environment, with `testpaths = ["test", "sdk/python/test"]` and `pythonpath = [".", "sdk/python"]`.
+- `sdk/python/test/` has no `__init__.py`: pytest would import it as the root `test` package and fail. Its file names must therefore stay unique among such folders.
+- Fixtures stay in `test/fixtures`, they build on the server's. The sdist excludes `test/`.
+- `ruff.toml` stays the only Ruff config, with `[per-file-target-version] "sdk/python/papyrus_sdk/**" = "py311"` so it rejects newer syntax; tests run on the server's Python.
 - `.dockerignore` excludes `sdk`. dekit `docker/test` and the format, lint and test steps of `check.yml` mount `./sdk:/app/sdk:ro`.
 - `LICENSE` is a copy of the root file (PEP 639 forbids `..` in `license-files`). `NOTICE` carries product, copyright and license only: the wheel redistributes no third party component and does not ship `adr/license.md`.
 
@@ -167,7 +171,7 @@ Operations are safe to repeat, but expensive: only failures where the server did
 
 ## Tests
 
-`test/sdk/`, part of the root suite:
+`sdk/python/test/`, part of the root suite:
 
 1. Schema, against the app's OpenAPI: method keywords match the `options` properties, models match the response schemas (`options` included), enums and literals match their values. A field added only to the server fails, naming where to add it.
 2. Parity: both clients have the same methods and parameters; only the upload types are narrower in `AsyncPapyrus`.
@@ -179,14 +183,14 @@ The suite runs on Python 3.14 only, because the app requires it; older versions 
 
 ## Documentation
 
-- `sdk/README.md`: install, a sync and an async example, `source=` versus `file=` with the untrusted input warning, errors.
+- `sdk/python/README.md`: install, a sync and an async example, `source=` versus `file=` with the untrusted input warning, errors.
 - `docs/python.mdx` in the Guides group, with `docs/meta.json` and the structure table of `adr/docs.md`. Docs go out with every tag, so the SDK must be on PyPI before the next one: until then `pip install papyrus-sdk` gets an empty `0.0.0` placeholder.
 - Bruno is unaffected, the API does not change.
 
 ## Out of Scope
 
-- todo: publishing. Stamp `sdk/papyrus_sdk/version.py` in the semver step; build the wheel, install it in a clean 3.11 environment and import it; publish with PyPI Trusted Publishing (needs the publisher configured on PyPI, environment `pypi`), before the GitHub release.
+- todo: publishing. Stamp `sdk/python/papyrus_sdk/version.py` in the semver step; build the wheel, install it in a clean 3.11 environment and import it; publish with PyPI Trusted Publishing (needs the publisher configured on PyPI, environment `pypi`), before the GitHub release.
 - todo: `check.yml` runs on tags only (`push: main` and `pull_request` are commented out), so drift surfaces at release time. Owned by the user.
 - todo: add `hatchling` (MIT) to the development table of `adr/license.md` once `feat/license` is merged.
 - todo: disk uploads in `AsyncPapyrus`, multiple file parts, `GET /`.
-- SDKs in other languages.
+- SDKs in languages other than Python and TypeScript (`adr/sdk-typescript.md`).

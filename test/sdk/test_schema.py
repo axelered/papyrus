@@ -1,4 +1,4 @@
-"""The SDK mirrors the API contract: a change only on the server fails here (adr/sdk.md)"""
+"""The SDK mirrors the API contract: a change only on the server fails here (adr/sdk-python.md)"""
 
 import inspect
 from enum import StrEnum

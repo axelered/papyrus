@@ -85,7 +85,7 @@
 - [!] Metadata for `output=file` responses, opt-in data URI content
 - [ ] `sha256` in `FileInfo`, filled for `source` and `result` by every operation
 
-### Python SDK (spec: `adr/sdk.md`)
+### Python SDK (spec: `adr/sdk-python.md`)
 
 - [x] Spec: handwritten `papyrus-sdk` in `sdk/`, sync and async clients
 - [x] `sdk/` package: typed models and enums, errors, `Papyrus` and `AsyncPapyrus`, retries, `health` and `ready`
@@ -94,6 +94,18 @@
 - [!] Publish to PyPI before the next tag, the guide is already in `docs/`: version stamp, wheel check on 3.11, Trusted Publishing
 - [x] `docs/python.mdx` guide
 - [!] Add `hatchling` to the SBOM of `adr/license.md` once `feat/license` is merged
+- [ ] Move the project to `sdk/python/` and its tests from `test/sdk/` to `sdk/python/test/`
+
+### TypeScript SDK (spec: `adr/sdk-typescript.md`)
+
+- [x] Spec: handwritten `@axelered/papyrus` in `sdk/typescript/`, on web standard APIs
+- [ ] `sdk/typescript/` package: schemas and types, errors, `Papyrus`, retries, `health` and `ready`
+- [ ] Schema, client, model, integration and package tests on Node and Bun, dekit task
+- [ ] `sdk/typescript/README.md`, `LICENSE` and `NOTICE`, `docs/typescript.mdx` guide
+- [!] Publish to npm before the next tag once the guide is in `docs/`: `axelered` organization, version stamp, Trusted Publishing
+- [!] Run the TypeScript tests in `check.yml`, until then drift is caught only locally
+- [!] Expose `Retry-After` to browsers in `server/utils/cors.py`
+- [!] Add `zod` and the development tools to `adr/license.md` once `feat/license` is merged
 
 ### Helm Chart (spec: `adr/chart.md`)
 
