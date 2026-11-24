@@ -21,7 +21,7 @@ Official TypeScript client of the Papyrus API, published on npm as `@axelered/pa
 
 ```
 sdk/typescript/
-  package.json, bun.lock, tsconfig.json, biome.json
+  package.json, bun.lock, tsconfig.json, tsconfig.build.json, biome.json
   README.md          npm page
   LICENSE, NOTICE    as sdk/python
   src/
@@ -117,7 +117,7 @@ const client = new Papyrus({
 
 - Responses are validated. Unknown fields are ignored, unknown enum values are `InvalidResponse`, `label` is a `string`, bounds are not copied.
 - Absent facts are `undefined`, never `null`: the server omits them (`exclude_none`). Echoed options that always have a value are required.
-- Enums are literal unions. Types are exported, schemas are not. The declarations do import zod's types: avoiding it would mean writing every type twice.
+- Enums are literal unions. Types are exported, schemas are not. The declarations do import zod's types: avoiding it would mean writing every type twice. For the same reason comments on single fields do not reach editors (inferred types drop them in declarations), so they go on the type.
 - `requestId` is a plain field of the response.
 
 ### Content
@@ -153,14 +153,14 @@ Allowed where the server sets `cors.allow_origins`, with no opt-in flag. README 
 
 ## Tests
 
-`sdk/typescript/test/`, on Node 22 and Bun.
+`sdk/typescript/test/`, on Node 22, the current Node and Bun. Running the sources needs Node 22.18 (type stripping), the built package 22.12.
 
 1. `schema.test.ts`: `z.toJSONSchema` against the app's OpenAPI. Components, fields, enums, problem codes, `destination` and one method per `/v1/*` path. A field added only to the server fails, naming where to add it; so does a server option named as a client field (`filename`, `destination`, `timeout`, `signal`).
 2. `client.test.ts`: fake `fetch` and a local `node:http` server. Retries, timeouts, `signal`, connection codes, redirects, non `problem+json` errors, inputs, configuration, key secrecy.
 3. `models.test.ts`: `text`, `bytes`, unknown fields and enum values, responses through `structuredClone` and JSON.
 4. `integration.test.ts`: every operation against a `papyrus:dev` container, with `Blob`, `Uint8Array` and `File`, a non-ASCII file name, real errors, `health` and `ready`. The SSRF guard refuses local pages, so for `screenshot` it checks the refusal; a successful capture is covered by the fake `fetch`.
 
-- Script `test` runs 1 to 3, `test:integration` runs 4. A missing OpenAPI document or server fails, it does not skip: a silent skip would hide drift.
+- Script `test` exports the OpenAPI document and runs 1 to 3 on Node and Bun, `test:integration` runs 4. A missing OpenAPI document or server fails, it does not skip: a silent skip would hide drift.
 - Script `test:package`: `npm pack`, install in a clean folder, `import` and `require` on Node 22, typecheck of a consumer.
 - dekit task `sdk/typescript`: exports OpenAPI with `scripts/openapi.py`, starts the container, runs typecheck, Biome and the tests on Node and Bun.
 

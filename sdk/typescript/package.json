@@ -1,0 +1,48 @@
+{
+  "name": "@axelered/papyrus",
+  "version": "0.0.0",
+  "description": "TypeScript client for Papyrus, the self-hosted document processing API",
+  "license": "Apache-2.0",
+  "author": "Axelered",
+  "homepage": "https://docs.axelered.com/papyrus",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/axelered/papyrus.git",
+    "directory": "sdk/typescript"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22.12"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "NOTICE"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "check": "tsc && biome check --error-on-warnings .",
+    "format": "biome check --write .",
+    "openapi": "cd ../.. && uv run python scripts/openapi.py > sdk/typescript/openapi.json",
+    "test": "bun run openapi && bun run test:node && bun run test:bun",
+    "test:node": "node --test test/*.test.ts",
+    "test:bun": "bun test test"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "zod": "^4"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.9",
+    "@types/node": "^22",
+    "typescript": "^7.0.2"
+  }
+}
