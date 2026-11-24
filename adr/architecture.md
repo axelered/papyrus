@@ -352,8 +352,9 @@ Imports only point down; a violation is a design bug, not a style nit.
 | `api/`, `auth.py`        | everything above                             |
 | `factory.py`             | everything (wiring)                          |
 
-- `types/` holds only what crosses the wire, so a client SDK can be generated from (or extracted with) it; one module
-  per operation, shared models in `common.py`. Internal models (`Format`, `Document`) live with their service.
+- `types/` holds only what crosses the wire; one module per operation, shared models in `common.py`. Internal models
+  (`Format`, `Document`) live with their service. The Python SDK mirrors these types with its own models and tests
+  them against the OpenAPI document (`adr/sdk.md`).
 - `utils/` holds primitives that would work unchanged in another service. Errors they raise are generic
   `ProblemError` subclasses; utils needing a logger take it as a parameter.
 - A module that mixes a generic primitive with app logic is split: the primitive goes to `utils/`, the app part stays.

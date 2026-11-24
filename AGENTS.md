@@ -85,6 +85,16 @@
 - [!] Metadata for `output=file` responses, opt-in data URI content
 - [ ] `sha256` in `FileInfo`, filled for `source` and `result` by every operation
 
+### Python SDK (spec: `adr/sdk.md`)
+
+- [x] Spec: handwritten `papyrus-sdk` in `sdk/`, sync and async clients
+- [ ] `sdk/` package: typed models and enums, errors, `Papyrus` and `AsyncPapyrus`, retries, `health` and `ready`
+- [ ] `test/sdk/`: schema, parity, integration and client tests; mounts in dekit and `check.yml`
+- [ ] `sdk/README.md`, `LICENSE` and `NOTICE`
+- [!] Publish to PyPI on release: version stamp, wheel check on 3.11, Trusted Publishing
+- [!] `docs/python.mdx` guide once `papyrus-sdk` is installable from PyPI
+- [!] Add `hatchling` to the SBOM of `adr/license.md` once `feat/license` is merged
+
 ### Helm Chart (spec: `adr/chart.md`)
 
 - [x] Chart in `chart/`: ConfigMap, Secret with generated key, Deployment, Service, Ingress, PDB, opt-in NetworkPolicy

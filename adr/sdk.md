@@ -1,0 +1,190 @@
+# Python SDK
+
+Official Python client of the Papyrus API, published on PyPI as `papyrus-sdk`. It wraps the contract of `adr/api.md` and adds no behavior of its own.
+
+## Goals
+
+- One typed method per operation, sync and async, with the same response shape whatever the operation.
+- Complete typing: responses, resolved options and enums are typed for type checkers and editor hints.
+- Server and SDK cannot drift unnoticed: the SDK is tested against the real app and its OpenAPI document.
+- Minimal footprint for whoever installs it: two dependencies, Python versions older than the server's.
+
+## Decisions
+
+| Concern | Choice |
+|---|---|
+| Implementation | Handwritten, own models. Not generated (polymorphic responses and multipart with JSON `metadata` generate poorly), not sharing `server/types` (server models are strict on input: `extra='forbid'`, bounds, validators) |
+| Location | `sdk/` in this repository, standalone project. No uv workspace: it would resolve on the server's `requires-python` and couple the Dockerfile to the SDK |
+| Names | Distribution `papyrus-sdk`, import `papyrus_sdk` (`papyrus` on PyPI is an unrelated package) |
+| Python | `>=3.11` |
+| Dependencies | `httpx`, `pydantic>=2`, low lower bounds, no upper bounds |
+| Build | `hatchling`, dynamic version from `papyrus_sdk/version.py` (`uv_build` has no dynamic version) |
+| Clients | `Papyrus` and `AsyncPapyrus`, native, on `httpx.Client` and `httpx.AsyncClient` |
+| Version | Same `vX.Y.Z` tag as the server |
+| License | Apache-2.0, as the repository (`feat/license`) |
+
+## Layout
+
+```
+sdk/
+  pyproject.toml
+  README.md          PyPI page
+  LICENSE, NOTICE
+  papyrus_sdk/
+    __init__.py      public names
+    client.py        Papyrus, AsyncPapyrus: I/O and retry loop only
+    wire.py          request building, response parsing, retry decision; pure, shared by both clients
+    models.py
+    errors.py
+    version.py       __version__ = '0.0.0'
+    py.typed
+test/sdk/            every SDK test
+```
+
+- The SDK has no lockfile, dev group or tests of its own: `test/sdk/` runs in the root environment with `pythonpath = [".", "sdk"]`.
+- `ruff.toml` stays the only Ruff config, with `[per-file-target-version] "sdk/**" = "py311"` so it rejects newer syntax.
+- `.dockerignore` excludes `sdk`. dekit `docker/test` and the format, lint and test steps of `check.yml` mount `./sdk:/app/sdk:ro`.
+- `LICENSE` is a copy of the root file (PEP 639 forbids `..` in `license-files`). `NOTICE` carries product, copyright and license only: the wheel redistributes no third party component and does not ship `adr/license.md`.
+
+## Client
+
+```python
+from pathlib import Path
+from papyrus_sdk import ChunkingOptions, Papyrus
+
+with Papyrus(base_url='http://127.0.0.1:8000', api_key='dev') as client:
+    doc = client.markdown(Path('sample.pdf'), chunking=ChunkingOptions(max_tokens=512))
+    doc.result.text
+    doc.chunks
+
+    page = client.render(source='https://axelered.com', page=1, format='png')
+    page.result.save('page.png')
+```
+
+| Parameter | Default | Notes |
+|---|---|---|
+| `base_url` | `PAPYRUS_BASE_URL`, else `ValueError` | No localhost default: Papyrus is self-hosted |
+| `api_key` | `PAPYRUS_API_KEY`, else no header | `ValueError` when it contains a comma: the server variable of the same name is a list, and no valid key contains one |
+| `timeout` | connect 5 s, read 310 s | Also per call. The server sends nothing until it is done and `limits.deadline` is 300 s, so `deadline_exceeded` normally comes first; raising `deadline` requires raising `timeout` |
+| `max_retries` | 2 | 0 disables retries |
+| `http_client` | none | Own `httpx` client for proxies, private CAs and tests |
+
+- Both clients are context managers with `close()` / `aclose()`. They close only the `httpx` client they created.
+- `User-Agent: papyrus-sdk/<version>`. Redirects are never followed, also with a custom `http_client`.
+- The key never appears in `repr` or exceptions. `.env` files are not read.
+
+## Operations
+
+| Method | Response | Own parameters |
+|---|---|---|
+| `markdown` | `MarkdownResponse` | `chunking` |
+| `render` | `RenderResponse` | render options |
+| `thumbnail` | `ThumbnailResponse` | thumbnail options |
+| `screenshot(url)` | `ScreenshotResponse` | screenshot options |
+| `inspect` | `InspectResponse` | none, no `destination` |
+| `health` | `StatusResponse` | none |
+| `ready` | `bool` | none |
+
+- Options are flat keyword arguments in snake_case. Only arguments that are not `None` are sent, so defaults stay the server's. `ChunkingOptions` is dumped with `exclude_unset`.
+- Enum parameters accept the enum or its literal value (`ImageFormat | Literal['png', 'jpeg', 'webp']`).
+- The SDK does not validate options: bounds and combinations are the server's `422`.
+
+### Health
+
+- `health()` raises when the server does not answer or answers with an error.
+- `ready()` is `False` only for `503 not_ready` and raises otherwise: a wrong `base_url` must not look like a busy server.
+- No retries, 5 s timeout. The routes are public, so they do not verify the API key.
+
+### Input
+
+`markdown`, `render`, `thumbnail` and `inspect` take exactly one of the three forms, otherwise `TypeError`:
+
+| Form | `Papyrus` | `AsyncPapyrus` |
+|---|---|---|
+| positional | `str` with `://` is a URI, any other `str` a local path; `Path`, `bytes`, binary file are uploads | URI `str` or `bytes` |
+| `source=` | URI `str`, sent as is, never reads the disk | same |
+| `file=` | path `str`, `Path`, `bytes`, binary file | `bytes` |
+
+- `AsyncPapyrus` uploads only `bytes`: paths (positional strings without `://` included) and file objects raise `NotImplementedError` before any I/O, with the alternative in the message. It never touches the disk.
+- `filename=` names an upload: default the name of the path or file, else `file`. The extension refines detection (`.csv`, `.rss`). `TypeError` without an upload.
+- `screenshot` takes a URL only.
+- Schemes and connectors are not validated on the client.
+- Risk: with the positional form an untrusted string can make `Papyrus` upload a local file. README and docstrings point to `source=` for input coming from users or LLMs.
+
+### Output
+
+- The SDK always sends `output=json` (`inspect` excluded, it rejects the field) and does not expose `output`: one return type, metadata always present, at the cost of base64 on images of at most 4096 px per side.
+- `result.data` is `bytes`, decoded per `encoding`. `result.text` is `str`, `ValueError` unless `utf-8`. `result.save(path)` writes the bytes and returns the `Path`.
+- With `destination` there is no content and no `chunks`: the three accessors raise `ValueError` pointing to `result.uri`.
+- todo: streaming variants (`output=file`) if artifacts too large for memory appear.
+
+## Models
+
+- `models.py` mirrors the server response types: one response and one options model per operation, `Source`, `Result`, `Fetch`, `Chunk`, checks, and the same `StrEnum`s. snake_case in Python, camelCase on the wire.
+- Bounds and validators are not copied. `label` is `str` as on the server (any magika label).
+- Unknown fields are ignored. Unknown enum values raise `InvalidResponse`.
+- Operation responses carry `request_id` from `X-Request-ID`.
+
+## Errors
+
+```
+PapyrusError
+  ConnectionFailed     server unreachable, or connection lost
+    TimedOut           client side timeout
+  InvalidResponse      2xx that is not the expected model
+  APIError             status, code, detail, errors, request_id, retry_after
+```
+
+- One `APIError` for every problem: `code` is the stable contract, a class per code would add about 20 classes to keep aligned. `code` is `None` when the response is not `problem+json` (e.g. a proxy `413`).
+- `httpx` exceptions never escape, they are the `__cause__`.
+- Misuse raises built-ins: `TypeError`, `ValueError`, `NotImplementedError`, `FileNotFoundError`.
+
+## Retries
+
+Operations are safe to repeat, but expensive: only failures where the server did no work are retried.
+
+| Failure | Retry |
+|---|---|
+| `503 queue_full` (rejected before the body is read) | yes |
+| `ConnectError`, `ConnectTimeout` | yes |
+| `502` / `503` without `problem+json` (proxy, deploys) | yes |
+| Any `504`, read timeout | no, same work and likely same outcome |
+| `500 processing_failed`, `502 source_fetch_failed`, `502 destination_failed` | no, usually permanent |
+| Connection lost while waiting | no, a document that kills the container would kill it again |
+
+- A proxy can turn a lost connection into a `502`, so the last protection is partial.
+- Wait: `max(Retry-After, exponential backoff)` plus jitter, capped at 30 s. Jitter matters because the server's `Retry-After` is a constant 2 s.
+- Uploads restart from the beginning of the file; file objects that cannot seek are never retried.
+- `keepalive_expiry` is 2 s: uvicorn closes idle connections at 5 s, the `httpx` default, and reusing a just closed one would be a lost connection, which is not retried.
+- A short loop, no retry library.
+
+## Versioning and Compatibility
+
+- SDK `X.Y` is guaranteed with server `X.Y`. Newer servers work while they only add fields; new enum values require upgrading the SDK. No runtime version check.
+- `version.py` keeps the `0.0.0` placeholder in git, as `server/version.py`.
+
+## Tests
+
+`test/sdk/`, part of the root suite:
+
+1. Schema, against the app's OpenAPI: method keywords match the `options` properties, models match the response schemas (`options` included), enums and literals match their values. A field added only to the server fails, naming where to add it.
+2. Parity: both clients have the same methods and parameters.
+3. Integration against the real app: `TestClient` for `Papyrus`, `ASGITransport` for `AsyncPapyrus`, existing fixtures. The lifespan must be entered explicitly, `ASGITransport` does not run it. LibreOffice and Chromium follow the suite's fakes and `full` mark.
+4. Client with `MockTransport`: retries, timeouts, non `problem+json` errors, input forms, `AsyncPapyrus` refusals, configuration, probes.
+5. Unknown fields are ignored, unknown enum values raise `InvalidResponse`.
+
+The suite runs on Python 3.14 only, because the app requires it; older versions are covered by the Ruff target alone until the wheel check below.
+
+## Documentation
+
+- `sdk/README.md`: install, a sync and an async example, `source=` versus `file=` with the untrusted input warning, errors.
+- `docs/python.mdx` in the Guides group, with `docs/meta.json` and the structure table of `adr/docs.md`, only once `papyrus-sdk` is installable: PyPI holds an empty `0.0.0` placeholder until then.
+- Bruno is unaffected, the API does not change.
+
+## Out of Scope
+
+- todo: publishing. Stamp `sdk/papyrus_sdk/version.py` in the semver step; build the wheel, install it in a clean 3.11 environment and import it; publish with PyPI Trusted Publishing (needs the publisher configured on PyPI, environment `pypi`), before the GitHub release.
+- todo: `check.yml` runs on tags only (`push: main` and `pull_request` are commented out), so drift surfaces at release time. Owned by the user.
+- todo: add `hatchling` (MIT) to the development table of `adr/license.md` once `feat/license` is merged.
+- todo: disk uploads in `AsyncPapyrus`, multiple file parts, `GET /`.
+- SDKs in other languages.
