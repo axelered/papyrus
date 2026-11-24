@@ -22,7 +22,26 @@ BASES = {'OpModel', 'OpResponse'}
 
 @pytest.fixture
 def components(client: TestClient) -> dict[str, Any]:
-    return client.get('/openapi.json').json()['components']['schemas']
+    """Schemas reachable from the paths: the registry is global, other tests add their own models to it"""
+    spec = client.get('/openapi.json').json()
+    schemas = spec['components']['schemas']
+    found: dict[str, Any] = {}
+    pending = _refs(spec['paths'])
+    while pending:
+        name = pending.pop()
+        if name not in found:
+            found[name] = schemas[name]
+            pending |= _refs(schemas[name])
+    return found
+
+
+def _refs(value: Any) -> set[str]:
+    if isinstance(value, list):
+        return {name for item in value for name in _refs(item)}
+    if not isinstance(value, dict):
+        return set()
+    own = {value['$ref'].rsplit('/', 1)[-1]} if isinstance(value.get('$ref'), str) else set()
+    return own | {name for item in value.values() for name in _refs(item)}
 
 
 def _normalize(value: Any) -> Any:
