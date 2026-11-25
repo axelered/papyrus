@@ -56,9 +56,10 @@ browser:
   # which the default Docker seccomp profile blocks. With true and no support, screenshots fail with a 500.
   sandbox: false
 
-# Reading page images with a vision model, for Markdown requests with readMode: ocr.
-# Not set by default: those requests are rejected and no document leaves the server. One backend per deployment.
-# Pages are sent to the backend as images, with "mistral" that means a third party.
+# Reading page images with a vision model, for Markdown requests. With it, the default readMode auto sends scans,
+# images and presentations to the backend, also from clients that never asked for OCR, and readMode ocr every page.
+# Not set by default: auto reads every document as text, ocr is rejected, and no document leaves the server.
+# One backend per deployment. Pages are sent to the backend as images, with "mistral" that means a third party.
 # Example with a Qwen VL model on any OpenAI compatible server (vLLM, Ollama, OpenRouter):
 # ocr:
 #   type: qwen
@@ -70,7 +71,8 @@ browser:
 #   api_key: ${OCR_API_KEY}
 #   # Pages read at once by this container. Every replica adds its own.
 #   concurrency: 8
-#   # Longest document accepted. Raise limits.deadline with it: the whole document is read within one request.
+#   # Longest document read with OCR: longer ones are read as text in auto and rejected in ocr. Raise
+#   # limits.deadline with it: the whole document is read within one request.
 #   max_pages: 100
 #   # Extra fields sent as is with every request, for options of the server. This one turns off reasoning on vLLM.
 #   extra_body:

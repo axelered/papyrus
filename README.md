@@ -20,7 +20,7 @@
 
 🛡️ **Your app never parses untrusted files.** Every document is read in a worker process inside the container, and a file that crashes or hangs a worker fails its own request while the worker is replaced. URLs pass an SSRF guard that refuses private and internal addresses, and images are checked against a pixel limit before decoding. Your developers call an API and don't have to get parser isolation and security right themselves.
 
-🔍 **OCR on your own GPUs or through Mistral.** Point Papyrus at a Qwen VL model on vLLM, Ollama or any OpenAI compatible server and page images stay in your network, or use Mistral OCR. Switching backends is a configuration change, and callers keep the same request. Auto mode sends only the pages without a usable text layer to the model.
+🔍 **OCR on your own GPUs or through Mistral.** Point Papyrus at a Qwen VL model on vLLM, Ollama or any OpenAI compatible server and page images stay in your network, or use Mistral OCR. Switching backends is a configuration change, and callers keep the same request. Auto mode sends a document to the model only when its text layer is unusable.
 
 The same service renders pages, makes thumbnails of documents and web pages, and takes screenshots in headless Chromium, for previews in your UI.
 

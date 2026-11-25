@@ -41,7 +41,7 @@ LibreOffice is configured to run no macros and to load no remote or local resour
 
 ## OCR
 
-With `ocr` configured, `readMode: ocr` sends the image of every page to the backend. With `mistral`, or a hosted OpenAI-compatible server, that is a third party: check that your agreements allow it, or run the model in your own infrastructure. The operator decides where documents go; a request can only turn OCR on.
+With `ocr` configured, the default `readMode: auto` sends the page images of scans, images and presentations to the backend, and `readMode: ocr` sends every page, also from clients that never asked for OCR. With `mistral`, or a hosted OpenAI-compatible server, that is a third party: check that your agreements allow it, or run the model in your own infrastructure. The operator decides where documents go; a request can keep its pages away with `readMode: text`.
 
 - Only use a backend you trust. Its URL is not subject to the fetch policy, so that it can be a private address.
 - Text on a page can steer the model, for example an instruction to ignore the rest of the page. The output is plain text and Papyrus never acts on it, but your pipeline must treat it as untrusted.

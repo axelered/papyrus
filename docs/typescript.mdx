@@ -111,7 +111,7 @@ The same argument takes `timeout` and `signal`. When you abort, the call rejects
 
 ## Read scans and images
 
-Set `readMode: 'ocr'` to read page images with a vision model, when your operator has [configured one](./configuration#ocr). See [scans and images](./markdown#read-scans-and-images) for the formats and limits.
+By default, `readMode` is `auto`: the server reads scans, images and presentations from their page images when your operator has [configured a vision model](./configuration#ocr), and everything else from its text. Set `readMode: 'ocr'` to read every page from its image, or `'text'` to never use the model. See [scans and images](./markdown#read-scans-and-images) for the formats and limits.
 
 ```ts
 const doc = await client.markdown(await openAsBlob('scan.pdf'), {
@@ -124,7 +124,7 @@ console.log(doc.options.readMode, doc.source.pageCount)
 for (const chunk of doc.chunks ?? []) console.log(chunk.page, chunk.headings)
 ```
 
-`options.readMode` is the mode the server used: formats without pages, and spreadsheets, are read as `text`. Raise the client `timeout` together with `limits.deadline` for long documents.
+`options.readMode` is the mode the server used, `text` or `ocr`: formats without pages, and spreadsheets, are read as `text`. Raise the client `timeout` together with `limits.deadline` for long documents.
 
 ## Read the result
 

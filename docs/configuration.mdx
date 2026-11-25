@@ -74,7 +74,7 @@ These settings apply to URL sources and to everything a screenshot page loads.
 
 ## OCR
 
-`readMode: ocr` reads page images with a vision model on a remote server. Without this section OCR is off: those requests fail with `422 ocr_not_configured` and no document leaves the server. A deployment has one backend, and requests cannot choose another.
+A vision model on a remote server reads page images. With this section, Markdown requests in the default `readMode: auto` send it scans, images and presentations, and `readMode: ocr` sends it every page. Without it OCR is off: `auto` reads every document as text, `ocr` fails with `422 ocr_not_configured`, and no document leaves the server. A deployment has one backend, and requests cannot choose another.
 
 With a Qwen VL model on any OpenAI-compatible server, such as vLLM, Ollama or OpenRouter:
 
@@ -101,7 +101,7 @@ ocr:
 | `url` | Mistral API | Base URL of the API, private addresses included. Required for `qwen`, optional for `mistral` |
 | `api_key` | none | Key of the backend. Required for `mistral` |
 | `concurrency` | `8` | Pages read at once by one container; every replica adds its own |
-| `max_pages` | `100` | Longest document. Longer ones fail with `413 too_many_pages`. Raise `limits.deadline` with it |
+| `max_pages` | `100` | Longest document read with OCR. Longer ones are read as text in `auto` and fail with `413 too_many_pages` in `ocr`. Raise `limits.deadline` with it |
 | `extra_body` | `{}` | `qwen` only. Extra fields sent with every call, for example `chat_template_kwargs: {enable_thinking: false}` to turn off reasoning on vLLM |
 
 The backend is not contacted at startup, so its outages do not affect `/ready`. See [security](./security#ocr) for where documents go.

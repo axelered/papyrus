@@ -81,7 +81,7 @@
 - [x] PDF and DOCX classifiers in `server/ocr/`, evaluated with `.nogit/detect.py`
 - [x] Restructure `/v1/markdown`: inline routing, `ConvertService.modernize`, readers own their formats, `OcrService` owns the page pipeline
 - [x] `readMode: auto` as default: routing, classifier worker, page limit fallback, tests
-- [ ] SDKs, Bruno, docs and `config.example.yml` for `auto`
+- [x] SDKs, Bruno, docs and `config.example.yml` for `auto`
 - [!] Per page routing for mixed documents
 
 ### Request Identity (spec: `adr/architecture.md`, `adr/browser.md`)

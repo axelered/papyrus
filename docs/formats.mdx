@@ -27,7 +27,7 @@ Papyrus detects the format of every document from its content, then checks it ag
 | Code and config | `.py`, `.ts`, `.go`, `.sql`, `.yaml`, … | yes, as one fenced block | as text | no |
 | Images | `.png`, `.jpg`, `.webp`, `.gif`, `.bmp`, `.tiff`, `.avif` | no | yes; every frame of a TIFF, the first frame of others | yes |
 
-"As text" means that `readMode: ocr` has no effect on the format: it is extracted as in the default `text` mode, and `options.readMode` in the response says so.
+"As text" means that OCR has no effect on the format: `auto` and `ocr` extract it as `text` mode does, and `options.readMode` in the response says so.
 
 Screenshot takes `http(s)://` URLs only and captures whatever the browser shows.
 
@@ -35,7 +35,7 @@ A format an operation does not accept fails with `415 unsupported_format` before
 
 ## What to expect per format
 
-- **Scanned PDFs** have no text layer, so Markdown extraction returns little or no text by default. Set [`readMode: ocr`](./markdown#read-scans-and-images) to read the page images with a vision model, when the server has one configured.
+- **Scanned PDFs** have no text layer. The default [`readMode: auto`](./markdown#read-scans-and-images) reads their page images with a vision model when the server has one configured; without one they return little or no text.
 - **Legacy and OpenDocument files** (`.doc`, `.ppt`, `.rtf`, `.odt`, `.odp`, `.ods`) are converted with LibreOffice before Markdown extraction, which adds time to every request.
 - **Office files and HTML in render and thumbnail**, `.docx`, `.pptx` and `.xlsx` included, are exported by LibreOffice one page at a time, so `source.pageCount` is not reported. HTML thumbnails are the exception: they are browser captures.
 - **HTML** keeps headings, lists, links and tables. Site navigation and footers come through as text, as on the page.

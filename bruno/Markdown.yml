@@ -25,7 +25,7 @@ docs:
   content: |-
     Extracts Markdown from a document or web page, ready to pass to an LLM or index for retrieval. The format is detected from the content, and `options.chunking` adds structure-aware chunks sized for your embedding model, with the headings they sit under and their offsets in the Markdown.
 
-    Set `options.readMode` to `ocr` for scanned PDFs and images: every page is read by the vision model configured on the server. The default `text` extracts the text stored in the file, so scans return little or nothing and images fail with `415 unsupported_format`, as do corrupt and encrypted files. Legacy formats such as `.doc` and `.ppt` are converted with LibreOffice first and take longer.
+    The default `options.readMode` is `auto`: images, presentations, and PDF or Word documents whose text cannot be extracted, such as scans, are read page by page by the vision model configured on the server; everything else is extracted from the text stored in the file. Set `ocr` to read every page with the model, or `text` to never use it. `options.readMode` in the response is the mode used. Without a model on the server, `auto` extracts text only, so scans return little or nothing and images fail with `415 unsupported_format`, as do corrupt and encrypted files. Legacy formats such as `.doc` and `.ppt` are converted with LibreOffice first and take longer.
   type: text/markdown
 
 examples:
@@ -548,7 +548,7 @@ examples:
             "detail": "connector 'demo-s3' is not configured"
           }
   - name: Reject an image
-    description: Images have no stored text, so they fail with `unsupported_format` in the default `text` mode. Set `readMode` to `ocr` to read them.
+    description: Images have no stored text, so they fail with `unsupported_format` in `text` mode, and in the default `auto` mode on a server without an OCR model.
     request:
       url: "{{host}}/v1/markdown"
       method: POST
@@ -575,7 +575,7 @@ examples:
             "detail": "image/png (png) is not supported for markdown extraction, set readMode to ocr to read images"
           }
   - name: Use OCR without a backend
-    description: Servers without an `ocr` section in their configuration reject `ocr` mode before reading the source.
+    description: Servers without an `ocr` section in their configuration reject `ocr` mode. The default `auto` mode reads the document as text instead.
     request:
       url: "{{host}}/v1/markdown"
       method: POST
@@ -603,7 +603,7 @@ examples:
             "detail": "readMode ocr needs an OCR backend, this server has none"
           }
   - name: Exceed the page limit
-    description: Documents over the page limit of the server fail before any page is read.
+    description: In `ocr` mode, documents over the page limit of the server fail before any page is read. The default `auto` mode reads them as text instead.
     request:
       url: "{{host}}/v1/markdown"
       method: POST

@@ -82,7 +82,7 @@ page=1 width=800 height=None dpi=None format=<ImageFormat.WEBP: 'webp'>
 
 ## Read scans and images
 
-Set `read_mode='ocr'` to read page images with a vision model, when your operator has [configured one](./configuration#ocr). See [scans and images](./markdown#read-scans-and-images) for the formats and limits.
+By default, `read_mode` is `auto`: the server reads scans, images and presentations from their page images when your operator has [configured a vision model](./configuration#ocr), and everything else from its text. Set `read_mode='ocr'` to read every page from its image, or `'text'` to never use the model. See [scans and images](./markdown#read-scans-and-images) for the formats and limits.
 
 ```python
 doc = client.markdown(Path('scan.pdf'), read_mode='ocr', chunking=ChunkingOptions())
@@ -92,7 +92,7 @@ for chunk in doc.chunks or []:
     print(chunk.page, chunk.headings)
 ```
 
-`options.read_mode` is the mode the server used: formats without pages, and spreadsheets, are read as `text`. Raise the client `timeout` together with `limits.deadline` for long documents.
+`options.read_mode` is the mode the server used, `text` or `ocr`: formats without pages, and spreadsheets, are read as `text`. Raise the client `timeout` together with `limits.deadline` for long documents.
 
 ## Read the result
 

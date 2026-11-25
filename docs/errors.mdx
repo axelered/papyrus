@@ -42,7 +42,7 @@ Retrying these returns the same error.
 | 405 | `method_not_allowed` | The endpoint does not accept this HTTP method |
 | 413 | `payload_too_large` | The upload exceeds `limits.max_file_size` (100 MB by default) |
 | 413 | `source_too_large` | The URL or storage object exceeds `limits.max_file_size` |
-| 413 | `too_many_pages` | The document has more pages than `ocr.max_pages` (100 by default). Split it, or use `readMode: text` |
+| 413 | `too_many_pages` | With `readMode: ocr`, the document has more pages than `ocr.max_pages` (100 by default); `auto` reads it as text instead. Split it, or use `readMode: auto` or `text` |
 | 413 | `image_too_large` | The image has more pixels than the decompression guard allows |
 | 415 | `unsupported_media_type` | The request is neither `application/json` nor `multipart/form-data` |
 | 415 | `unsupported_format` | The operation does not accept the detected format, or the file is corrupt or encrypted. See [file formats](./formats) |
