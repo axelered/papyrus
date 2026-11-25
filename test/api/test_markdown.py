@@ -105,6 +105,7 @@ def test_unsupported_document_is_rejected_before_worker(
     assert response.status_code == 415
     assert response.json()['code'] == 'unsupported_format'
     assert 'application/octet-stream' in response.json()['detail']
+    assert 'readMode' not in response.json()['detail']
     assert not app.state.services.markdown._pool.started
     assert _leftovers(work_dir) == []
 

@@ -129,7 +129,7 @@ class OcrService(Service):
         async def read(number: int) -> str:
             return await self._read_page(source, workspace, number, first if number == 1 else None)
 
-        with stage('ocr'):
+        with stage('pages'):
             pages = await _in_order(read, count, self.config.concurrency)
         unit = 'Slide' if document.format.group == FormatGroup.PRESENTATION else 'Page'
         markdown = '\n\n'.join(

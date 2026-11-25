@@ -10,7 +10,6 @@ from server.types.markdown import Chunk, ChunkingOptions, Extracted
 from server.utils.pool import ProcessPool
 from server.utils.problem import ProblemError
 from server.utils.text import decode_text, fence
-from server.utils.timing import stage
 
 if TYPE_CHECKING:
     # detection loads magika, which pool workers must not import
@@ -143,12 +142,11 @@ class MarkdownService(Service):
     ) -> Extracted:
         """Writes the text stored in the file to `target`, chunked in the same worker call"""
         value = document.format
-        with stage('markdown'):
-            # only derived code is fenced; explicit formats grouped as code (ipynb) have a markitdown converter
-            if value.derived and value.group == FormatGroup.CODE:
-                await self.fence_code(document.path, target, value.label, chunking, chunks_target)
-                return Extracted()
-            return Extracted(title=await self.convert(document.path, target, chunking, chunks_target))
+        # only derived code is fenced; explicit formats grouped as code (ipynb) have a markitdown converter
+        if value.derived and value.group == FormatGroup.CODE:
+            await self.fence_code(document.path, target, value.label, chunking, chunks_target)
+            return Extracted()
+        return Extracted(title=await self.convert(document.path, target, chunking, chunks_target))
 
     async def convert(
         self, source: Path, target: Path, chunking: ChunkingOptions | None = None, chunks_target: Path | None = None
