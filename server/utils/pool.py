@@ -67,8 +67,12 @@ class ProcessPool:
 
     async def run[T](self, fn: Callable[..., T], *args: Any) -> T:
         """Worker functions must be top-level and should raise ProblemError, other errors become PoolFailed"""
-        future = self._ensure().schedule(fn, args=args, timeout=self.timeout)
+        # a worker that dies while the pool is idle breaks the whole pool for good; closing it also stops the others
+        if self._pool is not None and not self._pool.active:
+            logger.warning('%s pool is broken, replacing it', self.name)
+            await self.aclose()
         try:
+            future = self._ensure().schedule(fn, args=args, timeout=self.timeout)
             return await asyncio.wrap_future(future)
         except asyncio.CancelledError:
             future.cancel()
