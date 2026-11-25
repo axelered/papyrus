@@ -77,7 +77,7 @@ server/ocr/
   qwen.py       openai SDK, prompt, parameters, cleaning
   mistral.py    mistralai SDK, parameters, cleaning
   clean.py      cleaning shared by adapters (stray markers)
-server/services/ocr.py   OcrService(render, convert): configured, accepts, read(document, target, chunking)
+server/services/ocr.py   OcrService(render, convert, markdown): configured, accepts, read(document, workspace, target, chunking, chunks_target)
 ```
 
 - **Layering:** `server/ocr/` imports stdlib and third-party only, like `utils/`; only `services/ocr.py` and the

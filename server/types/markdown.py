@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import Self
 
@@ -9,6 +10,16 @@ from server.types.common import OPTIONS, OUTPUT, RESOLVED, ApiModel, OpRequest, 
 class ReadMode(StrEnum):
     TEXT = 'text'
     OCR = 'ocr'
+
+
+@dataclass(frozen=True)
+class Extracted:
+    """Source facts a reader learns while writing the markdown"""
+
+    title: str | None = None
+    page_count: int | None = None
+    width: int | None = None
+    height: int | None = None
 
 
 class Tokenizer(StrEnum):

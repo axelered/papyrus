@@ -37,11 +37,14 @@ class FakePdfConvert:
 
 
 @pytest.fixture
-def install(client: TestClient) -> Install:
+def install(client: TestClient, request: pytest.FixtureRequest) -> Install:
     def install(adapter: OcrAdapter, concurrency: int = 2) -> OcrService:
         ocr = {'type': 'qwen', 'model': 'm', 'url': 'http://vllm/v1', 'max_pages': MAX_PAGES}
         config = Config.model_validate({'ocr': ocr | {'concurrency': concurrency}}).ocr
-        service = OcrService(config, renders=1, adapter=adapter, backoff=0)
+        services = client.app.state.services
+        # the fake LibreOffice of tests that ask for it, whatever the fixture order
+        convert = request.getfixturevalue('convert') if 'convert' in request.fixturenames else services.convert
+        service = OcrService(config, services.render, convert, services.markdown, renders=1, adapter=adapter, backoff=0)
         client.app.state.services.ocr = service
         return service
 

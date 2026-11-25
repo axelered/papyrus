@@ -72,13 +72,16 @@ class Services:
 
     @classmethod
     def create(cls, config: Config, topology: Topology) -> Self:
+        markdown = MarkdownService(processes=topology.markdown)
+        convert = ConvertService(processes=topology.convert, profiles=config.limits.tmp_dir / 'lo-profiles')
+        render = RenderService(processes=topology.render)
         return cls(
             detect=DetectService(),
-            markdown=MarkdownService(processes=topology.markdown),
-            convert=ConvertService(processes=topology.convert, profiles=config.limits.tmp_dir / 'lo-profiles'),
-            render=RenderService(processes=topology.render),
+            markdown=markdown,
+            convert=convert,
+            render=render,
             browser=BrowserService(config.http, config.browser, concurrency=topology.browser),
-            ocr=OcrService(config.ocr, renders=topology.ocr_renders),
+            ocr=OcrService(config.ocr, render, convert, markdown, renders=topology.ocr_renders),
         )
 
     async def __aenter__(self) -> Self:

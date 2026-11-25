@@ -46,13 +46,13 @@ elif mode == ReadMode.AUTO:
 
 if mode == ReadMode.OCR:
     try:
-        result = await ocr.read(document, target, options.chunking)
+        result = await ocr.read(document, workspace, target, options.chunking, chunks_target)
     except TooManyPages:
         if options.read_mode != ReadMode.AUTO:
             raise
         mode = ReadMode.TEXT  # fallback: too long to read with OCR, auto reads it as text
 if mode == ReadMode.TEXT:
-    result = await markdown.read(document, target, options.chunking)
+    result = await markdown.read(document, workspace, target, options.chunking, chunks_target)
 ```
 
 - `OCR_ONLY` (`IMAGE`, `PRESENTATION` groups) is the one routing table of the route: images cannot be read as text,
@@ -69,8 +69,8 @@ if mode == ReadMode.TEXT:
 | Service                    | Capability                                                                              |
 |----------------------------|-----------------------------------------------------------------------------------------|
 | `ConvertService.modernize` | `doc`, `rtf`, `odt` to `docx`; `ppt`, `odp` to `pptx`; `ods` to `xlsx`; others as is. Returns `Document(path, lookup(label))`, no second detection. Owns the former `CONVERSIONS` |
-| `MarkdownService`          | `accepts(format)` (former `MARKDOWN_FORMATS`), `read(document, target, chunking) -> Extracted` (markitdown or `fence_code`, chunking fused in the same worker call), `needs_ocr(document) -> bool` (logs the class), `chunk` |
-| `OcrService(render, convert, markdown)` | `configured`, `accepts(format)` (`pdf`, images, `docx`, `pptx`), `read(document, target, chunking) -> Extracted`: the whole OCR path of `adr/ocr.md` |
+| `MarkdownService`          | `accepts(format)` (former `MARKDOWN_FORMATS`), `read(document, workspace, target, chunking, chunks_target) -> Extracted` (markitdown or `fence_code`, chunking fused in the same worker call), `needs_ocr(document) -> bool` (logs the class), `chunk` |
+| `OcrService(render, convert, markdown)` | `configured`, `accepts(format)` (`pdf`, images, `docx`, `pptx`), `read(document, workspace, target, chunking, chunks_target) -> Extracted`: the whole OCR path of `adr/ocr.md` |
 
 - `Extracted(title, page_count, width, height)` in `types/markdown.py`; the response `source` describes the detected
   original, filled with these facts.
