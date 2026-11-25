@@ -25,7 +25,7 @@ from papyrus_sdk.models import (
 M = TypeVar('M', bound=ApiModel)
 
 ImageFormatName = ImageFormat | Literal['png', 'jpeg', 'webp']
-ReadModeName = ReadMode | Literal['text', 'ocr']
+ReadModeName = ReadMode | Literal['text', 'auto', 'ocr']
 FitName = Fit | Literal['contain', 'cover']
 WaitUntilName = WaitUntil | Literal['load', 'domcontentloaded', 'networkidle']
 Timeout = float | httpx.Timeout
@@ -85,7 +85,7 @@ class Papyrus:
         destination: str | None = None,
         timeout: Timeout | None = None,
     ) -> MarkdownResponse:
-        """Markdown of a document or web page, read from page images with `read_mode`, chunked with `chunking`"""
+        """Markdown of a document or web page, from its text or page images per `read_mode`, chunked with `chunking`"""
         target = wire.resolve_input(document, source, file, filename, disk=True)
         options = {'read_mode': read_mode, 'chunking': chunking}
         return self._send(wire.op_call('/v1/markdown', MarkdownResponse, target, options, destination), timeout)
@@ -262,7 +262,7 @@ class AsyncPapyrus:
         destination: str | None = None,
         timeout: Timeout | None = None,
     ) -> MarkdownResponse:
-        """Markdown of a document or web page, read from page images with `read_mode`, chunked with `chunking`"""
+        """Markdown of a document or web page, from its text or page images per `read_mode`, chunked with `chunking`"""
         target = wire.resolve_input(document, source, file, filename, disk=False)
         options = {'read_mode': read_mode, 'chunking': chunking}
         return await self._send(wire.op_call('/v1/markdown', MarkdownResponse, target, options, destination), timeout)

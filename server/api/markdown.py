@@ -1,3 +1,4 @@
+import logging
 from dataclasses import asdict
 from typing import TYPE_CHECKING
 
@@ -21,6 +22,11 @@ from server.utils.timing import stage
 
 if TYPE_CHECKING:
     from server.factory import Services
+
+# auto reads these with OCR without classifying: images have no text layer, slides read as flat text lose their layout
+OCR_ONLY = frozenset({FormatGroup.IMAGE, FormatGroup.PRESENTATION})
+
+logger = logging.getLogger('papyrus.markdown')
 
 router = APIRouter(prefix='/v1', tags=['markdown'], dependencies=[Depends(require_api_key)])
 
@@ -55,6 +61,31 @@ async def markdown(request: Request) -> Response:
             document = await services.convert.modernize(original, op.workspace)
 
         mode = options.read_mode
+        if mode == ReadMode.OCR:
+            if not services.ocr.configured:
+                raise OcrNotConfigured('readMode ocr needs an OCR backend, this server has none')
+            if not services.ocr.accepts(document.format):
+                mode = ReadMode.TEXT  # fallback: formats without pages are read as text
+        elif mode == ReadMode.AUTO:
+            if not services.ocr.configured or not services.ocr.accepts(document.format):
+                mode = ReadMode.TEXT  # fallback: no backend, or a format without pages
+            elif document.format.group in OCR_ONLY:
+                mode = ReadMode.OCR  # images, presentations
+            else:
+                with stage('classify'):
+                    mode = ReadMode.OCR if await services.markdown.needs_ocr(document) else ReadMode.TEXT
+
+        target = op.workspace.new_file(f'{document.path.stem}.md')
+        chunks_target = op.workspace.new_file(f'{document.path.stem}.chunks.json') if options.chunking else None
+        if mode == ReadMode.OCR:
+            try:
+                with stage('ocr'):
+                    result = await services.ocr.read(document, op.workspace, target, options.chunking, chunks_target)
+            except TooManyPages as e:
+                if options.read_mode != ReadMode.AUTO:
+                    raise
+                mode = ReadMode.TEXT  # fallback: too long to read with OCR, auto reads it as text
+                logger.info('%s, read as text', e.detail)
         if mode == ReadMode.TEXT:
             if not services.markdown.accepts(document.format):
                 raise UnsupportedFormat(
@@ -62,18 +93,6 @@ async def markdown(request: Request) -> Response:
                     f'markdown extraction'
                     + (', set readMode to ocr to read images' if original.format.group == FormatGroup.IMAGE else '')
                 )
-        elif mode == ReadMode.OCR:
-            if not services.ocr.configured:
-                raise OcrNotConfigured('readMode ocr needs an OCR backend, this server has none')
-            if not services.ocr.accepts(document.format):
-                mode = ReadMode.TEXT  # fallback: formats without pages are read as text
-
-        target = op.workspace.new_file(f'{document.path.stem}.md')
-        chunks_target = op.workspace.new_file(f'{document.path.stem}.chunks.json') if options.chunking else None
-        if mode == ReadMode.OCR:
-            with stage('ocr'):
-                result = await services.ocr.read(document, op.workspace, target, options.chunking, chunks_target)
-        else:
             with stage('markdown'):
                 result = await services.markdown.read(document, target, options.chunking, chunks_target)
 

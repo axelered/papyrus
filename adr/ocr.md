@@ -16,7 +16,7 @@ Remote service of `adr/architecture.md`; pages come from `adr/render.md`.
 
 | Option     | Type            | Default | Rules                                                         |
 |------------|-----------------|---------|---------------------------------------------------------------|
-| `readMode` | `text` \| `ocr` | `text`  | `ReadMode` `StrEnum` in `types/markdown.py`, combines with `chunking` |
+| `readMode` | `text` \| `auto` \| `ocr` | `auto` | `ReadMode` `StrEnum` in `types/markdown.py`, combines with `chunking` |
 
 - Named after where the content comes from, not speed or quality: `text` is exact on born-digital files, a model can
   misread digits and names.

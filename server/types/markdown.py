@@ -9,6 +9,7 @@ from server.types.common import OPTIONS, OUTPUT, RESOLVED, ApiModel, OpRequest, 
 
 class ReadMode(StrEnum):
     TEXT = 'text'
+    AUTO = 'auto'
     OCR = 'ocr'
 
 
@@ -86,10 +87,11 @@ class ChunkingOptions(OptionsModel):
 
 class MarkdownOptions(OptionsModel):
     read_mode: ReadMode = Field(
-        default=ReadMode.TEXT,
+        default=ReadMode.AUTO,
         description=(
-            '`text` extracts the text stored in the file, `ocr` reads page images with a vision model. Formats without '
-            'pages fall back to `text`; the response reports the mode used'
+            '`text` extracts the text stored in the file, `ocr` reads page images with a vision model, `auto` uses '
+            '`ocr` for images, presentations and documents whose text cannot be extracted, `text` otherwise. Formats '
+            'without pages fall back to `text`; the response reports the mode used'
         ),
     )
     chunking: ChunkingOptions | None = Field(

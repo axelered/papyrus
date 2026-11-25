@@ -28,10 +28,7 @@ document = await detect.detect(source.path)
 document = await convert.modernize(document, workspace)
 
 mode = options.read_mode
-if mode == ReadMode.TEXT:
-    if not markdown.accepts(document.format):
-        raise UnsupportedFormat(...)  # hint to readMode ocr for images
-elif mode == ReadMode.OCR:
+if mode == ReadMode.OCR:
     if not ocr.configured:
         raise OcrNotConfigured(...)
     if not ocr.accepts(document.format):
@@ -52,8 +49,14 @@ if mode == ReadMode.OCR:
             raise
         mode = ReadMode.TEXT  # fallback: too long to read with OCR, auto reads it as text
 if mode == ReadMode.TEXT:
+    if not markdown.accepts(document.format):
+        raise UnsupportedFormat(...)  # hint to readMode ocr for images
     result = await markdown.read(document, target, options.chunking, chunks_target)
 ```
+
+- The `accepts` check sits with the text read, not in a `text` branch: every path ending in `text` (requested, or a
+  fallback of `ocr` and `auto`) gets the same `415` and its hint to `readMode: ocr` for images.
+- Stages: `modernize`, `classify`, `ocr` or `markdown` in `Server-Timing`.
 
 - `OCR_ONLY` (`IMAGE`, `PRESENTATION` groups) is the one routing table of the route: images cannot be read as text,
   slide layout read as flat text carries little meaning.
@@ -172,7 +175,8 @@ DOCX text is the XML itself and always readable; OCR pays off only when images c
 
 ## Delivery
 
-Same change: `ReadMode.AUTO` and the default in `types/markdown.py`, Python and TypeScript SDKs, Bruno `Markdown.yml`
+Same change: `ReadMode.AUTO` and the default in `types/markdown.py` and the Python SDK (its schema test pins the
+server enum); then the TypeScript SDK, Bruno `Markdown.yml`
 (auto default, resolved mode, page limit fallback), `docs/` (markdown and OCR guides: routing, the page limit
 fallback, documents sent to the backend by default), `config.example.yml` (`ocr` section and `max_pages` comment).
 

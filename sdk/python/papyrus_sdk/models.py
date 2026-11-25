@@ -31,9 +31,11 @@ class WaitUntil(StrEnum):
 
 
 class ReadMode(StrEnum):
-    """Where the Markdown comes from: the text stored in the file, or page images read by a vision model"""
+    """Where the Markdown comes from: the text stored in the file, page images read by a vision model, or `auto`,
+    which picks one per document"""
 
     TEXT = 'text'
+    AUTO = 'auto'
     OCR = 'ocr'
 
 
@@ -194,8 +196,8 @@ class ChunkingOptions(ApiModel):
 
 
 class MarkdownOptions(ApiModel):
-    read_mode: ReadMode = ReadMode.TEXT
-    """ In a response the mode used, formats without pages fall back to `text` """
+    read_mode: ReadMode = ReadMode.AUTO
+    """ In a response the mode used, `text` or `ocr`; formats without pages fall back to `text` """
     chunking: ChunkingOptions | None = None
 
 

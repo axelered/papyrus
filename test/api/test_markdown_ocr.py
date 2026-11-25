@@ -27,7 +27,7 @@ Install = Callable[[OcrAdapter], OcrService]
 
 
 class FakePdfConvert:
-    """Stands in for LibreOffice on the host: writes the pages of SIZES"""
+    """Stands in for LibreOffice on the host: PDF exports have the pages of SIZES, OOXML targets are samples"""
 
     # the real method, over the fake convert
     modernize = ConvertService.modernize
@@ -37,7 +37,8 @@ class FakePdfConvert:
 
     async def convert(self, source: Path, target: Path, format: ConvertFormat) -> None:
         self.calls.append((source.suffix, format))
-        target.write_bytes(samples.pdf_pages(*SIZES))
+        ooxml = {ConvertFormat.DOCX: samples.docx, ConvertFormat.PPTX: samples.pptx, ConvertFormat.XLSX: samples.xlsx}
+        target.write_bytes(ooxml[format]() if format in ooxml else samples.pdf_pages(*SIZES))
 
 
 @pytest.fixture
@@ -208,11 +209,96 @@ def test_unsupported_format_is_rejected(client: TestClient, auth_headers: dict[s
     assert (response.status_code, response.json()['code']) == (415, 'unsupported_format')
 
 
-def test_text_is_the_default_for_pdf(client: TestClient, auth_headers: dict[str, str], adapter: FakeAdapter):
-    response = client.post('/v1/markdown', headers=auth_headers, files={'file': ('a.pdf', samples.pdf())})
+# - - - Auto
 
-    assert 'Hello PDF' in response.json()['result']['content']
+
+SCAN = samples.pdf_streams(samples.PDF_IMAGE)
+
+
+def _auto(client: TestClient, headers: dict[str, str], name: str, content: bytes):
+    """No readMode: auto is the default"""
+    return client.post('/v1/markdown', headers=headers, files={'file': (name, content)})
+
+
+def test_auto_reads_scans_with_ocr(client: TestClient, auth_headers: dict[str, str], adapter: FakeAdapter):
+    response = _auto(client, auth_headers, 'scan.pdf', SCAN)
+
+    body = response.json()
+    assert response.status_code == 200, response.text
+    assert body['options'] == {'readMode': 'ocr'}
+    assert body['result']['content'] == _pages('556x556')
+    assert adapter.calls == 1
+
+
+def test_auto_reads_native_text(client: TestClient, auth_headers: dict[str, str], adapter: FakeAdapter):
+    body = _auto(client, auth_headers, 'a.pdf', samples.pdf()).json()
+
+    assert 'Hello PDF' in body['result']['content']
+    assert body['options'] == {'readMode': 'text'}
     assert adapter.calls == 0
+
+
+def test_auto_without_backend_reads_text(client: TestClient, auth_headers: dict[str, str]):
+    response = _auto(client, auth_headers, 'scan.pdf', SCAN)
+
+    assert response.status_code == 200, response.text
+    assert response.json()['options'] == {'readMode': 'text'}
+
+
+def test_auto_does_not_hide_backend_failures(client: TestClient, auth_headers: dict[str, str], install: Install):
+    install(FakeAdapter(OcrRejected('the OCR backend answered HTTP 400')))
+
+    response = _auto(client, auth_headers, 'scan.pdf', SCAN)
+
+    assert (response.status_code, response.json()['code']) == (502, 'ocr_failed')
+
+
+def test_auto_reads_long_documents_as_text(
+    client: TestClient, auth_headers: dict[str, str], adapter: FakeAdapter, caplog: pytest.LogCaptureFixture
+):
+    content = samples.pdf_streams(*[samples.PDF_IMAGE] * (MAX_PAGES + 1))
+
+    with caplog.at_level('INFO', logger='papyrus.markdown'):
+        response = _auto(client, auth_headers, 'long.pdf', content)
+
+    assert response.status_code == 200, response.text
+    assert response.json()['options'] == {'readMode': 'text'}
+    assert adapter.calls == 0
+    assert 'read as text' in caplog.text
+
+
+@pytest.mark.parametrize(
+    ('name', 'content'), [('photo.png', samples.image('PNG', (64, 48))), ('deck.pptx', samples.pptx())]
+)
+def test_auto_reads_images_and_presentations_with_ocr(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    adapter: FakeAdapter,
+    convert: FakePdfConvert,
+    name: str,
+    content: bytes,
+):
+    body = _auto(client, auth_headers, name, content).json()
+
+    assert body['options'] == {'readMode': 'ocr'}
+
+
+def test_auto_classifies_legacy_documents_once_modernized(
+    client: TestClient, auth_headers: dict[str, str], adapter: FakeAdapter, convert: FakePdfConvert
+):
+    body = _auto(client, auth_headers, 'report.odt', samples.odt()).json()
+
+    assert body['options'] == {'readMode': 'text'}
+    assert body['result']['content'].startswith('# Report')
+    assert body['source']['label'] == 'odt'
+    assert convert.calls == [('.odt', ConvertFormat.DOCX)]
+    assert adapter.calls == 0
+
+
+def test_auto_reads_spreadsheets_as_text(client: TestClient, auth_headers: dict[str, str], adapter: FakeAdapter):
+    body = _auto(client, auth_headers, 'book.xlsx', samples.xlsx()).json()
+
+    assert body['options'] == {'readMode': 'text'}
 
 
 # - - - Outputs
