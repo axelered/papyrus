@@ -17,18 +17,30 @@ from papyrus_sdk import (
     FormatGroup,
     ImageFormat,
     Papyrus,
+    ReadMode,
     Tokenizer,
     WaitUntil,
 )
 from PIL import Image
 
+from server.config import Config
+from server.services.ocr import OcrService
 from test.fixtures.app import API_KEY
 from test.fixtures.browser import PNG, FakeBrowser
 from test.fixtures.documents import BINARY, CSV, HTML
+from test.fixtures.ocr import FakeAdapter
 from test.fixtures.samples import pdf_pages
 from test.fixtures.sdk import BASE_URL
 
 A4 = (595, 842)
+
+
+@pytest.fixture
+def ocr_adapter(client: TestClient) -> FakeAdapter:
+    adapter = FakeAdapter()
+    config = Config.model_validate({'ocr': {'type': 'qwen', 'model': 'm', 'url': 'http://vllm/v1'}}).ocr
+    client.app.state.services.ocr = OcrService(config, renders=1, adapter=adapter, backoff=0)
+    return adapter
 
 
 def test_markdown_upload(sdk: Papyrus, tmp_path: Path):
@@ -42,7 +54,7 @@ def test_markdown_upload(sdk: Papyrus, tmp_path: Path):
     assert (response.source.uri, response.source.name) == ('file://file', 'report.html')
     assert response.source.group is FormatGroup.MARKUP
     assert response.source.title == 'Quarterly'
-    assert response.options.chunking is None
+    assert (response.options.read_mode, response.options.chunking) == (ReadMode.TEXT, None)
     assert response.chunks is None
     assert response.request_id
 
@@ -57,6 +69,28 @@ def test_markdown_chunks(sdk: Papyrus):
     assert response.chunks and response.chunks[0].kind is ChunkKind.TEXT
     chunk = response.chunks[0]
     assert response.result.text[chunk.start : chunk.end] in chunk.text
+
+
+@pytest.mark.usefixtures('chunking_assets')
+def test_markdown_ocr(sdk: Papyrus, ocr_adapter: FakeAdapter):
+    response = sdk.markdown(pdf_pages(A4, A4), filename='scan.pdf', read_mode='ocr', chunking=ChunkingOptions())
+
+    assert response.options.read_mode is ReadMode.OCR
+    assert response.source.page_count == ocr_adapter.calls == 2
+    assert response.chunks and {chunk.page for chunk in response.chunks} == {1}
+
+
+def test_markdown_ocr_falls_back_on_formats_without_pages(sdk: Papyrus, ocr_adapter: FakeAdapter):
+    response = sdk.markdown(CSV, filename='data.csv', read_mode=ReadMode.OCR)
+
+    assert (response.options.read_mode, ocr_adapter.calls) == (ReadMode.TEXT, 0)
+
+
+def test_markdown_ocr_without_a_backend(sdk: Papyrus):
+    with pytest.raises(APIError) as error:
+        sdk.markdown(pdf_pages(A4), filename='scan.pdf', read_mode='ocr')
+
+    assert (error.value.status, error.value.code) == (422, 'ocr_not_configured')
 
 
 def test_every_upload_form_sends_the_same_document(sdk: Papyrus, tmp_path: Path):

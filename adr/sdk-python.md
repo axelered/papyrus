@@ -83,7 +83,7 @@ with Papyrus(base_url='http://127.0.0.1:8000', api_key='dev') as client:
 
 | Method | Response | Own parameters |
 |---|---|---|
-| `markdown` | `MarkdownResponse` | `chunking` |
+| `markdown` | `MarkdownResponse` | `read_mode`, `chunking` |
 | `render` | `RenderResponse` | render options |
 | `thumbnail` | `ThumbnailResponse` | thumbnail options |
 | `screenshot(url)` | `ScreenshotResponse` | screenshot options |
@@ -156,10 +156,11 @@ Operations are safe to repeat, but expensive: only failures where the server did
 | `502` / `503` without `problem+json` (proxy, deploys) | yes |
 | Any `504`, read timeout | no, same work and likely same outcome |
 | `500 processing_failed`, `502 source_fetch_failed`, `502 destination_failed` | no, usually permanent |
+| `502 ocr_failed`, `503 ocr_rate_limited` | no, the server already retried and a repeat pays for every page again |
 | Connection lost while waiting | no, a document that kills the container would kill it again |
 
 - A proxy can turn a lost connection into a `502`, so the last protection is partial.
-- Wait: `max(Retry-After, exponential backoff)` plus jitter, capped at 30 s. Jitter matters because the server's `Retry-After` is a constant 2 s.
+- Wait: `max(Retry-After, exponential backoff)` plus jitter, capped at 30 s. Jitter matters because the `Retry-After` of `queue_full` is a constant 2 s.
 - File objects are always sent from their beginning, also when partly read (`httpx` rewinds them). Those that cannot seek (pipes) are read into memory: `httpx` would declare a zero length, and a retry could not read them again.
 - `keepalive_expiry` is 2 s (not with a custom `http_client`): uvicorn closes idle connections at 5 s, the `httpx` default, and reusing a just closed one would be a lost connection, which is not retried.
 - A short loop, no retry library.

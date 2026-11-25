@@ -16,13 +16,13 @@ const RESULT: Result = {
   content: 'hié',
 }
 const PNG: Result = { ...RESULT, name: 'a.png', mimeType: 'image/png', encoding: 'base64', content: 'iVBORw==' }
-const ENVELOPE = { source: { uri: 'file://file' }, options: {}, result: RESULT }
+const ENVELOPE = { source: { uri: 'file://file' }, options: { readMode: 'text' }, result: RESULT }
 
 describe('responses', () => {
   test('unknown fields are dropped', () => {
     const parsed = models.markdownResponse.parse({
       ...ENVELOPE,
-      options: { quality: 3 },
+      options: { readMode: 'text', quality: 3 },
       source: { uri: 'file://file', sha256: 'abc' },
       links: [],
     })

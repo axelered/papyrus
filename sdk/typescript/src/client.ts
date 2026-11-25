@@ -63,7 +63,7 @@ export class Papyrus {
     this.#settings = wire.resolveSettings(options)
   }
 
-  /** Markdown of a document or web page, split into chunks with `chunking` */
+  /** Markdown of a document or web page, read from page images with `readMode`, chunked with `chunking` */
   async markdown(input: wire.Input, params: MarkdownParams = {}): Promise<MarkdownResponse> {
     return this.#send(wire.operationCall('/v1/markdown', markdownResponse, input, params), params)
   }

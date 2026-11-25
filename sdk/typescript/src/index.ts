@@ -28,6 +28,7 @@ export type {
   MarkdownResponse,
   ProblemCode,
   ProblemIssue,
+  ReadMode,
   RenderOptions,
   RenderResponse,
   Result,

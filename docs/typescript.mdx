@@ -109,6 +109,23 @@ await writeFile('page.webp', bytes(page.result))
 
 The same argument takes `timeout` and `signal`. When you abort, the call rejects with the signal's reason.
 
+## Read scans and images
+
+Set `readMode: 'ocr'` to read page images with a vision model, when your operator has [configured one](./configuration#ocr). See [scans and images](./markdown#read-scans-and-images) for the formats and limits.
+
+```ts
+const doc = await client.markdown(await openAsBlob('scan.pdf'), {
+  filename: 'scan.pdf',
+  readMode: 'ocr',
+  chunking: {},
+})
+
+console.log(doc.options.readMode, doc.source.pageCount)
+for (const chunk of doc.chunks ?? []) console.log(chunk.page, chunk.headings)
+```
+
+`options.readMode` is the mode the server used: formats without pages, and spreadsheets, are read as `text`. Raise the client `timeout` together with `limits.deadline` for long documents.
+
 ## Read the result
 
 | Function | Returns |
@@ -159,7 +176,7 @@ try {
 
 The four errors derive from `PapyrusError`. Use `error.requestId` to find the request in the server logs; `error.errors` lists the invalid fields of a `validation_error`. If a file is deleted or changed after `openAsBlob`, the call rejects with the runtime's own error.
 
-The client retries only requests the server did not process: `queue_full`, refused connections, unknown hosts, and `502` or `503` answers from a proxy. Before each retry it waits for `Retry-After` or an exponential backoff, at most 30 seconds. Timeouts, lost connections and every other error reject at once.
+The client retries only requests the server did not process: `queue_full`, refused connections, unknown hosts, and `502` or `503` answers from a proxy. Before each retry it waits for `Retry-After` or an exponential backoff, at most 30 seconds. Timeouts, lost connections and every other error, `ocr_rate_limited` included, reject at once.
 
 Browsers do not tell connection failures apart and do not expose `Retry-After`. There the client retries only error answers, with the backoff.
 

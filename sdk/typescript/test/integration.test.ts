@@ -43,7 +43,7 @@ describe('operations', () => {
 
     assert.match(text(doc.result), /\| pen \| 2 \|/)
     assert.deepEqual([doc.source.name, doc.source.label], ['prezzi è.csv', 'csv'])
-    assert.deepEqual(doc.options, {})
+    assert.deepEqual(doc.options, { readMode: 'text' })
     assert.equal(doc.chunks, undefined)
     assert.ok(doc.requestId)
   })

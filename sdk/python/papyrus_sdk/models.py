@@ -30,6 +30,13 @@ class WaitUntil(StrEnum):
     NETWORKIDLE = 'networkidle'
 
 
+class ReadMode(StrEnum):
+    """Where the Markdown comes from: the text stored in the file, or page images read by a vision model"""
+
+    TEXT = 'text'
+    OCR = 'ocr'
+
+
 class Tokenizer(StrEnum):
     O200K_BASE = 'o200k_base'
     CL100K_BASE = 'cl100k_base'
@@ -187,6 +194,8 @@ class ChunkingOptions(ApiModel):
 
 
 class MarkdownOptions(ApiModel):
+    read_mode: ReadMode = ReadMode.TEXT
+    """ In a response the mode used, formats without pages fall back to `text` """
     chunking: ChunkingOptions | None = None
 
 
@@ -236,7 +245,9 @@ class Chunk(ApiModel):
     headings: list[str]
     """Headings the chunk sits under, outermost first"""
     slide: int | None = None
-    """pptx only"""
+    """ pptx, and every presentation read with `ocr` """
+    page: int | None = None
+    """ Page the chunk starts on, read with `ocr`, not presentations """
     start: int
     """Offset of the chunk span in `result.text` (overlap not included)"""
     end: int

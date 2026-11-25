@@ -28,7 +28,7 @@ await writeFile('page.png', bytes(page.result))
 
 | Method | Returns |
 |---|---|
-| `markdown` | Markdown of a document or web page, chunked with `chunking` |
+| `markdown` | Markdown of a document or web page, read from page images with `readMode: 'ocr'`, chunked with `chunking` |
 | `render` | One page or image frame at a readable size |
 | `thumbnail` | One page, image or web page fitted into a box |
 | `screenshot` | A web page captured in headless Chromium |

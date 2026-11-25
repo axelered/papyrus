@@ -110,6 +110,7 @@
 - [x] `docs/python.mdx` guide
 - [!] Add `hatchling` to the SBOM of `adr/license.md` once `feat/license` is merged
 - [x] Move the project to `sdk/python/` and its tests from `test/sdk/` to `sdk/python/test/`
+- [x] OCR: `read_mode`, `chunks[].page`
 
 ### TypeScript SDK (spec: `adr/sdk-typescript.md`)
 
@@ -118,6 +119,7 @@
 - [x] Schema, client, model, integration and package tests on Node and Bun, dekit task
 - [x] `sdk/typescript/README.md`, `LICENSE` and `NOTICE`
 - [x] `docs/typescript.mdx` guide
+- [x] OCR: `readMode`, `chunks[].page`, error codes
 - [!] Publish to npm before the next tag, the guide is already in `docs/`: `axelered` organization, version stamp, Trusted Publishing
 - [!] Run the TypeScript tests in `check.yml`, until then drift is caught only locally
 - [!] Expose `Retry-After` to browsers in `server/utils/cors.py`

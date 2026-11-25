@@ -80,6 +80,20 @@ page.result.save('page.webp')
 page=1 width=800 height=None dpi=None format=<ImageFormat.WEBP: 'webp'>
 ```
 
+## Read scans and images
+
+Set `read_mode='ocr'` to read page images with a vision model, when your operator has [configured one](./configuration#ocr). See [scans and images](./markdown#read-scans-and-images) for the formats and limits.
+
+```python
+doc = client.markdown(Path('scan.pdf'), read_mode='ocr', chunking=ChunkingOptions())
+
+print(doc.options.read_mode, doc.source.page_count)
+for chunk in doc.chunks or []:
+    print(chunk.page, chunk.headings)
+```
+
+`options.read_mode` is the mode the server used: formats without pages, and spreadsheets, are read as `text`. Raise the client `timeout` together with `limits.deadline` for long documents.
+
 ## Read the result
 
 | Accessor | Returns |
@@ -151,7 +165,7 @@ except APIError as e:
 
 Use `e.request_id` to find the request in the server logs; `e.errors` lists the invalid fields of a `validation_error`.
 
-The client retries only requests the server did not process: `queue_full`, refused connections, and `502` or `503` answers from a proxy. Before each retry it waits for `Retry-After` or an exponential backoff, at most 30 seconds. Timeouts, lost connections and every other error raise at once.
+The client retries only requests the server did not process: `queue_full`, refused connections, and `502` or `503` answers from a proxy. Before each retry it waits for `Retry-After` or an exponential backoff, at most 30 seconds. Timeouts, lost connections and every other error, `ocr_rate_limited` included, raise at once.
 
 ## Check the server
 

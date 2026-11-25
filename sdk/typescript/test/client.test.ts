@@ -78,6 +78,7 @@ describe('requests', () => {
 
     await apiError(client.inspect(URI))
     await apiError(client.markdown(URI, { chunking: { maxTokens: 99 }, timeout: 1000 }))
+    await apiError(client.markdown(URI, { readMode: 'ocr' }))
     await apiError(client.screenshot(URI, { fullPage: false, width: undefined, destination: 's3://prod/a.png' }))
 
     assert.deepEqual(
@@ -85,6 +86,7 @@ describe('requests', () => {
       [
         { source: URI, options: {} },
         { source: URI, options: { chunking: { maxTokens: 99 } }, output: 'json' },
+        { source: URI, options: { readMode: 'ocr' }, output: 'json' },
         { source: URI, options: { fullPage: false }, output: 'json', destination: 's3://prod/a.png' },
       ],
     )
@@ -320,6 +322,8 @@ describe('retries', () => {
     ['source_fetch_failed', problem(502, 'source_fetch_failed'), APIError],
     ['destination_failed', problem(502, 'destination_failed'), APIError],
     ['not_ready', problem(503, 'not_ready'), APIError],
+    ['ocr_failed', problem(502, 'ocr_failed'), APIError],
+    ['ocr_rate_limited', problem(503, 'ocr_rate_limited', { 'retry-after': '30' }), APIError],
     ['deadline_exceeded', problem(504, 'deadline_exceeded'), APIError],
     ['a proxy 504', new Response('gateway timeout', { status: 504 }), APIError],
     ['a proxy 500', new Response('oops', { status: 500 }), APIError],

@@ -14,6 +14,7 @@ from papyrus_sdk.models import (
     ImageFormat,
     InspectResponse,
     MarkdownResponse,
+    ReadMode,
     RenderResponse,
     ScreenshotResponse,
     StatusResponse,
@@ -24,6 +25,7 @@ from papyrus_sdk.models import (
 M = TypeVar('M', bound=ApiModel)
 
 ImageFormatName = ImageFormat | Literal['png', 'jpeg', 'webp']
+ReadModeName = ReadMode | Literal['text', 'ocr']
 FitName = Fit | Literal['contain', 'cover']
 WaitUntilName = WaitUntil | Literal['load', 'domcontentloaded', 'networkidle']
 Timeout = float | httpx.Timeout
@@ -78,13 +80,14 @@ class Papyrus:
         source: str | None = None,
         file: wire.File | None = None,
         filename: str | None = None,
+        read_mode: ReadModeName | None = None,
         chunking: ChunkingOptions | None = None,
         destination: str | None = None,
         timeout: Timeout | None = None,
     ) -> MarkdownResponse:
-        """Markdown of a document or web page, split into chunks with `chunking`"""
+        """Markdown of a document or web page, read from page images with `read_mode`, chunked with `chunking`"""
         target = wire.resolve_input(document, source, file, filename, disk=True)
-        options = {'chunking': chunking}
+        options = {'read_mode': read_mode, 'chunking': chunking}
         return self._send(wire.op_call('/v1/markdown', MarkdownResponse, target, options, destination), timeout)
 
     def render(
@@ -254,13 +257,14 @@ class AsyncPapyrus:
         source: str | None = None,
         file: bytes | None = None,
         filename: str | None = None,
+        read_mode: ReadModeName | None = None,
         chunking: ChunkingOptions | None = None,
         destination: str | None = None,
         timeout: Timeout | None = None,
     ) -> MarkdownResponse:
-        """Markdown of a document or web page, split into chunks with `chunking`"""
+        """Markdown of a document or web page, read from page images with `read_mode`, chunked with `chunking`"""
         target = wire.resolve_input(document, source, file, filename, disk=False)
-        options = {'chunking': chunking}
+        options = {'read_mode': read_mode, 'chunking': chunking}
         return await self._send(wire.op_call('/v1/markdown', MarkdownResponse, target, options, destination), timeout)
 
     async def render(

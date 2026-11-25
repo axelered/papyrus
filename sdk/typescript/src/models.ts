@@ -7,6 +7,7 @@ import * as z from 'zod/mini'
 export const imageFormat = z.enum(['png', 'jpeg', 'webp'])
 export const fit = z.enum(['contain', 'cover'])
 export const waitUntil = z.enum(['load', 'domcontentloaded', 'networkidle'])
+export const readMode = z.enum(['text', 'ocr'])
 export const tokenizer = z.enum(['o200k_base', 'cl100k_base', 'word', 'character'])
 export const encoding = z.enum(['utf-8', 'base64'])
 export const formatGroup = z.enum([
@@ -57,6 +58,8 @@ export type ImageFormat = z.infer<typeof imageFormat>
 export type Fit = z.infer<typeof fit>
 /** Page event awaited before a screenshot */
 export type WaitUntil = z.infer<typeof waitUntil>
+/** Where the Markdown comes from: the text stored in the file, or page images read by a vision model */
+export type ReadMode = z.infer<typeof readMode>
 export type Tokenizer = z.infer<typeof tokenizer>
 /** How `result.content` carries the artifact */
 export type Encoding = z.infer<typeof encoding>
@@ -120,6 +123,7 @@ export const chunkingOptions = z.object({
 })
 
 export const markdownOptions = z.object({
+  readMode,
   chunking: z.optional(chunkingOptions),
 })
 
@@ -153,6 +157,7 @@ export const inspectOptions = z.object({})
 
 /** Token budget of every chunk, tokens of overlap between prose chunks, and the tokenizer counting them */
 export type ChunkingOptions = z.infer<typeof chunkingOptions>
+/** `readMode` in a response is the mode used, formats without pages fall back to `text` */
 export type MarkdownOptions = z.infer<typeof markdownOptions>
 export type ThumbnailOptions = z.infer<typeof thumbnailOptions>
 export type RenderOptions = z.infer<typeof renderOptions>
@@ -173,6 +178,7 @@ export const chunk = z.object({
   language: z.optional(codeLanguage),
   headings: z.array(z.string()),
   slide: z.optional(z.int()),
+  page: z.optional(z.int()),
   start: z.int(),
   end: z.int(),
   tokens: z.int(),
@@ -198,7 +204,10 @@ export interface Traced {
 
 /** Every check is true when passed, false when failed and undefined when it does not apply */
 export type InspectChecks = z.infer<typeof inspectChecks>
-/** `start` and `end` (exclusive) locate the chunk in the Markdown, overlap not included; `slide` is set for pptx */
+/**
+ * `start` and `end` (exclusive) locate the chunk in the Markdown, overlap not included. `slide` is set for pptx and every
+ * presentation read with `ocr`, `page` is where the chunk starts in the other documents read with `ocr`
+ */
 export type Chunk = z.infer<typeof chunk>
 /** `chunks` is present with `chunking`, and absent with a destination */
 export type MarkdownResponse = z.infer<typeof markdownResponse> & Traced
@@ -220,6 +229,9 @@ export const PROBLEM_CODES = [
   'method_not_allowed',
   'not_found',
   'not_ready',
+  'ocr_failed',
+  'ocr_not_configured',
+  'ocr_rate_limited',
   'page_out_of_range',
   'payload_too_large',
   'processing_failed',
@@ -229,6 +241,7 @@ export const PROBLEM_CODES = [
   'source_forbidden',
   'source_not_found',
   'source_too_large',
+  'too_many_pages',
   'unauthorized',
   'unknown_connector',
   'unsupported_format',

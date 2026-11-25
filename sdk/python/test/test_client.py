@@ -43,6 +43,7 @@ def test_only_set_options_are_sent():
     for call in (
         lambda c: c.inspect(URL),
         lambda c: c.markdown(URL, chunking=ChunkingOptions(max_tokens=99)),
+        lambda c: c.markdown(URL, read_mode='ocr'),
         lambda c: c.screenshot(URL, full_page=False, destination='s3://prod/a.png'),
     ):
         with pytest.raises(APIError):
@@ -51,6 +52,7 @@ def test_only_set_options_are_sent():
     assert [json.loads(request.content) for request in server.requests] == [
         {'source': URL, 'options': {}},
         {'source': URL, 'options': {'chunking': {'maxTokens': 99}}, 'output': 'json'},
+        {'source': URL, 'options': {'readMode': 'ocr'}, 'output': 'json'},
         {'source': URL, 'options': {'fullPage': False}, 'output': 'json', 'destination': 's3://prod/a.png'},
     ]
 
@@ -260,6 +262,8 @@ def test_untouched_requests_are_retried(failure: httpx.Response | Exception, sle
         (problem(502, 'source_fetch_failed'), APIError),
         (problem(502, 'destination_failed'), APIError),
         (problem(503, 'not_ready'), APIError),
+        (problem(502, 'ocr_failed'), APIError),
+        (problem(503, 'ocr_rate_limited', **{'retry-after': '30'}), APIError),
         (problem(504, 'deadline_exceeded'), APIError),
         (httpx.Response(504, text='gateway timeout'), APIError),
         (httpx.Response(500, text='oops'), APIError),
