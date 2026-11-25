@@ -39,7 +39,10 @@ A4 = (595, 842)
 def ocr_adapter(client: TestClient) -> FakeAdapter:
     adapter = FakeAdapter()
     config = Config.model_validate({'ocr': {'type': 'qwen', 'model': 'm', 'url': 'http://vllm/v1'}}).ocr
-    client.app.state.services.ocr = OcrService(config, renders=1, adapter=adapter, backoff=0)
+    services = client.app.state.services
+    services.ocr = OcrService(
+        config, services.render, services.convert, services.markdown, renders=1, adapter=adapter, backoff=0
+    )
     return adapter
 
 

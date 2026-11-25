@@ -4,6 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from server.errors import UnsupportedFormat
+from server.services.convert import ConvertService
 from server.types.convert import ConvertFormat
 from test.fixtures import samples
 from test.fixtures.documents import HTML
@@ -13,6 +14,9 @@ OOXML = {ConvertFormat.DOCX: samples.docx, ConvertFormat.PPTX: samples.pptx, Con
 
 class FakeConvert:
     """Stands in for LibreOffice on the host: writes an OOXML sample of the requested format"""
+
+    # the real method, over the fake convert
+    modernize = ConvertService.modernize
 
     def __init__(self, error: Exception | None = None):
         self.calls: list[tuple[str, ConvertFormat]] = []

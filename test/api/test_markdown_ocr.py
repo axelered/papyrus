@@ -11,6 +11,7 @@ from fsspec import AbstractFileSystem
 
 from server.config import Config
 from server.ocr.base import OcrAdapter, OcrRateLimited, OcrRejected
+from server.services.convert import ConvertService
 from server.services.ocr import OcrService
 from server.types.convert import ConvertFormat
 from test.fixtures import samples
@@ -27,6 +28,9 @@ Install = Callable[[OcrAdapter], OcrService]
 
 class FakePdfConvert:
     """Stands in for LibreOffice on the host: writes the pages of SIZES"""
+
+    # the real method, over the fake convert
+    modernize = ConvertService.modernize
 
     def __init__(self):
         self.calls: list[tuple[str, ConvertFormat]] = []
@@ -161,7 +165,9 @@ def test_office_goes_through_pdf(
 ):
     body = _post(client, auth_headers, name, content).json()
 
-    assert convert.calls == [(Path(name).suffix, ConvertFormat.PDF)]
+    # legacy formats are modernized first
+    modernized = [('.odt', ConvertFormat.DOCX), ('.docx', ConvertFormat.PDF)]
+    assert convert.calls == (modernized if name.endswith('.odt') else [(Path(name).suffix, ConvertFormat.PDF)])
     assert body['result']['content'] == _pages(*PIXELS, unit=unit)
 
 
@@ -258,9 +264,7 @@ def test_chunks_of_pages_carry_their_number(client: TestClient, auth_headers: di
 # - - - Errors
 
 
-def test_unconfigured_backend_is_rejected_before_any_work(
-    client: TestClient, auth_headers: dict[str, str], work_dir: Path
-):
+def test_unconfigured_backend_is_rejected(client: TestClient, auth_headers: dict[str, str], work_dir: Path):
     response = _post(client, auth_headers, 'data.csv', CSV)
 
     assert (response.status_code, response.json()['code']) == (422, 'ocr_not_configured')

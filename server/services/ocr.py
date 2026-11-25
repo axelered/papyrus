@@ -35,18 +35,9 @@ ATTEMPTS = 3
 # longest wait between attempts; a backend asking for more fails at once
 MAX_WAIT = 30
 
-# formats with pages rendered through LibreOffice; spreadsheets are left out, pagination cuts them
-CONVERSIONS = frozenset(
-    {
-        FormatLabel.DOCX,
-        FormatLabel.DOC,
-        FormatLabel.ODT,
-        FormatLabel.RTF,
-        FormatLabel.PPTX,
-        FormatLabel.PPT,
-        FormatLabel.ODP,
-    }
-)
+# office formats with pages, read from their PDF export; legacy formats arrive modernized (ConvertService.modernize)
+# and spreadsheets are left out, pagination cuts them
+CONVERSIONS = frozenset({FormatLabel.DOCX, FormatLabel.PPTX})
 IMAGES = frozenset(
     {
         FormatLabel.PNG,

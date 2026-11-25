@@ -1,19 +1,50 @@
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import TypeAdapter
 
 from server.errors import ProcessingFailed, UnsupportedFormat
 from server.services.base import Service, pool_errors
-from server.types.markdown import Chunk, ChunkingOptions
+from server.types.common import FormatGroup, FormatLabel
+from server.types.markdown import Chunk, ChunkingOptions, Extracted
 from server.utils.pool import ProcessPool
 from server.utils.problem import ProblemError
 from server.utils.text import decode_text, fence
+from server.utils.timing import stage
+
+if TYPE_CHECKING:
+    # detection loads magika, which pool workers must not import
+    from server.services.detect import Document, Format
 
 TIMEOUT = 120
 MAX_TASKS = 100
 
 CHUNKS = TypeAdapter(list[Chunk])
+
+# formats markitdown reads; legacy office formats are modernized before (ConvertService.modernize)
+FORMATS = frozenset(
+    {
+        FormatLabel.PDF,
+        FormatLabel.DOCX,
+        FormatLabel.PPTX,
+        FormatLabel.XLSX,
+        FormatLabel.XLS,
+        FormatLabel.OUTLOOK,
+        FormatLabel.HTML,
+        FormatLabel.CSV,
+        FormatLabel.TSV,
+        FormatLabel.MARKDOWN,
+        FormatLabel.TXT,
+        FormatLabel.JSON,
+        FormatLabel.JSONL,
+        FormatLabel.XML,
+        FormatLabel.RSS,
+        FormatLabel.ATOM,
+        FormatLabel.IPYNB,
+        FormatLabel.EPUB,
+        FormatLabel.ZIP,
+    }
+)
 
 _converter: Any = None
 
@@ -98,6 +129,26 @@ class MarkdownService(Service):
 
     async def warm(self) -> None:
         await self._pool.start()
+
+    def accepts(self, value: 'Format') -> bool:
+        """Explicit allowlist plus every format derived from magika that is text (code, configs, markup)"""
+        return value.label in FORMATS or (value.derived and value.text)
+
+    async def read(
+        self,
+        document: 'Document',
+        target: Path,
+        chunking: ChunkingOptions | None = None,
+        chunks_target: Path | None = None,
+    ) -> Extracted:
+        """Writes the text stored in the file to `target`, chunked in the same worker call"""
+        value = document.format
+        with stage('markdown'):
+            # only derived code is fenced; explicit formats grouped as code (ipynb) have a markitdown converter
+            if value.derived and value.group == FormatGroup.CODE:
+                await self.fence_code(document.path, target, value.label, chunking, chunks_target)
+                return Extracted()
+            return Extracted(title=await self.convert(document.path, target, chunking, chunks_target))
 
     async def convert(
         self, source: Path, target: Path, chunking: ChunkingOptions | None = None, chunks_target: Path | None = None

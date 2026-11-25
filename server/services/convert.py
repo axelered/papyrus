@@ -4,12 +4,19 @@ import json
 import os
 import shutil
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from server.errors import PageOutOfRange, ProcessingFailed, UnsupportedFormat
+from server.io.workspace import Workspace
 from server.services import lok
 from server.services.base import Service, pool_errors
+from server.types.common import FormatLabel
 from server.types.convert import ConvertFormat
 from server.utils.pool import ProcessPool
+from server.utils.timing import stage
+
+if TYPE_CHECKING:
+    from server.services.detect import Document
 
 TIMEOUT = 120
 MAX_TASKS = 50
@@ -28,6 +35,16 @@ REGISTRY = (
     '<prop oor:name="UseDocumentSystemFileLocking" oor:op="fuse"><value>false</value></prop></item>'
     '</oor:items>'
 )
+
+# legacy formats to the OOXML format the readers know; OOXML keeps headings and tables for chunking
+MODERN: dict[FormatLabel, ConvertFormat] = {
+    FormatLabel.DOC: ConvertFormat.DOCX,
+    FormatLabel.RTF: ConvertFormat.DOCX,
+    FormatLabel.ODT: ConvertFormat.DOCX,
+    FormatLabel.PPT: ConvertFormat.PPTX,
+    FormatLabel.ODP: ConvertFormat.PPTX,
+    FormatLabel.ODS: ConvertFormat.XLSX,
+}
 
 _office: lok.Office | None = None
 
@@ -124,6 +141,19 @@ class ConvertService(Service):
             await self._pool.run(
                 convert_document, str(source), str(target), format.value, str(self._profiles), '', page
             )
+
+    async def modernize(self, document: 'Document', workspace: Workspace) -> 'Document':
+        """Legacy office documents converted to OOXML, every other document as it is"""
+        # imported here: detection loads magika, which convert workers must not import
+        from server.services.detect import Document, lookup
+
+        format = MODERN.get(document.format.label)
+        if format is None:
+            return document
+        target = workspace.new_file(f'{document.path.stem}.{format}')
+        with stage('convert'):
+            await self.convert(document.path, target, format)
+        return Document(target, lookup(format))
 
     async def aclose(self) -> None:
         await self._pool.aclose()
