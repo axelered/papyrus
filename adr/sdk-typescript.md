@@ -169,7 +169,7 @@ Allowed where the server sets `cors.allow_origins`, with no opt-in flag. README 
 ## Documentation
 
 - `sdk/typescript/README.md`: install, example, input per runtime, errors, the `Agent` recipe, the `undici` `fetch` and browser key warnings.
-- `docs/typescript.mdx` in the Guides group after `python`, with `docs/meta.json` and the structure table of `adr/docs.md`. Docs go out with every tag, so the package must be on npm before the next one: until then `npm install @axelered/papyrus` fails. It needs the `axelered` organization on npm.
+- `docs/typescript.mdx` in the SDKs group after `python`, with `docs/meta.json` and the structure table of `adr/docs.md`. Docs go out with every tag, so the package must be on npm before the next one: until then `npm install @axelered/papyrus` fails. It needs the `axelered` organization on npm.
 - Bruno is unaffected, the API does not change.
 
 ## Out of Scope

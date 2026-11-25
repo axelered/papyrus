@@ -16,7 +16,7 @@ Public documentation of Papyrus on `docs.axelered.com`: who it serves, how it sp
 
 | Reader              | Needs                                                          | Served by                       |
 |---------------------|----------------------------------------------------------------|---------------------------------|
-| AI and agent builder (primary) | clean Markdown and chunks from any file or URL for RAG and LLM context | Introduction, Quickstart, Guides |
+| AI and agent builder (primary) | clean Markdown and chunks from any file or URL for RAG and LLM context | Introduction, Quickstart, Guides, SDKs |
 | Platform engineer (secondary)  | run Papyrus safely in their infrastructure, size it, configure it      | Deploy                           |
 | Both                | the request model, formats, errors, endpoint lookup             | Concepts, API reference         |
 
@@ -61,8 +61,9 @@ carries the rest.
 | Group        | Reader  | Pages                                                                              |
 |--------------|---------|------------------------------------------------------------------------------------|
 | (top)        | builder | Introduction (`index`): what Papyrus does, one diagram · Quickstart: Docker run, first Markdown request, first chunked request |
-| Guides       | builder | Markdown extraction · RAG chunking · Image rendering · Web screenshots · Remote storage · Python SDK · TypeScript SDK |
+| Guides       | builder | Markdown extraction · RAG chunking · Image rendering · Web screenshots · Remote storage |
 | Concepts     | both    | Request format (`source`, `options`, `result`) · URI formats · File formats · Error codes |
+| SDKs         | builder | Python SDK · TypeScript SDK                                                        |
 | Deploy       | operator | Docker setup · Configuration · Security (SSRF, sandbox, limits, reverse proxy) · Sizing |
 
 - Guides explain workflows and link to the API reference; they never list endpoint fields.

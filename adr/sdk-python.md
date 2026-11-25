@@ -184,7 +184,7 @@ The suite runs on Python 3.14 only, because the app requires it; older versions 
 ## Documentation
 
 - `sdk/python/README.md`: install, a sync and an async example, `source=` versus `file=` with the untrusted input warning, errors.
-- `docs/python.mdx` in the Guides group, with `docs/meta.json` and the structure table of `adr/docs.md`. Docs go out with every tag, so the SDK must be on PyPI before the next one: until then `pip install papyrus-sdk` gets an empty `0.0.0` placeholder.
+- `docs/python.mdx` in the SDKs group, with `docs/meta.json` and the structure table of `adr/docs.md`. Docs go out with every tag, so the SDK must be on PyPI before the next one: until then `pip install papyrus-sdk` gets an empty `0.0.0` placeholder.
 - Bruno is unaffected, the API does not change.
 
 ## Out of Scope
