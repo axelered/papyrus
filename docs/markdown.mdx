@@ -84,9 +84,9 @@ Axelered LLC
 - PDF, TIFF, Word, PowerPoint, RTF and OpenDocument text and presentations are read page by page. Other images are read as one page, the first frame of an animation.
 - Presentations use `<!-- Slide number: N -->` markers.
 - Formats without pages, such as HTML or CSV, and spreadsheets are read as in `text` mode. `options.readMode` in the response is the mode that was used.
-- Tables become Markdown tables, page headers and footers are kept, pictures are left out.
+- Tables become Markdown tables. Page headers and footers are kept, but pictures are left out.
 - One model call per page makes OCR slower than `text`, and `limits.deadline` covers the whole document. Keep the default `text` for documents with a good text layer.
-- A page that the model reports as failed or cut off fails the request. Mistral OCR does not report it: a very dense page, such as hundreds of lines in small print, can come back cut or empty, so check the result of such documents.
+- A page that the model reports as failed or cut off fails the request. Mistral OCR does not report cut-off pages: a very dense page, such as hundreds of lines in small print, can come back cut or empty, so check the result of such documents.
 - A model can misread a page or follow instructions written on it, so treat the Markdown as untrusted content.
 
 ## Get a file instead of JSON
@@ -105,13 +105,13 @@ The response is `text/markdown; charset=utf-8` with `Content-Disposition: attach
 
 ## What each format gives you
 
-- **PDF**: the text layer. Scanned pages have no text layer and come back empty; read them with [`readMode: ocr`](#read-scans-and-images).
-- **Word, PowerPoint, Excel**: headings, lists and tables. Slides keep their text, tables and notes; spreadsheets become one table per sheet.
-- **Legacy and OpenDocument** (`.doc`, `.ppt`, `.rtf`, `.odt`, `.odp`, `.ods`): converted with LibreOffice first, so expect a slower response than the OOXML equivalents.
-- **HTML and web pages**: the page as Markdown, including navigation and footer text. Links stay relative when the page uses relative links.
-- **Email** (`.msg`): headers and body.
-- **Code and config**: one fenced block tagged with the detected language, so a model sees exactly where code starts and ends.
-- **ZIP**: every entry converted.
+- PDF: the text layer. Scanned pages have no text layer and come back empty; read them with [`readMode: ocr`](#read-scans-and-images).
+- Word, PowerPoint, Excel: headings, lists and tables. Slides keep their text, tables and notes; spreadsheets become one table per sheet.
+- Legacy and OpenDocument (`.doc`, `.ppt`, `.rtf`, `.odt`, `.odp`, `.ods`): converted with LibreOffice first, so expect a slower response than the OOXML equivalents.
+- HTML and web pages: the page as Markdown, including navigation and footer text. Links stay relative when the page uses relative links.
+- Email (`.msg`): headers and body.
+- Code and config: one fenced block tagged with the detected language, so a model sees exactly where code starts and ends.
+- ZIP: every entry converted.
 
 The full list is in [file formats](./formats).
 
