@@ -22,8 +22,7 @@ Remote service of `adr/architecture.md`; pages come from `adr/render.md`.
   misread digits and names.
 - `text` is the behavior of `adr/markdown.md`, unchanged.
 - `ocr` means "OCR where the format has pages": every page is read from its image, also when the PDF has a text layer.
-- todo: `auto`, OCR only for pages without a usable text layer. Needs thresholds tuned on real documents (scans with
-  a poor OCR layer).
+- `auto`, picking `text` or `ocr` per document, and the default: `adr/ocr-auto.md`.
 
 ## Formats
 

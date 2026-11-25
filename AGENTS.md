@@ -70,12 +70,18 @@
 - [x] `RenderSpec.max_pixels`, `options.readMode` in `/v1/markdown`: formats, fallback, page limit, page markers
 - [x] `chunks[].page` from page markers
 - [x] Docs, README, chart `extraEgress` note
-- [!] `readMode: auto`: OCR only for pages without a usable text layer
 - [!] `options.pages` to split documents over `ocr.max_pages`
 - [!] `options.onPageError: skip`
 - [!] Whole document in one call for Mistral
 - [!] Image descriptions, option to drop page headers and footers
 - [!] Token and cost reporting
+
+### OCR Auto (spec: `adr/ocr-auto.md`)
+
+- [x] PDF and DOCX classifiers in `server/ocr/`, evaluated with `.nogit/detect.py`
+- [ ] `readMode: auto` as default: routing, classifier worker, page limit fallback, tests
+- [ ] SDKs, Bruno, docs and `config.example.yml` for `auto`
+- [!] Per page routing for mixed documents
 
 ### Request Identity (spec: `adr/architecture.md`, `adr/browser.md`)
 
