@@ -31,7 +31,7 @@ Remote service of `adr/architecture.md`; pages come from `adr/render.md`.
 | `pdf`                                                           | one render per page                               |
 | `tiff`                                                          | one render per frame                              |
 | `png`, `jpeg`, `webp`, `gif`, `bmp`, `avif`                     | first frame only, an animation is not a document  |
-| `docx`, `doc`, `odt`, `rtf`, `pptx`, `ppt`, `odp`               | whole document to PDF (`ConvertService`), then as `pdf` |
+| `docx`, `pptx` (legacy `doc`, `odt`, `rtf`, `ppt`, `odp` modernized first) | whole document to PDF (`ConvertService`), then as `pdf` |
 | every other format accepted by `/v1/markdown`                   | falls back to `text`                              |
 | anything else                                                   | `415 unsupported_format`                          |
 
@@ -40,6 +40,9 @@ Remote service of `adr/architecture.md`; pages come from `adr/render.md`.
 - `options.readMode` in the response is the effective mode (`text` after a fallback), since `options` reports how the
   document was processed (`adr/api.md`). Not visible with `output=file`.
 - Images in `text` mode stay `415`, with a `detail` that points to `readMode: ocr`.
+- Legacy office files are modernized by the coordinator before routing (`ConvertService.modernize`, `adr/ocr-auto.md`),
+  so `OcrService.accepts` knows only `pdf`, images, `docx` and `pptx`. todo: for `ocr` modernize can be skipped, the
+  original converts straight to PDF.
 
 ## Output
 
@@ -74,7 +77,7 @@ server/ocr/
   qwen.py       openai SDK, prompt, parameters, cleaning
   mistral.py    mistralai SDK, parameters, cleaning
   clean.py      cleaning shared by adapters (stray markers)
-server/services/ocr.py   OcrService: slots, retries, errors to ProblemError
+server/services/ocr.py   OcrService(render, convert): configured, accepts, read(document, target, chunking)
 ```
 
 - **Layering:** `server/ocr/` imports stdlib and third-party only, like `utils/`; only `services/ocr.py` and the
@@ -83,7 +86,9 @@ server/services/ocr.py   OcrService: slots, retries, errors to ProblemError
   cleaning, resolution and token limits are model biased. A new model is a new adapter. It maps SDK exceptions to
   `OcrTransient`, `OcrRateLimited(retry_after)`, `OcrTimeout`, `OcrTruncated`, `OcrRejected` and knows no
   `ProblemError`.
-- **Service:** semaphore, retries and error mapping, identical for every adapter. SDK retries are disabled
+- **Service:** owns the whole OCR read of a document: conversion to PDF, page renders, slots, retries, error
+  mapping, page markers and the final chunk call. Depends on `RenderService`, `ConvertService` and `MarkdownService`
+  (chunking) per `adr/architecture.md`, Services; the coordinator only routes. Identical for every adapter. SDK retries are disabled
   (`max_retries=0`, no `retry_config`), otherwise they multiply with ours and hold the slot while waiting.
 - **Imports:** only the SDK of the configured `type`, in the API process, so deployments without OCR pay nothing.
 - The client does not use the SSRF guard: the URL comes from the operator, often on a private network.
@@ -121,22 +126,22 @@ server/services/ocr.py   OcrService: slots, retries, errors to ProblemError
 ### Scheduling
 
 ```
-ocr not configured? 422                          before materialize
+ocr not configured? 422                          coordinator, after detect
 render page 1 -> page count > max_pages? 413     before any model call
 each page:  OCR slot { render slot { render }, model call } -> delete the JPEG
 join by page number, write the .md, chunk in the markdown pool
 ```
 
-- `OcrService.read(number, page: Callable[[], Awaitable[Path]]) -> str` takes an OCR slot (`asyncio.Semaphore(concurrency)`),
-  awaits `page()` once, then calls the adapter. Rendering inside the slot bounds the OCR renders in flight per
-  container; outside it, 64 requests would queue hundreds of tasks in the FIFO render pool and starve `/v1/thumbnail`.
-- `OcrService.rendering()` is a second semaphore of `max(1, processes // 2)` (`Topology`) around every OCR render,
-  page 1 included, so slow PDFs cannot take the whole shared pool (except with `processes: 1`). Order is always OCR
-  slot, then render slot.
+- Each page takes an OCR slot (`asyncio.Semaphore(concurrency)`), renders inside it, then calls the adapter.
+  Rendering inside the slot bounds the OCR renders in flight per container; outside it, 64 requests would queue
+  hundreds of tasks in the FIFO render pool and starve `/v1/thumbnail`.
+- A private render semaphore of `max(1, processes // 2)` (`Topology.ocr_renders`) wraps every OCR render, page 1
+  included, so slow PDFs cannot take the whole shared pool (except with `processes: 1`). Order is always OCR slot,
+  then render slot. Both are internal to `OcrService`: no callback, no semaphore exposed to the coordinator.
 - A request keeps at most `concurrency` pages queued: the semaphore is FIFO, and a long document must not put every
   other request behind all its pages.
 - The slot is released while waiting for a retry; the JPEG is kept, so the page is not rendered again.
-- The page loop lives in the `api/markdown.py` coordinator, in a `TaskGroup`: the first final error cancels the other
+- The page loop lives in `OcrService.read`, in a `TaskGroup`: the first final error cancels the other
   pages, and the group is unwrapped to its `ProblemError`. Cancelled calls may still be billed upstream.
 - Chunking runs in the markdown pool through a new worker function that takes the assembled markdown.
 

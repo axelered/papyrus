@@ -19,24 +19,66 @@ so scans get read and born-digital files keep the exact text. Extends `adr/ocr.m
 
 ## Routing
 
-```
-no OCR backend configured                 -> text
-detect
-  image (png, jpeg, tiff, ...)            -> ocr
-  pptx, ppt, odp                          -> ocr     slide layout read as flat text carries little meaning
-  pdf                                     -> classify_pdf   -> text | ocr
-  docx                                    -> classify_docx  -> text | ocr
-  doc, rtf, odt                           -> LO to docx (CONVERSIONS), classify_docx -> text (reuses the docx) | ocr
-  anything else                           -> text
-ocr path raises TooManyPages              -> text, logged
+The routing is the business logic of `api/markdown.py` and stays inline, one `if`/`elif` per mode; services only
+report what they can read.
+
+```python
+document = await detect.detect(source.path)
+# todo: for mode=OCR modernize can be skipped, office files are converted to PDF anyway
+document = await convert.modernize(document, workspace)
+
+mode = options.read_mode
+if mode == ReadMode.TEXT:
+    if not markdown.accepts(document.format):
+        raise UnsupportedFormat(...)  # hint to readMode ocr for images
+elif mode == ReadMode.OCR:
+    if not ocr.configured:
+        raise OcrNotConfigured(...)
+    if not ocr.accepts(document.format):
+        mode = ReadMode.TEXT  # fallback: formats without pages are read as text
+elif mode == ReadMode.AUTO:
+    if not ocr.configured or not ocr.accepts(document.format):
+        mode = ReadMode.TEXT  # fallback: no backend, or a format without pages
+    elif document.format.group in OCR_ONLY:
+        mode = ReadMode.OCR  # images, presentations
+    else:
+        mode = ReadMode.OCR if await markdown.needs_ocr(document) else ReadMode.TEXT
+
+if mode == ReadMode.OCR:
+    try:
+        result = await ocr.read(document, target, options.chunking)
+    except TooManyPages:
+        if options.read_mode != ReadMode.AUTO:
+            raise
+        mode = ReadMode.TEXT  # fallback: too long to read with OCR, auto reads it as text
+if mode == ReadMode.TEXT:
+    result = await markdown.read(document, target, options.chunking)
 ```
 
-- Classes `graphic`, `garbage`, `scan` route to `ocr`; `text` and `empty` to `text`.
+- `OCR_ONLY` (`IMAGE`, `PRESENTATION` groups) is the one routing table of the route: images cannot be read as text,
+  slide layout read as flat text carries little meaning.
 - Per document, no splicing of text and OCR pages: markitdown output for PDFs has no page boundaries, and one
   document gets one kind of markdown (`chunks[].page` present or absent throughout). A native document with a few
   scanned pages is read whole with OCR. todo: per page routing, `classify_pdf_page` is the break point.
-- A file the classifier cannot open (encrypted, corrupt, broken zip) routes to `text`, which returns its usual `415`.
-- Legacy office files classed for OCR are converted twice (to `docx`, then the original to `pdf`); rare, accepted.
+- A file the classifier cannot open (encrypted, corrupt, broken zip) does not need OCR, `markdown.read` then returns
+  its usual `415`.
+- Legacy office files read with OCR are converted twice (to OOXML, then to PDF); accepted, see the todo above.
+
+### Services
+
+| Service                    | Capability                                                                              |
+|----------------------------|-----------------------------------------------------------------------------------------|
+| `ConvertService.modernize` | `doc`, `rtf`, `odt` to `docx`; `ppt`, `odp` to `pptx`; `ods` to `xlsx`; others as is. Returns `Document(path, lookup(label))`, no second detection. Owns the former `CONVERSIONS` |
+| `MarkdownService`          | `accepts(format)` (former `MARKDOWN_FORMATS`), `read(document, target, chunking) -> Extracted` (markitdown or `fence_code`, chunking fused in the same worker call), `needs_ocr(document) -> bool` (logs the class), `chunk` |
+| `OcrService(render, convert, markdown)` | `configured`, `accepts(format)` (`pdf`, images, `docx`, `pptx`), `read(document, target, chunking) -> Extracted`: the whole OCR path of `adr/ocr.md` |
+
+- `Extracted(title, page_count, width, height)` in `types/markdown.py`; the response `source` describes the detected
+  original, filled with these facts.
+- `server/ocr/classify.py` has `needs_ocr(path, label) -> tuple[bool, str]`: picks the classifier by label and owns
+  `OCR_CLASSES` (`graphic`, `garbage`, `scan`). The markdown worker calls it (`adr/architecture.md`, Services).
+- The classifier runs in the markdown pool, not in `DetectService`: pdfium is not thread-safe and a crash on a hostile
+  PDF must kill a worker, not the API process.
+- Coordinators receive the typed `Services`, not `Any`.
 
 ### Fallback
 
@@ -54,17 +96,16 @@ Falls back to `text` only on facts known before any model call; a backend failur
 - The page limit fallback keeps the default change non-breaking: a long native report with one full-page chart got
   its text before and still does. A scan over the limit returns empty markdown as in `text`; `readMode: ocr` gives
   the explicit `413`.
-- `TooManyPages` is caught from the existing OCR path (page count read on the first render, before any model call),
-  which covers PDF, converted office files and presentations with one rule.
+- `TooManyPages` is raised by `ocr.read` on the first render, before any model call, which covers PDF, converted
+  office files and presentations with one rule.
 
 ## Classifiers
 
 `server/ocr/classify_pdf.py` and `server/ocr/classify_docx.py` return only a class. Deterministic, existing
 dependencies (pypdfium2, stdlib), thresholds as module constants.
 
-- Run in the markdown pool through one worker function `classify(path, label) -> str`: pypdfium2 is imported only
-  in workers (`adr/architecture.md`), the text path runs there anyway, and the render pool stays free for thumbnails
-  and OCR pages. `init_worker` imports pypdfium2 for warm start.
+- Run in the markdown pool through `needs_ocr` (Services above): pypdfium2 is imported only in workers, and the render
+  pool stays free for thumbnails and OCR pages. `init_worker` imports pypdfium2 for warm start.
 
 ### PDF
 
@@ -124,7 +165,7 @@ DOCX text is the XML itself and always readable; OCR pays off only when images c
     boundary, early stop, broken zip.
 - `test/api/test_markdown_ocr.py` over the fake adapter: `auto` default, scan to `ocr` and native to `text` with the
   resolved mode, no backend to `text`, backend failure `502`, page limit to `text`, images and presentations to
-  `ocr`, legacy `doc` reusing its `docx`.
+  `ocr`, legacy `doc` modernized once and classified as `docx`, `ocr` on a spreadsheet falling back to `text`.
 - Thresholds are tuned with `.nogit/detect.py` on `.nogit/dataset` (1,272 PDFs) and `.nogit/docx` (83 DOCX, labels in
   `labels.json`), outside the repository and CI.
 

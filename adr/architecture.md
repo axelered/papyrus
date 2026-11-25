@@ -60,6 +60,14 @@ A service is a class with async methods over paths, e.g. `await render.page(path
 backend and hides its kind from coordinators. Services compose in coordinators
 (e.g. `await convert.convert(p, pdf, ConvertFormat.PDF)` then `await render.page(pdf, ...)`).
 
+- **Dependencies:** a service may depend on lower-level services (constructor injection in `factory.py`), or call
+  their worker functions inside its own pool to reuse logic without a cross-pool hop (the markdown worker calls the
+  `server/ocr` classifiers). Services owning a backend depend on nothing; today only `OcrService` composes
+  (render, convert, markdown for chunking). No cycles.
+- **Coordinators keep the business logic:** routing, fallbacks and error choices stay readable in the route.
+  Services expose capabilities (`accepts`, `read`, `needs_ocr`, `modernize`), never routing decisions through return
+  values or side effects.
+
 | Kind      | Backend                                 | Capacity control                     | Examples                |
 |-----------|-----------------------------------------|--------------------------------------|-------------------------|
 | Pool      | `pebble.ProcessPool`, top-level worker fn | `processes`, `timeout`, `max_tasks`  | markdown, render, convert |
