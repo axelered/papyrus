@@ -1,6 +1,7 @@
 """Builders for small but structurally real documents, used to pin magika labels"""
 
 import io
+import os
 import zipfile
 from collections.abc import Callable
 
@@ -85,6 +86,61 @@ def pdf() -> bytes:
     body += b''.join(b'%010d 00000 n \n' % offset for offset in offsets)
     body += b'trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n' % (len(objects) + 1, xref)
     return body
+
+
+# draws the image `Im1` over a whole `pdf_streams` page, which is 200 x 200 points
+PDF_IMAGE = b'q 200 0 0 200 0 0 cm /Im1 Do Q '
+
+
+def pdf_text(*lines: bytes, invisible: bool = False) -> bytes:
+    """Helvetica text operators, one line every 10 points from the top; `invisible` is render mode 3, the OCR layer a
+    scanner puts behind its image. Text beyond the page edge is not extracted, keep lines under 45 characters"""
+    shown = b' '.join(b'(%s) Tj 0 -10 Td' % line for line in lines)
+    return b'BT %s/F1 8 Tf 5 185 Td %s ET ' % (b'3 Tr ' if invisible else b'', shown)
+
+
+def pdf_streams(*streams: bytes) -> bytes:
+    """PDF with one 200 x 200 page per content stream, a Helvetica font `F1` and a 1 x 1 gray image `Im1`"""
+    objects = [
+        b'<< /Type /Catalog /Pages 2 0 R >>',
+        b'',
+        b'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+        b'<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 '
+        b'/Length 1 >>\nstream\n\x80\nendstream',
+    ]
+    kids = []
+    for stream in streams:
+        number = len(objects) + 1
+        kids.append(b'%d 0 R' % number)
+        objects.append(
+            b'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Contents %d 0 R '
+            b'/Resources << /Font << /F1 3 0 R >> /XObject << /Im1 4 0 R >> >> >>' % (number + 1)
+        )
+        objects.append(b'<< /Length %d >>\nstream\n%s\nendstream' % (len(stream), stream))
+    objects[1] = b'<< /Type /Pages /Kids [%s] /Count %d >>' % (b' '.join(kids), len(kids))
+    body, offsets = b'%PDF-1.4\n', []
+    for number, content in enumerate(objects, start=1):
+        offsets.append(len(body))
+        body += b'%d 0 obj\n%s\nendobj\n' % (number, content)
+    xref = len(body)
+    body += b'xref\n0 %d\n0000000000 65535 f \n' % (len(objects) + 1)
+    body += b''.join(b'%010d 00000 n \n' % offset for offset in offsets)
+    body += b'trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n' % (len(objects) + 1, xref)
+    return body
+
+
+def docx_media(text: str = '', media: dict[str, int] | None = None) -> bytes:
+    """DOCX with `text` in one run and `word/media/` entries of the given sizes, in random bytes"""
+    paragraph = f'<w:p><w:r><w:t>{text}</w:t></w:r></w:p>'
+    document = _DOCUMENT.split('<w:body>')[0] + f'<w:body>{paragraph}</w:body></w:document>'
+    entries: dict[str, str | bytes] = {
+        '[Content_Types].xml': _CONTENT_TYPES,
+        '_rels/.rels': _RELS,
+        'word/document.xml': document,
+    }
+    for name, size in (media or {}).items():
+        entries[f'word/media/{name}'] = os.urandom(size)
+    return _zip(entries)
 
 
 _ODT_MANIFEST = (

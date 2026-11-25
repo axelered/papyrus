@@ -74,8 +74,10 @@ if mode == ReadMode.TEXT:
 
 - `Extracted(title, page_count, width, height)` in `types/markdown.py`; the response `source` describes the detected
   original, filled with these facts.
-- `server/ocr/classify.py` has `needs_ocr(path, label) -> tuple[bool, str]`: picks the classifier by label and owns
-  `OCR_CLASSES` (`graphic`, `garbage`, `scan`). The markdown worker calls it (`adr/architecture.md`, Services).
+- `server/ocr/classify.py` has `needs_ocr(path, label) -> tuple[bool, str]`: picks the classifier by label and maps
+  the class with `OCR_CLASSES` (`graphic`, `garbage`, `scan`). `OCR_CLASSES` lives in `classify_pdf.py`, whose early
+  stop needs it; DOCX classes are a subset. Unreadable files are classed `unreadable`. The markdown worker calls it
+  (`adr/architecture.md`, Services).
 - The classifier runs in the markdown pool, not in `DetectService`: pdfium is not thread-safe and a crash on a hostile
   PDF must kill a worker, not the API process.
 - Coordinators receive the typed `Services`, not `Any`.
@@ -157,10 +159,9 @@ DOCX text is the XML itself and always readable; OCR pays off only when images c
 ## Tests
 
 - Classifiers on documents generated in `test/fixtures/samples.py`, no committed binaries:
-  - `test/ocr/test_classify_pdf.py`: one page per class through `PdfDocument.new()` and raw content streams (blank,
-    full-page image, text, image behind invisible text, photo cover with visible text, unmapped glyphs), early stop,
-    `PdfiumError` on corrupt input. todo: test `_garbage_ratio` directly if pdfium does not produce unmapped glyphs
-    reliably.
+  - `test/ocr/test_classify_pdf.py`: one page per class from raw content streams (`samples.pdf_streams`: blank,
+    full-page image, text, image behind invisible text, photo cover with visible text, control-character glyphs),
+    early stop, `PdfiumError` on corrupt input.
   - `test/ocr/test_classify_docx.py`: `_zip` with random bytes of the declared size as images; each class, the 32 KB
     boundary, early stop, broken zip.
 - `test/api/test_markdown_ocr.py` over the fake adapter: `auto` default, scan to `ocr` and native to `text` with the

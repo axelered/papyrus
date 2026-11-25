@@ -5,7 +5,8 @@ Classes:
 - `empty`: almost no text and almost nothing drawn (blank pages, a lone line or page number).
 - `graphic`: visible content but almost no text (scans, text drawn as outlines).
 - `garbage`: a text layer with too many glyphs pdfium could not map to Unicode (fonts without ToUnicode).
-- `scan`: a page-sized image behind a thin invisible OCR layer (an earlier OCR pass that recovered little text). Visible text on a page-sized image is a photo cover with a title, and stays `text`.
+- `scan`: a page-sized image behind a thin invisible OCR layer (an earlier OCR pass that recovered little text).
+  Visible text on a page-sized image is a photo cover with a title, and stays `text`.
 - `text`: a usable text layer, including scans that already carry one.
 
 Functions
@@ -31,6 +32,9 @@ SCAN_COVERAGE = 0.8  # image share of the page that makes it a scan
 BACKGROUND = 0.9  # paths larger than this share of the page are backgrounds
 INVISIBLE_RATIO = 0.5  # invisible text share that marks an OCR layer behind a scanned image
 
+# classes whose text layer is unusable; the first such page settles the document
+OCR_CLASSES: frozenset[PageClass] = frozenset({'graphic', 'garbage', 'scan'})
+
 
 def classify_pdf(path: str | PathLike[str]) -> PageClass:
     pdf = pdfium.PdfDocument(path)
@@ -42,7 +46,7 @@ def classify_pdf(path: str | PathLike[str]) -> PageClass:
                 page_class = classify_pdf_page(page)
             finally:
                 page.close()
-            if page_class in {'graphic', 'garbage', 'scan'}:
+            if page_class in OCR_CLASSES:
                 return page_class
             if page_class == 'text':
                 result = 'text'

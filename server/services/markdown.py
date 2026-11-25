@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -45,6 +46,8 @@ FORMATS = frozenset(
     }
 )
 
+logger = logging.getLogger('papyrus.markdown')
+
 _converter: Any = None
 
 
@@ -55,6 +58,7 @@ def init_worker() -> None:
     _ensure_converter()
     chunking.configure()
     import chonkie  # noqa: F401
+    import pypdfium2  # noqa: F401  the OCR classifier
 
 
 def convert_to_markdown(
@@ -88,6 +92,16 @@ def fence_code(
     except Exception as e:
         raise ProcessingFailed(f'code decoding failed ({type(e).__name__})') from None
     _write(fence(text.replace('\r\n', '\n'), language), target, chunking, chunks_target)
+
+
+def classify_document(source: str, label: str) -> tuple[bool, str]:
+    """Pool worker: whether the text layer is unusable and the class that says so (server/ocr/classify.py)"""
+    from server.ocr.classify import needs_ocr
+
+    try:
+        return needs_ocr(source, label)
+    except Exception as e:
+        raise ProcessingFailed(f'content classification failed ({type(e).__name__})') from None
 
 
 def chunk_file(source: str, chunks_target: str, chunking: ChunkingOptions) -> None:
@@ -147,6 +161,13 @@ class MarkdownService(Service):
             await self.fence_code(document.path, target, value.label, chunking, chunks_target)
             return Extracted()
         return Extracted(title=await self.convert(document.path, target, chunking, chunks_target))
+
+    async def needs_ocr(self, document: 'Document') -> bool:
+        """Whether the document text layer is unusable and only OCR reads it"""
+        with pool_errors():
+            needed, content = await self._pool.run(classify_document, str(document.path), document.format.label)
+        logger.info('%s classified as %s, ocr %s', document.format.label, content, 'needed' if needed else 'not needed')
+        return needed
 
     async def convert(
         self, source: Path, target: Path, chunking: ChunkingOptions | None = None, chunks_target: Path | None = None

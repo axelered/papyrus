@@ -1,11 +1,14 @@
+import logging
 from collections.abc import AsyncIterator
 from pathlib import Path
 
 import pytest
 
 from server.errors import UnsupportedFormat
+from server.services.detect import Document, lookup
 from server.services.markdown import MarkdownService
 from test.fixtures.documents import BINARY, CSV, HTML, DocumentFactory
+from test.fixtures.samples import PDF_IMAGE, pdf, pdf_streams
 
 pytestmark = pytest.mark.anyio
 
@@ -55,3 +58,19 @@ async def test_warm_starts_initialized_workers(make_document: DocumentFactory, t
 
         assert warm._pool.started
         assert await warm.convert(make_document('report.html', HTML), tmp_path / 'out.md') == 'Quarterly'
+
+
+@pytest.mark.parametrize(('content', 'needed'), [(pdf_streams(PDF_IMAGE), True), (pdf(), False)])
+async def test_needs_ocr_classifies_in_the_pool(
+    service: MarkdownService,
+    make_document: DocumentFactory,
+    caplog: pytest.LogCaptureFixture,
+    content: bytes,
+    needed: bool,
+):
+    document = Document(make_document('sample.pdf', content), lookup('pdf'))
+
+    with caplog.at_level(logging.INFO, logger='papyrus.markdown'):
+        assert await service.needs_ocr(document) is needed
+
+    assert 'pdf classified as' in caplog.text
