@@ -7,7 +7,7 @@ import * as z from 'zod/mini'
 export const imageFormat = z.enum(['png', 'jpeg', 'webp'])
 export const fit = z.enum(['contain', 'cover'])
 export const waitUntil = z.enum(['load', 'domcontentloaded', 'networkidle'])
-export const readMode = z.enum(['text', 'ocr'])
+export const readMode = z.enum(['text', 'auto', 'ocr'])
 export const tokenizer = z.enum(['o200k_base', 'cl100k_base', 'word', 'character'])
 export const encoding = z.enum(['utf-8', 'base64'])
 export const formatGroup = z.enum([
@@ -157,7 +157,7 @@ export const inspectOptions = z.object({})
 
 /** Token budget of every chunk, tokens of overlap between prose chunks, and the tokenizer counting them */
 export type ChunkingOptions = z.infer<typeof chunkingOptions>
-/** `readMode` in a response is the mode used, formats without pages fall back to `text` */
+/** `readMode` in a response is the mode used, `text` or `ocr`: `auto` resolves per document, formats without pages fall back to `text` */
 export type MarkdownOptions = z.infer<typeof markdownOptions>
 export type ThumbnailOptions = z.infer<typeof thumbnailOptions>
 export type RenderOptions = z.infer<typeof renderOptions>

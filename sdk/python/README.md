@@ -44,7 +44,7 @@ asyncio.run(main())
 
 | Method | Returns |
 |---|---|
-| `markdown` | Markdown of a document or web page, read from page images with `read_mode='ocr'`, chunked with `chunking` |
+| `markdown` | Markdown of a document or web page, from its text or page images per `read_mode` (`auto` by default), chunked with `chunking` |
 | `render` | One page or image frame at a readable size |
 | `thumbnail` | One page, image or web page fitted into a box |
 | `screenshot` | A web page captured in headless Chromium |
