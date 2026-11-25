@@ -1,6 +1,6 @@
 # 📄 Papyrus
 
-Axelered Papyrus is your single point stop for Agentic document processing.
+Axelered Papyrus is a self-hosted HTTP API that converts documents and web pages into Markdown, chunks and images for LLM and agent pipelines.
 
 ## 📚 Supported Files
 
@@ -48,6 +48,8 @@ All `/v1` routes require `Authorization: Bearer <key>`. Requests are `applicatio
 | `output`      | `json` for the envelope, `file` for the artifact as the body                    |
 | `options`     | Operation options, echoed back with defaults applied                            |
 
+Inspect takes only `source` and `options`: it rejects `destination` and `output`, and its response has no `result`.
+
 ```shell
 curl -H "Authorization: Bearer <key>" -F file=@report.docx http://localhost:8000/v1/markdown
 curl -H "Authorization: Bearer <key>" -H 'content-type: application/json' \
@@ -57,7 +59,7 @@ curl -H "Authorization: Bearer <key>" -H 'content-type: application/json' \
 
 `"options": {"readMode": "ocr"}` reads scans and images with a Qwen VL or Mistral OCR backend, off until you add `ocr` to the configuration.
 
-JSON responses are the `{source, result, options}` envelope, plus data sections such as `chunks`:
+The other operations answer JSON with the `{source, result, options}` envelope, plus data sections such as `chunks`:
 
 ```json
 {

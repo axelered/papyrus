@@ -28,9 +28,9 @@ request:
 
 docs:
   content: |-
-    Papyrus turns any document or web page into LLM-ready Markdown, chunks and images, through one HTTP API that runs on your own infrastructure. Send a PDF, an Office file, an email or a URL, and get back text your model can read and images your users can see.
+    Papyrus is a self-hosted HTTP API that converts documents and web pages into Markdown, chunks and images for LLM and agent pipelines. Send a PDF, an Office file, an email or a URL.
 
-    Every operation is a `POST` under `/v1` that takes a `source` to process, its `options` and an optional `destination` in your storage, as JSON or as a multipart upload. Responses share one envelope describing the source and the result, and errors are `application/problem+json` with a stable `code`; the Request format and Error codes pages under Concepts cover both.
+    Every operation is a `POST` under `/v1` that takes a `source` to process and its `options`, as JSON or as a multipart upload. All of them except Inspect also take an optional `destination` in your storage, and describe the source and the result in one shared envelope. Errors are `application/problem+json` with a stable `code`; the Request format and Error codes pages under Concepts cover both.
 
     ## Authentication
 

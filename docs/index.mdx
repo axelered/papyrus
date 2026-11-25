@@ -7,7 +7,7 @@ footer: false
 
 import { Camera, FileText, ImageIcon, Scissors } from 'lucide-react'
 
-Papyrus is a self-hosted HTTP API that converts documents and web pages into Markdown, chunks and images for LLM and Agentic pipelines. It reads PDFs, Office files, emails, HTML pages and other formats listed in [File formats](./formats), and returns content in a shape that models and retrieval systems can use directly.
+Papyrus is a self-hosted HTTP API that converts documents and web pages into Markdown, chunks and images for LLM and agent pipelines. It reads PDFs, Office files, emails, HTML pages and other formats listed in [File formats](./formats), and returns content in a shape that models and retrieval systems can use directly.
 
 <br/>
 <Cards>
@@ -37,7 +37,7 @@ flowchart LR
 ```
 <br/>
 
-Behind that single API sits the machinery document processing needs: LibreOffice for Office formats, PDFium for PDF rendering, headless Chromium for web pages, content-based format detection and structure-aware chunking. Papyrus runs each of these in its own worker processes, keeps them warm, and applies [production hardened Security](./security) for untrusted documents and websites. Your agents call one endpoint and receive clean content, and none of these tools has to be installed, patched or scaled inside your own services.
+Papyrus includes LibreOffice for Office formats, PDFium for PDF rendering and headless Chromium for web pages. They run in separate processes that start with the server, and [production hardening](./security) covers untrusted documents and websites. Your agents call one API and receive clean content.
 
 ## Deployment
 

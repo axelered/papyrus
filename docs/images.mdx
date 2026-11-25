@@ -78,10 +78,10 @@ The file is named `<source name>-<page>.<ext>`. With `output: json`, `source.pag
 
 ## Formats and limits
 
-- **Inputs**: PDF, PNG, JPEG, WebP, GIF, BMP, TIFF, AVIF, Word, PowerPoint, Excel, OpenDocument, RTF and HTML. `page` picks the frame of a GIF, TIFF or animated WebP.
-- **Outputs**: `format` is `png`, `jpeg` or `webp`.
-- **One page per request.** Request pages in parallel when you need several; the server processes them concurrently.
-- **Office files** are exported one page at a time through LibreOffice, so they are slower than PDFs and report no `pageCount`. If you render many pages of one office document, export it to PDF once in your own pipeline and render the PDF.
-- **Never enlarged.** Images are not scaled above their own size, and no output side exceeds 4096 px.
-- **Pixel guard.** Images with more pixels than the decompression guard allows fail with `413 image_too_large`.
+- Inputs: PDF, PNG, JPEG, WebP, GIF, BMP, TIFF, AVIF, Word, PowerPoint, Excel, OpenDocument, RTF and HTML. `page` picks the frame of a GIF, TIFF or animated WebP.
+- Outputs: `format` is `png`, `jpeg` or `webp`.
+- Each request renders one page. Send several requests in parallel to render more, and the server processes them concurrently.
+- Office files are exported one page at a time through LibreOffice, so they are slower than PDFs and report no `pageCount`. If you render many pages of one office document, export it to PDF once in your own pipeline and render the PDF.
+- Images are not scaled above their own size, and no output side exceeds 4096 px.
+- Images with more pixels than the decompression guard allows fail with `413 image_too_large`.
 - `page` past the end fails with `422 page_out_of_range`, and `dpi` combined with `width` or `height` with `422 validation_error`.

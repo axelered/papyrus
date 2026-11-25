@@ -23,9 +23,9 @@ settings:
 
 docs:
   content: |-
-    Detects the format of a document and checks it, without processing it. Returns the same `source` facts every other operation reports, plus `checks`. Every format is accepted, so a file Papyrus cannot process comes back as `unknown` instead of failing.
+    Detects the format of a document and checks it, without processing it. Returns the format facts of `source`, plus `checks`. Every format is accepted: a file Papyrus cannot process is reported with the type it was detected as, or as `unknown`.
 
-    Use it to route documents before sending them to Markdown or render, or to flag uploads whose name does not match their content. A failed check never rejects the file: the response reports it and you decide what to do.
+    Use it to route documents before sending them to Markdown or render, or to flag uploads whose name does not match their content. A failed check never rejects the file.
 
     Inspect produces no file, so the response has no `result` and the request takes no `output` or `destination`. An http(s) URL without an extension in its path takes the extension of the response `Content-Type`, so `extensionMatch` then compares the content with what the server declared.
   type: text/markdown

@@ -25,7 +25,7 @@ docs:
   content: |-
     Extracts Markdown from a document or web page, ready to pass to an LLM or index for retrieval. The format is detected from the content, and `options.chunking` adds structure-aware chunks sized for your embedding model, with the headings they sit under and their offsets in the Markdown.
 
-    Set `options.readMode` to `ocr` for scanned PDFs and images: every page is read by the vision model configured on the server. The default `text` extracts the text stored in the file, so scans return little or nothing and images fail with `415 unsupported_format`. Legacy formats such as `.doc` and `.ppt` are converted with LibreOffice first and take longer.
+    Set `options.readMode` to `ocr` for scanned PDFs and images: every page is read by the vision model configured on the server. The default `text` extracts the text stored in the file, so scans return little or nothing and images fail with `415 unsupported_format`, as do corrupt and encrypted files. Legacy formats such as `.doc` and `.ppt` are converted with LibreOffice first and take longer.
   type: text/markdown
 
 examples:
@@ -368,7 +368,7 @@ examples:
             ]
           }
   - name: Chunk a scanned PDF
-    description: Combine OCR and chunking. Each chunk carries the `page` it starts on, so you can cite the page in search results.
+    description: Combine OCR and chunking. Each chunk carries the `page` it starts on.
     request:
       url: "{{host}}/v1/markdown"
       method: POST

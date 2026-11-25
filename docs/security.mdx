@@ -33,11 +33,11 @@ The browser connects only through this check, with the resolved address pinned, 
 ## Untrusted documents
 
 - Every converter runs in a separate worker process. A document that crashes or hangs a worker fails its own request with `500 processing_failed` or `504 processing_timeout`, and the worker is replaced.
-- Images are checked against a pixel limit before decoding, so a small file cannot expand into gigabytes of memory.
+- Image files are checked against a pixel limit before decoding. The limit does not cover images inside a PDF, which can expand to gigabytes, and worker processes have no memory limit of their own. Set a memory limit on the container.
 - Error responses never include stack traces or internal paths.
 - Every request works in its own temporary folder, removed when the response is sent.
 
-LibreOffice workers keep network access. A crafted office document that makes LibreOffice fetch a remote resource is not stopped by the fetch policy. Deny egress for the container, or at least to internal ranges, when you process office files from untrusted sources.
+LibreOffice is configured to run no macros and to load no remote or local resources that a document links to. Its workers still have network access, and the fetch policy does not apply to them, so a document that exploits LibreOffice could use it. Deny egress for the container, or at least to internal ranges, when you process office files from untrusted sources.
 
 ## OCR
 

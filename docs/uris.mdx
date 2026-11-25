@@ -4,7 +4,7 @@ description: Point Papyrus at uploads, web URLs and storage buckets
 icon: Link
 ---
 
-`source` and `destination` are URIs, so one field covers uploads, web pages and storage objects. The scheme decides where Papyrus reads from or writes to.
+`source` and `destination` are URIs. The scheme decides where Papyrus reads from or writes to.
 
 | URI | Reads | As `source` | As `destination` |
 |---|---|---|---|
@@ -40,6 +40,6 @@ curl http://127.0.0.1:8000/v1/markdown \
 - The connector name comes from the configuration, not from your bucket name. An unknown name fails with `422 unknown_connector`, and a protocol other than the connector's with `422 unsupported_uri`.
 - The path is used as is, without percent-decoding, so object keys round-trip exactly.
 - A missing object fails with `404 source_not_found`; a failed upload with `502 destination_failed`.
-- The destination is checked before any processing starts, so a typo fails in milliseconds instead of after a long conversion.
+- The connector and protocol of a destination are checked before processing starts.
 
 Operators add connectors in [configuration](./configuration).

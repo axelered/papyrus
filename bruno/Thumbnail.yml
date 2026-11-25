@@ -25,7 +25,7 @@ settings:
 
 docs:
   content: |-
-    Fits one page, image or web page into a fixed box, a 256 × 256 px WebP by default, for file lists, search results and link previews. A URL that serves HTML is captured in a browser at desktop width, so `https://axelered.com` gives a picture of the site.
+    Fits one page, image or web page into a fixed box, a 256 × 256 px WebP by default, for file lists, search results and link previews. A URL that serves HTML, such as `https://axelered.com`, is captured in a browser at desktop width.
 
     Use render when you need a page at reading size.
   type: text/markdown

@@ -38,12 +38,14 @@ Retrying these returns the same error.
 | Status | Code | Cause |
 |---|---|---|
 | 400 | `bad_request` | The multipart body is malformed |
+| 404 | `not_found` | The path is not an endpoint |
+| 405 | `method_not_allowed` | The endpoint does not accept this HTTP method |
 | 413 | `payload_too_large` | The upload exceeds `limits.max_file_size` (100 MB by default) |
 | 413 | `source_too_large` | The URL or storage object exceeds `limits.max_file_size` |
 | 413 | `too_many_pages` | The document has more pages than `ocr.max_pages` (100 by default). Split it, or use `readMode: text` |
 | 413 | `image_too_large` | The image has more pixels than the decompression guard allows |
 | 415 | `unsupported_media_type` | The request is neither `application/json` nor `multipart/form-data` |
-| 415 | `unsupported_format` | The operation does not accept the detected format. See [file formats](./formats) |
+| 415 | `unsupported_format` | The operation does not accept the detected format, or the file is corrupt or encrypted. See [file formats](./formats) |
 | 422 | `validation_error` | The body or `metadata` is not a JSON object, or a field is missing, unknown or out of range; see `errors` |
 | 422 | `unsupported_uri` | The URI is malformed or not allowed there, for example `file://` in a JSON request |
 | 422 | `unknown_connector` | The storage URI names a connector the server does not have |
@@ -67,14 +69,14 @@ Retrying these returns the same error.
 | 502 | `ocr_failed` | The OCR backend failed or rejected a page, or its answer was cut off (`qwen` only); `detail` names the page | once, with backoff; a page that fails again needs `readMode: text` or a different model |
 | 503 | `ocr_rate_limited` | The OCR backend is still at its rate limit after several attempts | after the `Retry-After` seconds |
 | 503 | `queue_full` | The server is at capacity | after the `Retry-After` seconds |
-| 504 | `processing_timeout` | One step took too long, for example a page that never finishes loading or an OCR call without an answer | with a smaller input or simpler options |
+| 504 | `processing_timeout` | One step took too long: 120 s for LibreOffice conversion, text extraction or an OCR call, 60 s for rendering a page, 30 s for a browser capture | with a smaller input or simpler options |
 | 504 | `deadline_exceeded` | The whole request exceeded `limits.deadline` (300 s by default) | with a smaller input, or ask the operator to raise the deadline |
 
 ## Report it
 
 | Status | Code | Cause |
 |---|---|---|
-| 500 | `processing_failed` | A converter failed on this document, for example a corrupt file |
+| 500 | `processing_failed` | A converter crashed or failed on this document |
 | 500 | `internal_error` | An unexpected error; the server logs it, the response never includes internals |
 
-If `processing_failed` repeats for a document that opens in its own application, keep the file and the request: it is the fastest way to get it fixed.
+If `processing_failed` repeats for a document that opens in its own application, report it with the file and the request.

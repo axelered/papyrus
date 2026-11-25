@@ -10,7 +10,8 @@ input through `adr/convert.md`; HTML thumbnails are browser screenshots (`adr/br
 - One page in, one image out: one `result` in the envelope of `adr/api.md`.
 - Render directly at the final resolution (pdfium scale from page size), never render oversized and downscale.
 - Thumbnails stay cheap for large office files: only the requested page is exported to PDF.
-- Bounded worker memory: a pixel cap per side and the Pillow decompression bomb guard.
+- Bounded worker memory for image files: a pixel cap per side and the Pillow decompression bomb guard. Images inside a
+  PDF are decoded by pdfium, outside the guard (`AGENTS.md`, Future Issues).
 - todo: multi-page output (destination prefix with `{stem}-{n}.{ext}`) once a consumer needs it.
 
 ## Stack

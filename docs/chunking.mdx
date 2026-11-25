@@ -4,7 +4,7 @@ description: Split documents into structure-aware chunks sized for your embeddin
 icon: Scissors
 ---
 
-Add `options.chunking` to a Markdown request to get the document split into chunks that fit your embedding model, each with the headings it sits under and its position in the Markdown. One request replaces a parser, a splitter and a token counter in your pipeline.
+Add `options.chunking` to a Markdown request to get the document split into chunks that fit your embedding model, each with the headings it sits under and its position in the Markdown.
 
 ```shell
 curl http://127.0.0.1:8000/v1/markdown \
@@ -64,10 +64,10 @@ curl http://127.0.0.1:8000/v1/markdown \
 
 ## How documents are split
 
-- **Sections first.** A chunk never spans two headings or two slides, so every chunk is about one topic.
-- **Tables by rows.** A table larger than the budget splits between rows, and every part repeats the header row, so each chunk stays readable on its own.
-- **Code by structure.** Code splits along functions and classes, and every chunk is a complete fenced block with its `language`.
-- **Prose by size.** Long sections split into chunks of at most `maxTokens`.
+- A chunk never spans two headings or two slides.
+- A table larger than the budget splits between rows, and every part repeats the header row.
+- Code splits along functions and classes, and every chunk is a complete fenced block with its `language`.
+- Prose in a long section splits into chunks of at most `maxTokens`.
 
 Every chunk reports:
 
@@ -84,7 +84,7 @@ Every chunk reports:
 
 | Option | Default | How to choose |
 |---|---|---|
-| `maxTokens` | `512` | Your embedding model's input limit or your retrieval sweet spot, `64` to `8192` |
+| `maxTokens` | `512` | At most your embedding model's input limit. From `64` to `8192` |
 | `tokenizer` | `o200k_base` | The tokenizer of your model: `o200k_base` for GPT-4o and later, `cl100k_base` for GPT-4 and `text-embedding-3`, `word` or `character` for other models |
 | `overlap` | `0` | Tokens of the next prose chunk appended to each prose chunk, so sentences cut at a boundary appear in both; must be below `maxTokens` |
 

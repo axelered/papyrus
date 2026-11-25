@@ -4,7 +4,7 @@ description: The fields every operation takes and the envelope every operation r
 icon: Send
 ---
 
-Every Papyrus operation takes the same four fields and returns the same three-key envelope. Once you can call one endpoint, you can call all of them.
+Markdown, render, thumbnail and screenshot take the same four fields and return the same three-key envelope. Inspect takes only `source` and `options`, and returns no `result`.
 
 ## Fields
 
@@ -15,7 +15,7 @@ Every Papyrus operation takes the same four fields and returns the same three-ke
 | `output` | no | `json` for the envelope, `file` for the artifact as the response body |
 | `destination` | no | A storage URI to write the result to instead of returning it |
 
-Field names are camelCase: `maxTokens`, `fullPage`, `waitUntil`. Unknown fields fail with `422 validation_error`, so a typo or a snake_case name never passes silently.
+Field names are camelCase: `maxTokens`, `fullPage`, `waitUntil`. Unknown fields, snake_case names included, fail with `422 validation_error`.
 
 ## Send JSON or upload a file
 
@@ -39,7 +39,7 @@ curl http://127.0.0.1:8000/v1/render \
 
 ## The envelope
 
-With `output: json`, every operation returns `source`, `result` and `options`:
+With `output: json`, these operations return `source`, `result` and `options`:
 
 ```json
 {
@@ -73,7 +73,7 @@ With `output: json`, every operation returns `source`, `result` and `options`:
 |---|---|
 | `source` | The input as Papyrus detected it from its content: type, size, and what the operation learned, such as `pageCount`, `title` or `fetch` for URLs |
 | `result` | The produced file. `content` holds it as UTF-8 text for Markdown and base64 for images, as `encoding` says |
-| `options` | Your options with every default applied, so you can log or reproduce exactly what ran |
+| `options` | Your options with every default applied |
 
 Operation data such as `chunks` sits next to these three keys. Fields Papyrus does not know are omitted, never `null`.
 
@@ -85,6 +85,6 @@ Operation data such as `chunks` sits next to these three keys. Fields Papyrus do
 | `output: file` | The artifact itself, with its name in `Content-Disposition` |
 | `destination` set | The envelope without `content`; `result.uri` is where the file was written |
 
-Markdown defaults to `json`; render, thumbnail and screenshot default to `file`. When the response carries operation data, such as chunks, `output: file` and `destination` deliver the full JSON document instead of the bare artifact, so nothing is lost.
+Markdown defaults to `json`; render, thumbnail and screenshot default to `file`. When the response carries operation data, such as chunks, `output: file` and `destination` deliver the full JSON document instead of the bare artifact.
 
-Inspect produces no file: it always returns JSON, has no `result`, and rejects `output` and `destination`.
+Inspect produces no file. It always returns JSON and rejects `output` and `destination`.

@@ -33,7 +33,7 @@ curl http://127.0.0.1:8000/v1/markdown \
     "label": "markdown",
     "group": "markup"
   },
-  "options": {}
+  "options": {"readMode": "text"}
 }
 ```
 
@@ -41,11 +41,11 @@ curl http://127.0.0.1:8000/v1/markdown \
 
 ## Combine sources and destinations
 
-Any source works with a destination, so you can also upload a file or pass a URL and store the result:
+Any source works with a destination:
 
 | Source | Destination | Use it to |
 |---|---|---|
-| `s3://prod/…` | `s3://prod/…` | Process a bucket without moving files through your service |
+| `s3://prod/…` | `s3://prod/…` | Process objects that are already in a bucket |
 | upload or URL | `s3://prod/…` | Store results for later, return only the location to your caller |
 | `s3://prod/…` | none | Read from storage, get the result in the response |
 

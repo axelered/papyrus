@@ -54,7 +54,7 @@ The model runs on its own server, so OCR adds little load to the container: one 
 
 ## Scale out
 
-Each container is independent and keeps no state between requests, so add replicas behind any HTTP load balancer, with the readiness probe on `/ready`. Prefer more medium containers, 4 to 8 CPUs each, over one large one: a hostile or huge document then affects fewer requests, and rolling updates keep more capacity online.
+Containers are stateless and independent. Add replicas behind any HTTP load balancer, with the readiness probe on `/ready`. Prefer more medium containers, 4 to 8 CPUs each, over one large one: a hostile or huge document then affects fewer requests, and rolling updates keep more capacity online.
 
 ## Measure
 

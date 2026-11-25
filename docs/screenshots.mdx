@@ -61,7 +61,7 @@ Add `delay`, up to `10000` ms, to wait for animations or cookie banners to settl
 
 ## What the browser can reach
 
-The page and every request it makes, images, scripts and frames included, follow the server fetch policy. Private and internal addresses are blocked unless the operator allows them, so a public page cannot make the browser reach your internal services. When the operator sets an allowed host list, resources from other hosts do not load and the page renders without them.
+The page and every request it makes, images, scripts and frames included, follow the server fetch policy. Private and internal addresses are blocked unless the operator allows them. When the operator sets an allowed host list, resources from other hosts do not load and the page renders without them.
 
 A page that answers with an error status, such as `404`, is still captured; check `source.fetch.status` to tell a real page from an error page.
 

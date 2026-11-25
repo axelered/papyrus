@@ -144,7 +144,8 @@ Anything else: `422 unsupported_uri`. Unknown connector: `422 unknown_connector`
   boot. Filesystems are created lazily and cached per connector.
 - fsspec calls use the sync API in `asyncio.to_thread`. todo: switch to the native async API of s3fs if thread usage
   becomes a bottleneck.
-- `destination` is validated before any processing so a bad target never wastes work.
+- The connector and protocol of `destination` are validated before any processing, so a bad URI never wastes work.
+  A write that fails (permissions, missing bucket) is only known after it.
 
 ### HTTP Fetch Policy
 
@@ -270,11 +271,11 @@ RFC 9457 problem+json with a stable `code` extension. Codes are part of the publ
 | 404    | `source_not_found`, `not_found` (unknown route)                                    |
 | 405    | `method_not_allowed`                                                               |
 | 413    | `payload_too_large` (request body, upload), `source_too_large` (http, connector), `image_too_large` (pixel bomb guard), `too_many_pages` (OCR) |
-| 415    | `unsupported_format` (document), `unsupported_media_type` (request body)           |
+| 415    | `unsupported_format` (document not accepted, corrupt or encrypted), `unsupported_media_type` (request body) |
 | 422    | `validation_error`, `unsupported_uri`, `unknown_connector`, `page_out_of_range`, `ocr_not_configured` |
 | 500    | `processing_failed`, `internal_error` (unhandled, details only in logs)            |
 | 502    | `source_fetch_failed`, `destination_failed`, `ocr_failed`                          |
-| 503    | `queue_full` (with `Retry-After`), `not_ready` (`/ready`), `service_unavailable`, `ocr_rate_limited` (with `Retry-After`) |
+| 503    | `queue_full` (with `Retry-After`), `not_ready` (`/ready`), `ocr_rate_limited` (with `Retry-After`) |
 | 504    | `processing_timeout`, `deadline_exceeded`                                          |
 
 ## Conventions

@@ -4,7 +4,7 @@ description: Turn documents and web pages into Markdown for LLM context and inde
 icon: FileText
 ---
 
-`POST /v1/markdown` returns the content of a document as Markdown: headings, lists, tables and links, without layout noise. Pass it to an LLM as context, store it for search, or split it into chunks in the same request.
+`POST /v1/markdown` returns the content of a document as Markdown: headings, lists, tables and links. Pass it to an LLM as context, store it for search, or split it into chunks in the same request.
 
 ```shell
 curl http://127.0.0.1:8000/v1/markdown \
@@ -110,15 +110,16 @@ The response is `text/markdown; charset=utf-8` with `Content-Disposition: attach
 - Legacy and OpenDocument (`.doc`, `.ppt`, `.rtf`, `.odt`, `.odp`, `.ods`): converted with LibreOffice first, so expect a slower response than the OOXML equivalents.
 - HTML and web pages: the page as Markdown, including navigation and footer text. Links stay relative when the page uses relative links.
 - Email (`.msg`): headers and body.
-- Code and config: one fenced block tagged with the detected language, so a model sees exactly where code starts and ends.
+- Code and config: one fenced block tagged with the detected language.
 - ZIP: every entry converted.
 
 The full list is in [file formats](./formats).
 
 ## Handle failures
 
-- `415 unsupported_format`: the detected format cannot become Markdown, for example a video, or an image in `text` mode. Check `group` before sending, and read images with `readMode: ocr`.
+- `415 unsupported_format`: the detected format cannot become Markdown, for example a video, or an image in `text` mode, or the file is corrupt or encrypted. Read images with `readMode: ocr`, and use [Inspect](./formats#check-a-file-before-processing) to check the format first.
 - `413 too_many_pages`: the document has more pages than the server reads with OCR, 100 by default. Split it.
 - `502 ocr_failed` or `503 ocr_rate_limited`: the OCR model failed or is at capacity. Retry later; see [error codes](./errors).
 - `413 payload_too_large` or `source_too_large`: the document exceeds the server limit, 100 MB by default.
+- `504 processing_timeout`: one step took too long. LibreOffice conversion and text extraction each stop after 120 seconds.
 - `504 deadline_exceeded`: the conversion took longer than the server deadline, 300 seconds by default.

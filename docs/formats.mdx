@@ -31,7 +31,7 @@ Papyrus detects the format of every document from its content, then checks it ag
 
 Screenshot takes `http(s)://` URLs only and captures whatever the browser shows.
 
-A format an operation does not accept fails with `415 unsupported_format`, before any processing.
+A format an operation does not accept fails with `415 unsupported_format` before conversion starts. A file that is corrupt or encrypted usually fails with the same code, once Papyrus tries to open it.
 
 ## What to expect per format
 
@@ -58,7 +58,7 @@ Use `group` to route documents in your own pipeline, and `label` when you need t
 
 ## Check a file before processing
 
-Inspect returns these fields without processing the document, so you can route it, or reject it in your own app, before a slow conversion. It accepts every format and adds `checks`:
+Inspect returns these fields without processing the document. Use it to route or reject a file before a slow conversion. It accepts every format and adds `checks`:
 
 ```json
 {

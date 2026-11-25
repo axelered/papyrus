@@ -73,7 +73,7 @@ carries the rest.
 
 - Built from OpenAPI and `bruno/`; no pages under `docs/api/`.
 - Bruno stays flat (no folders) until a new group of endpoints makes the list hard to scan. Order by `info.seq`:
-  Markdown, Render, Thumbnail, Screenshot, Root, Health, Ready.
+  Markdown, Render, Thumbnail, Screenshot, Inspect, Root, Health, Ready.
 - `opencollection.yml` docs are the API overview: the pitch, one paragraph introducing the request model, and
   Authentication. Request format, errors, URIs and formats live in the Concepts guides and are not repeated.
 - Endpoint docs are one, at most two, paragraphs of framing: what the endpoint returns and what for, then when to

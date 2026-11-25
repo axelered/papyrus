@@ -33,7 +33,7 @@ cors:
 connectors: {}
 ```
 
-- Unknown keys stop the server at startup, so a typo never passes silently.
+- Unknown keys stop the server at startup.
 - Durations are in seconds. Sizes take units such as `100MB` or `2MiB`.
 - `${VAR}` in any value is replaced with the environment variable `VAR`. If it is not set, the server does not start.
 
