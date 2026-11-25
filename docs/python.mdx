@@ -4,7 +4,7 @@ description: Call Papyrus from Python with typed sync and async clients
 icon: Code
 ---
 
-`papyrus-sdk` is the Python client of Papyrus. It has one method per operation, typed responses, and a sync and an async client. It requires Python 3.11 or later, and SDK `X.Y` is made for server `X.Y`.
+`papyrus-sdk` is the Python client of Papyrus, with one method per operation and typed responses. It comes as a sync and an async client and requires Python 3.11 or later. SDK `X.Y` is made for server `X.Y`.
 
 ```shell
 pip install papyrus-sdk
@@ -41,9 +41,9 @@ Service levels
 | `max_retries` | 2; `0` turns retries off |
 | `http_client` | Your own `httpx.Client` or `httpx.AsyncClient`, for proxies and private certificate authorities |
 
-`PAPYRUS_API_KEY` holds one key here. The server reads a comma-separated list from the variable of the same name, and the client rejects a value with a comma.
+The server reads a comma-separated list of keys from its own `PAPYRUS_API_KEY`. The client takes a single key and rejects a value with a comma.
 
-Keep `timeout` above the server's `limits.deadline`, 300 seconds by default. The server answers only when it is done, and a shorter timeout hides `deadline_exceeded` behind a client timeout.
+Keep `timeout` above the server's `limits.deadline`, 300 seconds by default. The server answers only when it is done, so with a shorter timeout you get a client timeout instead of `deadline_exceeded`.
 
 ## Choose how you send the document
 
@@ -56,10 +56,12 @@ Keep `timeout` above the server's `limits.deadline`, 300 seconds by default. The
 | `client.markdown(file='sample.pdf')` | An upload, from a path, `bytes` or a binary file |
 
 <Callout type="warn">
-Pass strings that come from users or models as `source=`. The positional form uploads the local file a string names; `source=` never reads the local disk.
+Pass strings that come from users or models as `source=`. In the positional form, a string that names a local file uploads that file. `source=` never reads the local disk.
 </Callout>
 
-Name an upload sent as `bytes` with `filename='prices.csv'`: the extension refines [format detection](./formats). `screenshot` takes the URL of a page.
+Give an upload sent as `bytes` a name, for example `filename='prices.csv'`, because the extension refines [format detection](./formats).
+
+`screenshot` takes the URL of a page.
 
 ## Set options
 
@@ -86,7 +88,7 @@ page=1 width=800 height=None dpi=None format=<ImageFormat.WEBP: 'webp'>
 | `result.data` | The artifact as `bytes` |
 | `result.save(path)` | Writes the artifact to a local file and returns its path |
 
-With `destination`, Papyrus writes the result to [remote storage](./storage) and the response carries neither content nor chunks. `result.uri` is set, and the three accessors raise `ValueError`.
+With `destination`, Papyrus writes the result to [remote storage](./storage) and the response has no content or chunks. `result.uri` is set, and the three accessors raise `ValueError`.
 
 ```python
 stored = client.markdown(source='s3://prod/docs/report.pdf', destination='s3://prod/md/report.md')
@@ -95,7 +97,7 @@ print(stored.result.uri)
 
 ## Use the async client
 
-`AsyncPapyrus` has the same methods and runs on asyncio. It uploads `bytes` only: paths and file objects raise `NotImplementedError`, and the client never reads the local disk.
+`AsyncPapyrus` has the same methods and runs on asyncio. It uploads `bytes` only and never reads the local disk: paths and file objects raise `NotImplementedError`.
 
 ```python
 import asyncio
@@ -147,10 +149,10 @@ except APIError as e:
 422 page_out_of_range page 5 is out of range, the document has 1
 ```
 
-`e.request_id` finds the request in the server logs, and `e.errors` lists the invalid fields of a `validation_error`.
+Use `e.request_id` to find the request in the server logs; `e.errors` lists the invalid fields of a `validation_error`.
 
-The client retries only requests the server did not process: `queue_full`, refused connections, and `502` or `503` answers from a proxy. It waits for `Retry-After` or an exponential backoff, at most 30 seconds. Timeouts, lost connections and every other error raise at once.
+The client retries only requests the server did not process: `queue_full`, refused connections, and `502` or `503` answers from a proxy. Before each retry it waits for `Retry-After` or an exponential backoff, at most 30 seconds. Timeouts, lost connections and every other error raise at once.
 
 ## Check the server
 
-`health()` raises unless the server is up. `ready()` returns `False` when the server is at capacity and raises when it is unreachable. Both use public routes and do not verify the API key.
+`health()` raises unless the server is up. `ready()` returns `False` when the server is at capacity and raises when it is unreachable. Both use public routes, so neither verifies the API key.
