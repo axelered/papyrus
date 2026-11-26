@@ -155,16 +155,16 @@ Allowed where the server sets `cors.allow_origins`, with no opt-in flag. README 
 
 ## Tests
 
-`sdk/typescript/test/`, on Node 22, the current Node and Bun. Running the sources needs Node 22.18 (type stripping), the built package 22.12.
+`sdk/typescript/test/`, on Node 22, the current Node and Bun. Running the sources needs Node 22.18 (type stripping), the built package 22.12. The server under test is the one of `adr/sdk-python.md` (dekit `sdk/server`), from `PAPYRUS_BASE_URL` and `PAPYRUS_API_KEY`.
 
-1. `schema.test.ts`: `z.toJSONSchema` against the app's OpenAPI. Components, fields, enums, problem codes, `destination` and one method per `/v1/*` path. A field added only to the server fails, naming where to add it; so does a server option named as a client field (`filename`, `destination`, `timeout`, `signal`).
+1. `schema.test.ts`: `z.toJSONSchema` against `GET /openapi.json` of the server under test. Components, fields, enums, problem codes, `destination` and one method per `/v1/*` path. A field added only to the server fails, naming where to add it; so does a server option named as a client field (`filename`, `destination`, `timeout`, `signal`).
 2. `client.test.ts`: fake `fetch` and a local `node:http` server. Retries, timeouts, `signal`, connection codes, unreadable files, redirects, non `problem+json` errors, inputs, configuration, key secrecy.
 3. `models.test.ts`: `text`, `bytes`, unknown fields and enum values, responses through `structuredClone` and JSON.
-4. `integration.test.ts`: every operation against a `papyrus:dev` container, with `Blob`, `Uint8Array` and `File`, a non-ASCII file name, real errors, `health` and `ready`. The SSRF guard refuses local pages, so for `screenshot` it checks the refusal; a successful capture is covered by the fake `fetch`.
+4. `integration.test.ts`: every operation against the server under test, with `Blob`, `Uint8Array` and `File`, a non-ASCII file name, real errors, `health` and `ready`. The SSRF guard refuses local pages, so for `screenshot` it checks the refusal; a successful capture is covered by the fake `fetch`.
 
-- Script `test` exports the OpenAPI document and runs 1 to 3 on Node, Node 22 (container) and Bun, `test:integration` runs 4 on Node and Bun. A missing OpenAPI document or server fails, it does not skip: a silent skip would hide drift.
+- Script `test` runs 1 to 3 on Node, Node 22 (container) and Bun, `test:integration` runs 4 on Node and Bun. An unset or unreachable server fails, it does not skip: a silent skip would hide drift. The `openapi` script and the ignored `openapi.json` go away: the host no longer needs the server's Python environment.
 - Script `test:package` (`scripts/package.sh`): `npm pack`, install in a clean folder, `import` and `require` on Node 22.12, `import` on Bun, typecheck of a consumer with `nodenext` and `bundler` resolution.
-- dekit task `sdk/typescript`: installs, starts its own server (`papyrus:dev` with authentication and the default configuration, port 8003) and runs `test:all`, i.e. typecheck, Biome and every test above.
+- dekit task `sdk/typescript`: deps `sdk/typescript-install` and `sdk/server`, `PAPYRUS_BASE_URL=http://localhost:8003`, `PAPYRUS_API_KEY=dev`, runs `test:all`, i.e. typecheck, Biome and every test above. `sdk/typescript-server` is removed.
 
 ## Documentation
 

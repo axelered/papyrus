@@ -8,7 +8,8 @@ Reference for the rules shared by every SDK: options, errors, retries, probes an
 
 - One typed method per operation, sync and async, with the same response shape whatever the operation.
 - Complete typing: responses, resolved options and enums are typed for type checkers and editor hints.
-- Server and SDK cannot drift unnoticed: the SDK is tested against the real app and its OpenAPI document.
+- Server and SDK cannot drift unnoticed: the SDK is tested against a running server and the OpenAPI document it serves.
+- The SDK is tested on its own, as its users run it: own environment, no server code, every supported Python.
 - Minimal footprint for whoever installs it: two dependencies, Python versions older than the server's.
 
 ## Decisions
@@ -30,6 +31,7 @@ Reference for the rules shared by every SDK: options, errors, retries, probes an
 ```
 sdk/python/
   pyproject.toml
+  uv.lock
   README.md          PyPI page
   LICENSE, NOTICE
   test/              every SDK test, no __init__.py
@@ -43,11 +45,10 @@ sdk/python/
     py.typed
 ```
 
-- The SDK has no lockfile or dev group of its own: `sdk/python/test/` runs in the root environment, with `testpaths = ["test", "sdk/python/test"]` and `pythonpath = [".", "sdk/python"]`.
-- `sdk/python/test/` has no `__init__.py`: pytest would import it as the root `test` package and fail. Its file names must therefore stay unique among such folders.
-- Fixtures stay in `test/fixtures`, they build on the server's. The sdist excludes `test/`.
-- `ruff.toml` stays the only Ruff config, with `[per-file-target-version] "sdk/python/papyrus_sdk/**" = "py311"` so it rejects newer syntax; tests run on the server's Python.
-- `.dockerignore` excludes `sdk`. dekit `docker/test` and the format, lint and test steps of `check.yml` mount `./sdk:/app/sdk:ro`.
+- Own uv project with its own `uv.lock` and a `dev` group (`pytest`; `anyio` comes with `httpx`). Its pytest config lives in `sdk/python/pyproject.toml`. The root `pyproject.toml` drops `sdk/python/test` from `testpaths` and `sdk/python` from `pythonpath`, so the server suite never imports the SDK.
+- Tests import nothing from `server/` or the root `test/`: the `Server` and `problem` helpers move from `test/fixtures/sdk.py` to `sdk/python/test/conftest.py`, and `test/fixtures/sdk.py` is deleted. The sdist excludes `test/`.
+- `ruff.toml` stays the only Ruff config, with `[per-file-target-version] "sdk/python/papyrus_sdk/**" = "py311"` so it rejects newer syntax.
+- `.dockerignore` excludes `sdk`. Only the Ruff steps of the server check mount `./sdk:/app/sdk:ro`; dekit `docker/test` and the server pytest step no longer do.
 - `LICENSE` is a copy of the root file (PEP 639 forbids `..` in `license-files`). `NOTICE` carries product, copyright and license only: the wheel redistributes no third party component and does not ship `adr/license.md`.
 
 ## Client
@@ -172,15 +173,18 @@ Operations are safe to repeat, but expensive: only failures where the server did
 
 ## Tests
 
-`sdk/python/test/`, part of the root suite:
+`sdk/python/test/`, run from `sdk/python/` with `uv run pytest`, on Python 3.11 and 3.14 (`uv run -p`). The server under test comes from `PAPYRUS_BASE_URL` and `PAPYRUS_API_KEY`: unset or unreachable fails, a skip would hide drift.
 
-1. Schema, against the app's OpenAPI: method keywords match the `options` properties, models match the response schemas (`options` included), enums and literals match their values. A field added only to the server fails, naming where to add it.
+1. Schema, against `GET /openapi.json` of the server under test: method keywords match the `options` properties, models match the response schemas (`options` included), enums and literals match their values. A field added only to the server fails, naming where to add it.
 2. Parity: both clients have the same methods and parameters; only the upload types are narrower in `AsyncPapyrus`.
-3. Integration against the real app: `TestClient` for `Papyrus`, `ASGITransport` for `AsyncPapyrus`, existing fixtures. The lifespan must be entered explicitly, `ASGITransport` does not run it. LibreOffice and Chromium follow the suite's fakes and `full` mark.
-4. Client with `MockTransport`: retries, timeouts, non `problem+json` errors, input forms, `AsyncPapyrus` refusals, configuration, probes.
+3. Integration: every operation with `Papyrus` and `AsyncPapyrus` against the server under test, every input form, a non-ASCII file name, real errors, `health` and `ready`. They rely only on the defaults of a clean server: no OCR backend, no `memory://` storage, the SSRF guard refusing local pages (so `screenshot` checks the refusal).
+4. Client with `MockTransport`: retries, timeouts, non `problem+json` errors, input forms, `AsyncPapyrus` refusals, configuration, probes, and what a clean server cannot produce (OCR responses, a successful `screenshot`, `destination` uploads).
 5. Unknown fields are ignored, unknown enum values raise `InvalidResponse`.
+6. Wheel: `uv build`, install the wheel in a clean 3.11 environment and import it.
 
-The suite runs on Python 3.14 only, because the app requires it; older versions are covered by the Ruff target alone until the wheel check below.
+- The server under test is the runtime image with authentication on and no config file: dekit `sdk/server` (`papyrus` image, port 8003, `PAPYRUS_API_KEY=dev`, deps `docker/build-prod`), the same in CI.
+- dekit task `sdk/python`: deps `sdk/server`, `PAPYRUS_BASE_URL=http://localhost:8003`, `PAPYRUS_API_KEY=dev`, runs 1 to 6.
+- todo: the CI job is specified with the CI/CD rework in `adr/development.md`.
 
 ## Documentation
 
@@ -190,7 +194,7 @@ The suite runs on Python 3.14 only, because the app requires it; older versions 
 
 ## Out of Scope
 
-- todo: publishing. Stamp `sdk/python/papyrus_sdk/version.py` in the semver step; build the wheel, install it in a clean 3.11 environment and import it; publish with PyPI Trusted Publishing (needs the publisher configured on PyPI, environment `pypi`), before the GitHub release.
+- todo: publishing. Stamp `sdk/python/papyrus_sdk/version.py` in the semver step; publish with PyPI Trusted Publishing (needs the publisher configured on PyPI, environment `pypi`), before the GitHub release.
 - todo: `check.yml` runs on tags only (`push: main` and `pull_request` are commented out), so drift surfaces at release time. Owned by the user.
 - todo: add `hatchling` (MIT) to the development table of `adr/license.md` once `feat/license` is merged.
 - todo: disk uploads in `AsyncPapyrus`, multiple file parts, `GET /`.
