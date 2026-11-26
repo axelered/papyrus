@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
@@ -54,6 +55,8 @@ FORMATS = CONVERSIONS | IMAGES | {FormatLabel.PDF}
 SINGLE_PAGE = IMAGES - {FormatLabel.TIFF}
 
 logger = logging.getLogger('papyrus.ocr')
+
+_MARKER = re.compile(r'<!--\s*(?:Page|Slide) number:\s*\d+\s*-->')
 
 
 class OcrService(Service):
@@ -198,9 +201,10 @@ class OcrService(Service):
     async def _call(self, image: Path) -> str:
         try:
             async with asyncio.timeout(self._timeout):
-                return await self.adapter.read(image)
+                markdown = await self.adapter.read(image)
         except TimeoutError:
             raise OcrTimeout(f'the OCR backend exceeded {self._timeout:g}s') from None
+        return _clean(markdown)
 
     def _wait(self, state: RetryCallState) -> float:
         error = _error(state)
@@ -238,6 +242,11 @@ def _create(config: OcrConfig) -> OcrAdapter:
 
     api_key = config.api_key.get_secret_value() if config.api_key else None
     return QwenAdapter(config.model, config.url, api_key, config.extra_body)
+
+
+def _clean(markdown: str) -> str:
+    """Page markers belong to the service, one written by the model would corrupt chunk pages"""
+    return _MARKER.sub('', markdown).replace('\r\n', '\n').strip()
 
 
 def _retryable(error: BaseException) -> bool:

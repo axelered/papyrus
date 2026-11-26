@@ -7,7 +7,6 @@ import httpx2
 import openai
 
 from server.ocr.base import OcrAdapter, OcrRejected, OcrTimeout, OcrTransient, OcrTruncated, data_url, status_error
-from server.ocr.clean import clean_page
 
 MAX_TOKENS = 8192
 # the SDK falls back to OPENAI_API_KEY, which must never reach a third party url
@@ -92,5 +91,5 @@ def _answer(response: Any) -> str:
 def _clean(markdown: str) -> str:
     markdown = _THINK.sub('', markdown).strip()
     if match := _FENCE.match(markdown):
-        markdown = match.group(1)
-    return clean_page(markdown)
+        return match.group(1)
+    return markdown

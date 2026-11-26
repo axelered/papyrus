@@ -62,11 +62,7 @@ async def test_drops_only_references_to_extracted_images(page_image: Path):
 
     read = await _adapter(lambda _: _answer(markdown, 'img-0.jpeg')).read(page_image)
 
-    assert read == 'text ![logo](https://axelered.com/logo.png)'
-
-
-async def test_strips_page_markers(page_image: Path):
-    assert await _adapter(lambda _: _answer('<!-- Page number: 4 -->\ntext')).read(page_image) == 'text'
+    assert read == '\n\ntext ![logo](https://axelered.com/logo.png)'  # the service trims
 
 
 async def test_blank_page_is_empty(page_image: Path):

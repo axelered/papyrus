@@ -118,6 +118,20 @@ async def test_too_many_pages_never_reach_the_backend(workspace: Workspace, tmp_
     assert _images(workspace) == []
 
 
+@pytest.mark.parametrize(
+    ('answer', 'page'),
+    [
+        ('<!-- Page number: 9 -->\ntext\n<!-- Slide number: 2 -->', 'text'),
+        ('  \n# Title\r\ntext\n ', '# Title\ntext'),
+        ('<!-- a real comment -->\ntext', '<!-- a real comment -->\ntext'),
+    ],
+)
+async def test_normalizes_the_answer(answer: str, page: str, workspace: Workspace, tmp_path: Path):
+    service = _service(FakeAdapter(answer=lambda _: answer))
+
+    assert await _read(service, workspace, tmp_path) == f'<!-- Page number: 1 -->\n\n{page}'
+
+
 @pytest.mark.parametrize('error', [OcrTransient('down'), OcrTimeout('slow'), BackendRateLimited('busy', 0.01)])
 async def test_retries_and_renders_once(
     error: Exception, workspace: Workspace, tmp_path: Path, caplog: pytest.LogCaptureFixture

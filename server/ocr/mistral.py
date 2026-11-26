@@ -7,7 +7,6 @@ from mistralai.client import Mistral
 from mistralai.client.errors import MistralError, NoResponseError, ResponseValidationError
 
 from server.ocr.base import OcrAdapter, OcrTimeout, OcrTransient, data_url, status_error
-from server.ocr.clean import clean_page
 
 _IMAGE = re.compile(r'!\[[^\]]*\]\(([^)\s]+)\)')
 
@@ -40,7 +39,7 @@ class MistralAdapter(OcrAdapter):
         if not response.pages:
             raise OcrTransient('the OCR backend answer has no pages')
         page = response.pages[0]
-        return clean_page(_without_images(page.markdown, (image.id for image in page.images)))
+        return _without_images(page.markdown, (image.id for image in page.images))
 
     async def aclose(self) -> None:
         await self._client.__aexit__(None, None, None)

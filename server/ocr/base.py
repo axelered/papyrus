@@ -38,14 +38,14 @@ class OcrRejected(OcrError):
 class OcrAdapter(ABC):
     """One call to one model family, no policy: retries and limits belong to the service"""
 
-    # rendering that suits the model, read by the caller
+    # rendering that suits the model, read by the caller; an adapter overrides them when its model needs other values
     dpi: ClassVar[int] = 200
-    # Qwen3-VL cookbook maximum for markdown, about 4600 image tokens
+    # Qwen3-VL cookbook maximum for markdown, about 4600 image tokens; Mistral accepts it
     max_pixels: ClassVar[int] = 4608 * 32 * 32
 
     @abstractmethod
     async def read(self, image: Path) -> str:
-        """Markdown of one page, `image` is a JPEG; empty for a blank page"""
+        """Markdown of one page, `image` is a JPEG; empty for a blank page; the service strips markers and spacing"""
 
     @abstractmethod
     async def aclose(self) -> None:

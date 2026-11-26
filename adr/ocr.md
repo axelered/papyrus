@@ -66,7 +66,7 @@ Remote service of `adr/architecture.md`; pages come from `adr/render.md`.
 - Others: `<!-- Page number: N -->`, from 1; sets `chunks[].page`, the page the chunk starts on.
 - A page marker is not a section boundary (paragraphs continue across pages), a slide marker is. A table across two
   pages stays two tables.
-- Markers emitted by the model are stripped.
+- Markers emitted by the model are stripped by the service, whatever the adapter.
 - LibreOffice may leave hidden slides out of the PDF: N then counts exported slides. todo: confirm.
 
 ## Architecture
@@ -76,7 +76,6 @@ server/ocr/
   base.py       OcrAdapter: read(image: Path) -> str, aclose(), dpi, max_pixels; OcrError hierarchy
   qwen.py       openai SDK, prompt, parameters, cleaning
   mistral.py    mistralai SDK, parameters, cleaning
-  clean.py      cleaning shared by adapters (stray markers)
 server/services/ocr.py   OcrService(render, convert, markdown): configured, accepts, read(document, workspace, target, chunking, chunks_target)
 ```
 
@@ -86,8 +85,11 @@ server/services/ocr.py   OcrService(render, convert, markdown): configured, acce
   cleaning, resolution and token limits are model biased. A new model is a new adapter. It maps SDK exceptions to
   `OcrTransient`, `OcrRateLimited(retry_after)`, `OcrTimeout`, `OcrTruncated`, `OcrRejected` and knows no
   `ProblemError`.
+- **Adapter cleaning:** only what its model adds (table below). `dpi` and `max_pixels` default to the Qwen values,
+  which Mistral accepts; an adapter overrides them when its model needs other ones.
 - **Service:** owns the whole OCR read of a document: conversion to PDF, page renders, slots, retries, error
-  mapping, page markers and the final chunk call. Depends on `RenderService`, `ConvertService` and `MarkdownService`
+  mapping, page markers and the final chunk call. Every adapter answer is normalized by the service: markers emitted
+  by the model are stripped (they would corrupt `chunks[].page`), `\r\n` becomes `\n`, the page is trimmed. Depends on `RenderService`, `ConvertService` and `MarkdownService`
   (chunking) per `adr/architecture.md`, Services; the coordinator only routes. Identical for every adapter. SDK retries are disabled
   (`max_retries=0`, no `retry_config`), otherwise they multiply with ours and hold the slot while waiting.
 - **Imports:** only the SDK of the configured `type`, in the API process, so deployments without OCR pay nothing.
@@ -217,9 +219,10 @@ The spike was dropped by decision: live calls only check the shape of requests a
 
 ## Tests
 
-- Adapters: real SDKs over a fake httpx transport; cleaning, truncation, error mapping, no SDK retry, no environment
-  key.
-- Service: fake adapter; slots, render cap, attempts, slot released while waiting, cancellation.
+- Adapters: real SDKs over a fake httpx transport; model cleaning, truncation, error mapping, no SDK retry, no
+  environment key.
+- Service: fake adapter; slots, render cap, attempts, slot released while waiting, cancellation, model markers
+  stripped.
 - API: real `OcrService` over a fake adapter; fallback and effective mode, page limit before any call, page order, markers, chunks with
   `page`, `output=file`, destination, first frame only.
 - `live` mark against real backends, deselected by default and in CI (`adr/development.md`).

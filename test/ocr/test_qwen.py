@@ -61,14 +61,13 @@ async def test_never_sends_the_environment_key(page_image: Path, monkeypatch: py
     ('content', 'expected'),
     [
         ('', ''),
-        ('  \n# Title\r\ntext\n ', '# Title\ntext'),
+        ('  \n# Title\ntext\n ', '# Title\ntext'),
         ('```markdown\n# Title\n```', '# Title'),
         ('```md\nintro\n```py\nx = 1\n```\nend\n```', 'intro\n```py\nx = 1\n```\nend'),
         ('```python\nx = 1\n```', '```python\nx = 1\n```'),
         ('```\na\n```\ntext\n```\nb\n```', '```\na\n```\ntext\n```\nb\n```'),
         ('<think>\nlooks like a table\n</think>\n\ntext', 'text'),
         ('text about <think> and </think> tags', 'text about <think> and </think> tags'),
-        ('<!-- Page number: 9 -->\ntext\n<!-- Slide number: 2 -->', 'text'),
         ('<!-- a real comment -->\ntext', '<!-- a real comment -->\ntext'),
     ],
 )
