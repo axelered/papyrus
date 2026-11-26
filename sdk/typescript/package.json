@@ -3,7 +3,11 @@
   "version": "0.0.0",
   "description": "TypeScript client for Papyrus, the self-hosted document processing API",
   "license": "Apache-2.0",
-  "author": "Axelered",
+  "author": {
+    "name": "Axelered",
+    "email": "oss@axelered.com",
+    "url": "https://axelered.com"
+  },
   "homepage": "https://docs.axelered.com/papyrus",
   "repository": {
     "type": "git",

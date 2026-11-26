@@ -6,5 +6,9 @@ type: application
 version: 0.0.0
 appVersion: "0.0.0"
 home: https://axelered.com
+maintainers:
+  - name: Axelered
+    email: oss@axelered.com
+    url: https://axelered.com
 sources:
   - https://github.com/axelered/papyrus

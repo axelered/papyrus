@@ -5,7 +5,7 @@ description = "Python client for Papyrus, the self-hosted document processing AP
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
-authors = [{ name = "Axelered" }]
+authors = [{ name = "Axelered", email = "oss@axelered.com" }]
 requires-python = ">=3.11"
 dependencies = [
     "httpx>=0.27",
@@ -14,6 +14,7 @@ dependencies = [
 classifiers = ["Typing :: Typed"]
 
 [project.urls]
+Homepage = "https://axelered.com"
 Documentation = "https://docs.axelered.com/papyrus"
 Repository = "https://github.com/axelered/papyrus"
 
