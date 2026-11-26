@@ -1,4 +1,4 @@
 location: "worktrees"
-base: "main"
+base: "stage"
 initialize: []
 destroy: []
