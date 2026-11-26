@@ -158,9 +158,9 @@ class MarkdownService(Service):
         value = document.format
         # only derived code is fenced; explicit formats grouped as code (ipynb) have a markitdown converter
         if value.derived and value.group == FormatGroup.CODE:
-            await self.fence_code(document.path, target, value.label, chunking, chunks_target)
+            await self._fence_code(document.path, target, value.label, chunking, chunks_target)
             return Extracted()
-        return Extracted(title=await self.convert(document.path, target, chunking, chunks_target))
+        return Extracted(title=await self._convert(document.path, target, chunking, chunks_target))
 
     async def needs_ocr(self, document: 'Document') -> bool:
         """Whether the document text layer is unusable and only OCR reads it"""
@@ -169,7 +169,7 @@ class MarkdownService(Service):
         logger.info('%s classified as %s, ocr %s', document.format.label, content, 'needed' if needed else 'not needed')
         return needed
 
-    async def convert(
+    async def _convert(
         self, source: Path, target: Path, chunking: ChunkingOptions | None = None, chunks_target: Path | None = None
     ) -> str | None:
         with pool_errors():
@@ -177,7 +177,7 @@ class MarkdownService(Service):
                 convert_to_markdown, str(source), str(target), chunking, _optional(chunks_target)
             )
 
-    async def fence_code(
+    async def _fence_code(
         self,
         source: Path,
         target: Path,
