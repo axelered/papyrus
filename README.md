@@ -4,8 +4,9 @@
 
 **Papyrus turns documents and web pages into Markdown, chunks and images for your LLM pipeline. It runs as one Docker service, separate from your app.**
 
-[![Release](https://img.shields.io/github/v/release/axelered/papyrus?style=for-the-badge&logo=github&logoColor=white&label=release&labelColor=18181b&color=3f3f46)](https://github.com/axelered/papyrus/releases)
-[![Check](https://img.shields.io/github/actions/workflow/status/axelered/papyrus/check.yml?style=for-the-badge&logo=githubactions&logoColor=white&label=check&labelColor=18181b)](https://github.com/axelered/papyrus/actions/workflows/check.yml)
+[![Version](https://img.shields.io/github/v/release/axelered/papyrus?style=for-the-badge&logo=github&logoColor=white&label=version&labelColor=18181b&color=3f3f46)](https://github.com/axelered/papyrus/releases)
+[![CI](https://img.shields.io/github/actions/workflow/status/axelered/papyrus/ci.yml?style=for-the-badge&logo=githubactions&logoColor=white&label=ci&labelColor=18181b)](https://github.com/axelered/papyrus/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/actions/workflow/status/axelered/papyrus/release.yml?style=for-the-badge&logo=githubactions&logoColor=white&label=release&labelColor=18181b)](https://github.com/axelered/papyrus/actions/workflows/release.yml)
 [![License](https://img.shields.io/github/license/axelered/papyrus?style=for-the-badge&label=license&labelColor=18181b&color=3f3f46)](https://github.com/axelered/papyrus/blob/main/LICENSE)
 [![Stars](https://img.shields.io/github/stars/axelered/papyrus?style=for-the-badge&logo=github&logoColor=white&label=stars&labelColor=18181b&color=3f3f46)](https://github.com/axelered/papyrus/stargazers)
 [![Docs](https://img.shields.io/badge/docs-axelered.com-3f3f46?style=for-the-badge&labelColor=18181b)](https://docs.axelered.com/papyrus)
