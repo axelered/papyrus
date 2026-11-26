@@ -7,7 +7,7 @@ import { loadOpenAPI, type Schema } from './openapi.ts'
 
 // the client mirrors the API contract: a change only on the server fails here (adr/sdk-typescript.md)
 
-const { components, paths } = loadOpenAPI()
+const { components, paths } = await loadOpenAPI()
 
 // bounds and defaults are the server's, texts are not part of the contract
 const IGNORED = new Set(['$schema', 'title', 'description', 'minimum', 'maximum', 'additionalProperties', 'default'])

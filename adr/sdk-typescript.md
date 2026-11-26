@@ -162,9 +162,9 @@ Allowed where the server sets `cors.allow_origins`, with no opt-in flag. README 
 3. `models.test.ts`: `text`, `bytes`, unknown fields and enum values, responses through `structuredClone` and JSON.
 4. `integration.test.ts`: every operation against the server under test, with `Blob`, `Uint8Array` and `File`, a non-ASCII file name, real errors, `health` and `ready`. The SSRF guard refuses local pages, so for `screenshot` it checks the refusal; a successful capture is covered by the fake `fetch`.
 
-- Script `test` runs 1 to 3 on Node, Node 22 (container) and Bun, `test:integration` runs 4 on Node and Bun. An unset or unreachable server fails, it does not skip: a silent skip would hide drift. The `openapi` script and the ignored `openapi.json` go away: the host no longer needs the server's Python environment.
-- Script `test:package` (`scripts/package.sh`): `npm pack`, install in a clean folder, `import` and `require` on Node 22.12, `import` on Bun, typecheck of a consumer with `nodenext` and `bundler` resolution.
-- dekit task `sdk/typescript`: deps `sdk/typescript-install` and `sdk/server`, `PAPYRUS_BASE_URL=http://localhost:8003`, `PAPYRUS_API_KEY=dev`, runs `test:all`, i.e. typecheck, Biome and every test above. `sdk/typescript-server` is removed.
+- Script `test` runs 1 to 3 on Node and Bun, and 2 and 3 on Node 22 (container): the schema test needs the server, which the container cannot reach as `localhost`, and compares data only, so Node 22 adds nothing to it. CI runs differently, with the CI/CD rework. `test:integration` runs 4 on Node and Bun. An unset or unreachable server fails, it does not skip: a silent skip would hide drift. The `openapi` script goes away, and with it the host's need for the server's Python environment; the root `.gitignore` keeps `openapi.json` for `scripts/openapi.py`.
+- Script `test:package` (`scripts/package.sh`): `npm pack`, install in a clean folder, `import` and `require` on Node 22.12, `import` on Bun, typecheck of a consumer with `nodenext` and `bundler` resolution. Not part of `test:all`: it checks what is published, so it runs in CI before publishing, with the CI/CD rework.
+- dekit task `sdk/typescript`: deps `sdk/typescript-install` and `sdk/server`, `PAPYRUS_BASE_URL=http://localhost:8003`, `PAPYRUS_API_KEY=dev`, runs `test:all`, i.e. typecheck, Biome and tests 1 to 4. `sdk/typescript-server` is removed.
 
 ## Documentation
 
