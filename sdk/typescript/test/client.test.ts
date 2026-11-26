@@ -429,7 +429,7 @@ describe('network', () => {
   })
 
   for (const [name, url, code] of [
-    ['a refused connection', closedUrl, /ECONNREFUSED/],
+    ['a refused connection', closedUrl, /ECONNREFUSED|ConnectionRefused/],
     ['an unknown host', async () => 'http://papyrus.invalid', /ENOTFOUND|EAI_AGAIN/],
   ] as const) {
     test(`${name} is retried and fails`, async () => {

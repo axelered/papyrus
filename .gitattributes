@@ -1,0 +1,2 @@
+# LF in every checkout: Biome, Ruff and the shell scripts mounted in Linux containers expect it
+* text=auto eol=lf

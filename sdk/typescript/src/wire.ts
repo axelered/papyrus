@@ -227,7 +227,14 @@ function retryAfterOf(value: string | null): number | undefined {
 // - - - Failures
 
 // the connection was never made, so the server did no work
-const NOT_CONNECTED = new Set(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'UND_ERR_CONNECT_TIMEOUT'])
+// Bun on Windows reports a refused connection as `ConnectionRefused`
+const NOT_CONNECTED = new Set([
+  'ECONNREFUSED',
+  'ConnectionRefused',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'UND_ERR_CONNECT_TIMEOUT',
+])
 
 /** `fetch` only tells failures apart by code: on the error in Bun, on its cause in Node, nowhere in browsers */
 function codeOf(error: unknown): string | undefined {

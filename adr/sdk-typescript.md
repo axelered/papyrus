@@ -142,7 +142,7 @@ Same tree and meaning as Python: `PapyrusError`, `ConnectionFailed`, `TimedOut`,
 
 ## Retries
 
-Same table as Python. `fetch` reports every connection failure as a `TypeError`, so a failure before the connection is recognized by a closed list of codes: `ECONNREFUSED`, `ENOTFOUND`, `EAI_AGAIN`, `UND_ERR_CONNECT_TIMEOUT`. They are in `cause.code` on Node and in `code` on Bun, with the same names (checked on Bun 1.4). Any other code, and every failure in browsers, is `ConnectionFailed` and is not retried.
+Same table as Python. `fetch` reports every connection failure as a `TypeError`, so a failure before the connection is recognized by a closed list of codes: `ECONNREFUSED`, `ENOTFOUND`, `EAI_AGAIN`, `UND_ERR_CONNECT_TIMEOUT`, plus `ConnectionRefused`. They are in `cause.code` on Node and in `code` on Bun, with the same names (checked on Bun 1.4) except a refused connection on Windows, which Bun reports as `ConnectionRefused`. Any other code, and every failure in browsers, is `ConnectionFailed` and is not retried.
 
 - No connect timeout of its own: `undici` has 10 s on Node, elsewhere an unreachable host can take the whole `timeout`.
 - `undici` drops idle connections at 4 s, below uvicorn's 5 s. On Bun, POSTs sent around the 5 s mark never failed against uvicorn. Neither runtime sends a POST again by itself; Bun does for GETs, so for probes only.
