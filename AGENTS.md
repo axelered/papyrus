@@ -34,10 +34,11 @@
 - [x] Publish the image to GHCR on `v*` tags
 - [x] Versioning: semver stamps `server/version.py`, watermark build arg, both returned by `GET /`
 - [x] GitHub release with the semver changelog after the image push
-- [ ] Split the pipeline: `ci.yml` and `release.yml` over the reusable `_server`, `_sdk_python`, `_sdk_typescript` and the `sdk-server` action; delete `check.yml`
-- [ ] Dispatch release: checks, `semver@v3` tag, parallel idempotent GHCR, PyPI and npm publishes, GitHub release with install lines, `dry-run`
+- [x] Split the pipeline: `ci.yml` and `release.yml` over the reusable `_server`, `_sdk_python`, `_sdk_typescript` and the `sdk-server` action; delete `check.yml`
+- [x] Dispatch release: checks, `semver@v3` tag, parallel idempotent GHCR, PyPI and npm publishes, GitHub release with install lines, `dry-run`, `stamp` action
+- [ ] First release: a `dry-run` dispatch on `main`, then a real one; check `aliases: ''` pushes no alias tags
 - [ ] Bootstrap: PyPI pending publisher, npm `axelered` organization and first manual publish, `pypi` and `npm` environments
-- [!] Enable `pull_request` in `ci.yml` and protect `main` with the three checks
+- [!] Enable `push` to `main` and `pull_request` in `ci.yml` (dispatch only for now) and protect `main` with the three checks
 - [ ] Review and simplify the Dockerfile stage layout
 
 ### Conversion (spec: `adr/convert.md`)

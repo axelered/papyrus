@@ -2,9 +2,9 @@
 name: ci
 
 on:
-  push:
-    # todo: feat/cicd is temporary, to see the workflows run before the merge
-    branches: [main, feat/cicd]
+  workflow_dispatch:
+#  push:
+#    branches: [main]
 #  pull_request:
 
 # superseded pull request runs are cancelled, every main commit gets a full status

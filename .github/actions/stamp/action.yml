@@ -1,0 +1,28 @@
+# Stamps the version of the checked out vX.Y.Z tag into every package: the one list of version files
+# (adr/development.md, Versioning)
+name: stamp
+description: Write the version of the tagged HEAD into the server and SDK version files
+
+outputs:
+  version:
+    description: The version, without the v prefix
+    value: ${{ steps.semver.outputs.version }}
+
+runs:
+  using: composite
+  steps:
+    # preview on a tagged HEAD gives that tag's version and never pushes
+    - id: semver
+      uses: svaraborut/semver@v3
+      with:
+        preview: true
+        files: |
+          server/version.py
+          sdk/python/papyrus_sdk/version.py
+          sdk/typescript/package.json
+          sdk/typescript/src/version.ts
+
+    - name: Refuse an untagged HEAD
+      if: ${{ steps.semver.outputs.prerelease == 'true' }}
+      shell: bash
+      run: echo "::error::HEAD is not a vX.Y.Z tag, nothing to publish" && exit 1

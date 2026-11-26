@@ -103,9 +103,11 @@ Two entry workflows call three reusable ones (`on: workflow_call`). GitHub allow
   _sdk_typescript.yml  runtime image as server under test: Node 22, Node 24, Bun, package check
 .github/actions/
   sdk-server/          composite: build the runtime image from cache, start it, wait for /health
+  stamp/               composite: semver preview on the tagged HEAD, writes the version files, fails untagged
 ```
 
-- `ci.yml` triggers on `push: branches: [main]`. `pull_request` stays commented out for now.
+- `ci.yml` runs on `workflow_dispatch` only for now; `push: branches: [main]` and `pull_request` are commented
+  out. todo: enable them.
 - `concurrency` cancels superseded runs on pull requests only (`cancel-in-progress` on the event name), so
   every `main` commit gets a full status.
 - No path filters: every check is 1-2 min warm, and filtered required checks would stay pending forever.
@@ -216,8 +218,9 @@ sdk/typescript/src/version.ts       export const VERSION
 
 ## Release
 
-`release.yml`, `on: workflow_dispatch` with one input `dry-run` (boolean, default `false`). Every job is guarded
-by `github.ref == 'refs/heads/main'`. `concurrency: release`, never cancelled: two releases must not race for the
+`release.yml`, `on: workflow_dispatch` with one input `dry-run` (boolean, default `false`). The first job (`server`)
+is guarded by `github.ref == 'refs/heads/main'` and every other job needs it, so a dispatch from another branch
+runs nothing. `concurrency: release`, never cancelled: two releases must not race for the
 same tag.
 
 ```
@@ -231,10 +234,12 @@ server ┬→ sdk-python     ┬→ tag ┬→ publish-image ┬→ github-relea
 2. `tag` (`contents: write`): semver with the inputs above. It writes version and changelog to the job summary
    and exports `version`, `tag` and `changelog`. With `dry-run` the run stops here: the preview version shows what
    would be released, nothing is pushed or published.
-3. Publishes, in parallel, each checking out `needs.tag.outputs.tag` and stamping as in Versioning. Each is
+3. Publishes, in parallel, each checking out `needs.tag.outputs.tag` and stamping with `.github/actions/stamp`, which holds
+   the one list of version files and fails when HEAD is not a `vX.Y.Z` tag. Each is
    idempotent, so a failure is fixed with "Re-run failed jobs" on the same run, never a new dispatch:
    - `publish-image` (`packages: write`): GHCR login with `GITHUB_TOKEN`, watermark, `docker/metadata-action`
-     (`type=semver` on the tag: `{{version}}`, `{{major}}.{{minor}}` and `latest`), then `runtime` with
+     (`type=semver` with the tag as `value`: `{{version}}`, `{{major}}.{{minor}}`, plus `type=raw,value=latest`:
+     a dispatch is not a tag event, so `latest` is not implied), then `runtime` with
      `build-args: WATERMARK=<watermark>` pushed to `ghcr.io/<owner>/<repo>`. Pushing the same tags again is
      harmless.
    - `publish-pypi` (environment `pypi`, `id-token: write`): `uv build --directory sdk/python`, then
@@ -263,14 +268,15 @@ One-time setup before the first release:
    configured only on an existing package), then the trusted publisher (workflow `release.yml`, environment
    `npm`), and the token of the first publish revoked.
 3. Repository environments `pypi` and `npm`, no reviewers.
-4. `check.yml` deleted, replaced by `ci.yml`.
+
+`check.yml` is deleted, replaced by `ci.yml` and `release.yml`.
 
 ## Out of Scope
 
 - todo: notify `axelered/docs` with a `docs-release` dispatch after the GitHub release, once the `axelered-docs`
   GitHub App and its `DOCS_APP_ID`/`DOCS_APP_PRIVATE_KEY` secrets are set up; until then a docs `deploy` run picks
   it up.
-- todo: enable `pull_request` in `ci.yml`, then protect `main` requiring the three checks.
+- todo: enable `push` to `main` and `pull_request` in `ci.yml`, then protect `main` requiring the three checks.
 - todo: review and simplify the Dockerfile stage layout, independent of the workflows.
 - todo: Helm chart lint and OCI push (`adr/chart.md`) join `_server.yml` and the publishes later.
 - todo: amd64 only, add `linux/arm64` with QEMU once arm hosts need it.
