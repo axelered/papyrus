@@ -123,7 +123,7 @@
 - [x] Move the project to `sdk/python/` and its tests from `test/sdk/` to `sdk/python/test/`
 - [x] OCR: `read_mode`, `chunks[].page`
 - [x] Test independently against `sdk/server` (spec: `adr/sdk-python.md` Tests): own uv project, schema from `/openapi.json`, dekit smoke run
-- [!] Run the Python SDK tests in `_sdk_python.yml`: 3.11 and 3.14, wheel check; until then drift is caught only locally
+- [x] Run the Python SDK tests in `_sdk_python.yml`: 3.11 and 3.14, wheel check
 - [!] `destination` uploads are covered only by `MockTransport`: the clean server has no `memory://` storage, find a real destination for the integration tests (e.g. a `file://` volume mounted in `sdk/server`)
 
 ### TypeScript SDK (spec: `adr/sdk-typescript.md`)
@@ -136,7 +136,7 @@
 - [x] OCR: `readMode`, `chunks[].page`, error codes
 - [!] Publish to npm before the next tag, the guide is already in `docs/`: `axelered` organization, version stamp, Trusted Publishing
 - [x] Tests segmented per runtime (`test:node`, `test:bun`), package check as fixtures in `test/package/`, no Docker or shell script
-- [!] Run the TypeScript tests in `_sdk_typescript.yml`: Node 22, Node 24, Bun, package check on Node 22.12; until then drift is caught only locally
+- [x] Run the TypeScript tests in `_sdk_typescript.yml`: Node 22, Node 24, Bun, package check on Node 22.12
 - [!] Expose `Retry-After` to browsers in `server/utils/cors.py`
 - [!] Add `zod` and the development tools to `adr/license.md` once `feat/license` is merged
 

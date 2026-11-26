@@ -1,0 +1,45 @@
+# Python SDK check against a clean server: tests on the oldest and newest Python, wheel check (adr/sdk-python.md)
+name: sdk-python
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  sdk-python:
+    runs-on: ubuntu-latest
+    env:
+      PAPYRUS_BASE_URL: http://localhost:8003
+      PAPYRUS_API_KEY: dev
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: ./.github/actions/sdk-server
+
+      # uv downloads each interpreter, no setup-python
+      - id: uv
+        uses: astral-sh/setup-uv@v6
+
+      # each version reports even when the other failed
+      - name: Test (Python 3.11)
+        if: ${{ !cancelled() && steps.uv.outcome == 'success' }}
+        run: uv run --locked --directory sdk/python -p 3.11 pytest
+
+      - name: Test (Python 3.14)
+        if: ${{ !cancelled() && steps.uv.outcome == 'success' }}
+        run: uv run --locked --directory sdk/python -p 3.14 pytest
+
+      # what PyPI gets, installed in a clean environment of the oldest Python, outside the source tree
+      - name: Wheel (Python 3.11)
+        if: ${{ !cancelled() && steps.uv.outcome == 'success' }}
+        run: |
+          uv build --directory sdk/python --wheel
+          uv venv -p 3.11 "$RUNNER_TEMP/wheel"
+          uv pip install --python "$RUNNER_TEMP/wheel" sdk/python/dist/*.whl
+          cd "$RUNNER_TEMP" && wheel/bin/python -c 'import papyrus_sdk; print(papyrus_sdk.__version__)'
+
+      - name: Server logs
+        if: ${{ failure() }}
+        run: docker logs papyrus-sdk

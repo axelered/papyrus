@@ -1,0 +1,102 @@
+# TypeScript SDK check against a clean server: one step per runtime, then the package as published
+# (adr/sdk-typescript.md)
+name: sdk-typescript
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  sdk-typescript:
+    runs-on: ubuntu-latest
+    env:
+      PAPYRUS_BASE_URL: http://localhost:8003
+      PAPYRUS_API_KEY: dev
+    defaults:
+      run:
+        working-directory: sdk/typescript
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: ./.github/actions/sdk-server
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install
+        id: install
+        run: bun install --frozen-lockfile
+
+      # each step below reports even when an earlier one failed, none runs without the install
+      - name: Check
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run check
+
+      # running the sources needs 22.18 (type stripping), so the latest 22.x
+      - uses: actions/setup-node@v5
+        if: ${{ !cancelled() }}
+        with:
+          node-version: 22
+
+      - name: Test (Node 22)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run test:node
+
+      # the active LTS, pinned so the tested version changes only here
+      - uses: actions/setup-node@v5
+        if: ${{ !cancelled() }}
+        with:
+          node-version: 24
+
+      - name: Test (Node 24)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run test:node
+
+      - name: Test (Bun)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run test:bun
+
+      # prepack builds dist
+      - name: Pack
+        id: pack
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: |
+          npm pack --silent
+          mv axelered-papyrus-*.tgz papyrus.tgz
+          tar -tzf papyrus.tgz | sort
+          for file in README.md LICENSE NOTICE dist/index.js dist/index.d.ts; do
+            tar -tzf papyrus.tgz | grep -qx "package/$file" || { echo "::error::package misses $file"; exit 1; }
+          done
+
+      # the oldest runtime the package declares
+      - uses: actions/setup-node@v5
+        if: ${{ !cancelled() && steps.pack.outcome == 'success' }}
+        with:
+          node-version: 22.12
+
+      - name: Package (Node 22.12)
+        id: consumer
+        if: ${{ !cancelled() && steps.pack.outcome == 'success' }}
+        working-directory: sdk/typescript/test/package
+        run: |
+          npm install --no-save --no-audit --no-fund ../../papyrus.tgz
+          node use.mjs
+          node --no-warnings use.cjs
+
+      - name: Package (Bun)
+        if: ${{ !cancelled() && steps.consumer.outcome == 'success' }}
+        working-directory: sdk/typescript/test/package
+        run: bun use.mjs
+
+      - name: Package (types)
+        if: ${{ !cancelled() && steps.consumer.outcome == 'success' }}
+        working-directory: sdk/typescript/test/package
+        run: |
+          ../../node_modules/.bin/tsc -p tsconfig.nodenext.json
+          ../../node_modules/.bin/tsc -p tsconfig.bundler.json
+
+      - name: Server logs
+        if: ${{ failure() }}
+        working-directory: .
+        run: docker logs papyrus-sdk

@@ -140,14 +140,21 @@ The CI twin of dekit `sdk/server` (`adr/sdk-python.md`): `docker/setup-buildx-ac
 of `runtime` with `load: true`, `tags: papyrus`, both cache scopes read, nothing written; then
 `docker run -d --init --name papyrus-sdk -p 8003:8000 -e PAPYRUS_API_KEY=dev papyrus`, no config file, and a
 `curl --retry` wait on `/health`. Callers set `PAPYRUS_BASE_URL=http://localhost:8003` and `PAPYRUS_API_KEY=dev`
-and print `docker logs papyrus-sdk` on failure.
+and print `docker logs papyrus-sdk` on failure. A failed start skips every step after it: the SDK steps are gated on
+a setup step (`setup-uv`, `bun install`) that only runs after a successful start.
 
 ### `_sdk_python.yml`
 
-1. `actions/checkout`, `./.github/actions/sdk-server`, `astral-sh/setup-uv`.
-2. `uv run --directory sdk/python -p 3.11 pytest`, then `-p 3.14`, against the same server.
-3. Wheel check: `uv build --directory sdk/python`, a clean 3.11 venv (`uv venv -p 3.11`), install the wheel,
-   `python -c "import papyrus_sdk"`.
+One named step per Python, against the same server, each with `if: ${{ !cancelled() }}` so both versions report.
+uv downloads the interpreters, no `setup-python`.
+
+```
+setup               checkout, sdk-server, setup-uv
+Test (Python 3.11)  uv run --locked --directory sdk/python -p 3.11 pytest
+Test (Python 3.14)  uv run --locked --directory sdk/python -p 3.14 pytest
+Wheel (Python 3.11) uv build --wheel, clean 3.11 venv in $RUNNER_TEMP, install, import outside the source tree
+Server logs         docker logs papyrus-sdk, on failure only
+```
 
 ### `_sdk_typescript.yml`
 

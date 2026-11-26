@@ -18,3 +18,11 @@ permissions:
 jobs:
   server:
     uses: ./.github/workflows/_server.yml
+
+  sdk-python:
+    needs: server
+    uses: ./.github/workflows/_sdk_python.yml
+
+  sdk-typescript:
+    needs: server
+    uses: ./.github/workflows/_sdk_typescript.yml
