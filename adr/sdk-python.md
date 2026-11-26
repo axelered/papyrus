@@ -46,8 +46,8 @@ sdk/python/
 ```
 
 - Own uv project with its own `uv.lock` and a `dev` group (`pytest`; `anyio` comes with `httpx`). Its pytest config lives in `sdk/python/pyproject.toml`. The root `pyproject.toml` drops `sdk/python/test` from `testpaths` and `sdk/python` from `pythonpath`, so the server suite never imports the SDK.
-- Tests import nothing from `server/` or the root `test/`: the `Server` and `problem` helpers move from `test/fixtures/sdk.py` to `sdk/python/test/conftest.py`, and `test/fixtures/sdk.py` is deleted. The sdist excludes `test/`.
-- `ruff.toml` stays the only Ruff config, with `[per-file-target-version] "sdk/python/papyrus_sdk/**" = "py311"` so it rejects newer syntax.
+- Tests import nothing from `server/` or the root `test/`: fixtures (server under test, OpenAPI document, both clients) live in `sdk/python/test/conftest.py`, the `Server` and `problem` helpers and the documents in `sdk/python/test/support.py`, and `test/fixtures/sdk.py` is deleted. Documents are built by hand (PDFs as in the TypeScript tests), images are checked by magic bytes and reported size: no Pillow or pdfium in the dev group. The sdist excludes `test/`.
+- `ruff.toml` stays the only Ruff config, with `[per-file-target-version] "sdk/python/**" = "py311"` so it rejects newer syntax, tests included since they run on 3.11.
 - `.dockerignore` excludes `sdk`. Only the Ruff steps of the server check mount `./sdk:/app/sdk:ro`; dekit `docker/test` and the server pytest step no longer do.
 - `LICENSE` is a copy of the root file (PEP 639 forbids `..` in `license-files`). `NOTICE` carries product, copyright and license only: the wheel redistributes no third party component and does not ship `adr/license.md`.
 
@@ -162,7 +162,7 @@ Operations are safe to repeat, but expensive: only failures where the server did
 
 - A proxy can turn a lost connection into a `502`, so the last protection is partial.
 - Wait: `max(Retry-After, exponential backoff)` plus jitter, capped at 30 s. Jitter matters because the `Retry-After` of `queue_full` is a constant 2 s.
-- File objects are always sent from their beginning, also when partly read (`httpx` rewinds them). Those that cannot seek (pipes) are read into memory: `httpx` would declare a zero length, and a retry could not read them again.
+- File objects are always sent from their beginning, also when partly read (`httpx` rewinds them). Those that cannot seek (pipes) are read into memory: `httpx` would declare a zero length, and a retry could not read them again. A file with a descriptor counts as seekable only when it is a regular file: Windows reports pipes as seekable.
 - `keepalive_expiry` is 2 s (not with a custom `http_client`): uvicorn closes idle connections at 5 s, the `httpx` default, and reusing a just closed one would be a lost connection, which is not retried.
 - A short loop, no retry library.
 
@@ -173,18 +173,18 @@ Operations are safe to repeat, but expensive: only failures where the server did
 
 ## Tests
 
-`sdk/python/test/`, run from `sdk/python/` with `uv run pytest`, on Python 3.11 and 3.14 (`uv run -p`). The server under test comes from `PAPYRUS_BASE_URL` and `PAPYRUS_API_KEY`: unset or unreachable fails, a skip would hide drift.
+`sdk/python/test/`, run from `sdk/python/` with `uv run pytest`. CI runs it on Python 3.11 and 3.14 (`uv run -p`); dekit is a smoke run on the default Python. The server under test comes from `PAPYRUS_BASE_URL` and `PAPYRUS_API_KEY`: unset or unreachable fails, a skip would hide drift.
 
 1. Schema, against `GET /openapi.json` of the server under test: method keywords match the `options` properties, models match the response schemas (`options` included), enums and literals match their values. A field added only to the server fails, naming where to add it.
 2. Parity: both clients have the same methods and parameters; only the upload types are narrower in `AsyncPapyrus`.
-3. Integration: every operation with `Papyrus` and `AsyncPapyrus` against the server under test, every input form, a non-ASCII file name, real errors, `health` and `ready`. They rely only on the defaults of a clean server: no OCR backend, no `memory://` storage, the SSRF guard refusing local pages (so `screenshot` checks the refusal).
-4. Client with `MockTransport`: retries, timeouts, non `problem+json` errors, input forms, `AsyncPapyrus` refusals, configuration, probes, and what a clean server cannot produce (OCR responses, a successful `screenshot`, `destination` uploads).
+3. Integration: every operation with `Papyrus` and `AsyncPapyrus` against the server under test, every input form, a non-ASCII file name, real errors, `health` and `ready` (only `True`: a busy server cannot be produced on demand). They rely only on the defaults of a clean server: no OCR backend, no `memory://` storage, the SSRF guard refusing local pages (so `screenshot` checks the refusal).
+4. Client with `MockTransport`: retries, timeouts, non `problem+json` errors, input forms, `AsyncPapyrus` refusals, configuration, probes, and what a clean server cannot produce (OCR responses, a successful `screenshot`, `destination` uploads, a `queue_full` retry, `ready()` at capacity).
 5. Unknown fields are ignored, unknown enum values raise `InvalidResponse`.
-6. Wheel: `uv build`, install the wheel in a clean 3.11 environment and import it.
+6. Wheel, in CI only: `uv build`, install the wheel in a clean 3.11 environment and import it.
 
 - The server under test is the runtime image with authentication on and no config file: dekit `sdk/server` (`papyrus` image, port 8003, `PAPYRUS_API_KEY=dev`, deps `docker/build-prod`), the same in CI.
-- dekit task `sdk/python`: deps `sdk/server`, `PAPYRUS_BASE_URL=http://localhost:8003`, `PAPYRUS_API_KEY=dev`, runs 1 to 6.
-- todo: the CI job is specified with the CI/CD rework in `adr/development.md`.
+- dekit task `sdk/python`: deps `sdk/server`, `PAPYRUS_BASE_URL=http://localhost:8003`, `PAPYRUS_API_KEY=dev`, runs `uv run --directory sdk/python pytest`, i.e. 1 to 5 once. No shell script: dekit runs on Windows too.
+- todo: the CI job (3.11 and 3.14, wheel check) is specified with the CI/CD rework in `adr/development.md`.
 
 ## Documentation
 

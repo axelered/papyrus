@@ -118,7 +118,8 @@
 - [!] Add `hatchling` to the SBOM of `adr/license.md` once `feat/license` is merged
 - [x] Move the project to `sdk/python/` and its tests from `test/sdk/` to `sdk/python/test/`
 - [x] OCR: `read_mode`, `chunks[].page`
-- [ ] Test independently against `sdk/server` (spec: `adr/sdk-python.md` Tests): own uv project, schema from `/openapi.json`, 3.11 and 3.14, wheel check
+- [x] Test independently against `sdk/server` (spec: `adr/sdk-python.md` Tests): own uv project, schema from `/openapi.json`, dekit smoke run
+- [!] Run the Python SDK tests in `check.yml` with the CI/CD rework: 3.11 and 3.14, wheel check; until then drift is caught only locally
 - [!] `destination` uploads are covered only by `MockTransport`: the clean server has no `memory://` storage, find a real destination for the integration tests (e.g. a `file://` volume mounted in `sdk/server`)
 
 ### TypeScript SDK (spec: `adr/sdk-typescript.md`)

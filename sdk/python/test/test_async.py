@@ -1,34 +1,19 @@
-"""The async client: the real app over ASGI, then what it does not share with the sync one"""
+"""The async client: the server under test, then what it does not share with the sync one"""
 
 import io
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
 import httpx
 import pytest
-from fastapi import FastAPI
-from fsspec import AbstractFileSystem
 from papyrus_sdk import APIError, AsyncPapyrus, ConnectionFailed, TimedOut
-
-from test.fixtures.app import API_KEY
-from test.fixtures.browser import PNG, FakeBrowser
-from test.fixtures.documents import CSV, HTML
-from test.fixtures.samples import pdf_pages
-from test.fixtures.sdk import BASE_URL, Server, problem
+from support import CSV, HTML, JPEG, WEBP, Server, pdf, problem
 
 pytestmark = pytest.mark.anyio
 
 URL = 'https://axelered.com'
 OK = httpx.Response(200, json={'source': {'uri': URL}, 'options': {}, 'checks': {}})
-
-
-@asynccontextmanager
-async def _connected(app: FastAPI) -> AsyncIterator[AsyncPapyrus]:
-    # ASGITransport does not run the lifespan
-    async with app.router.lifespan_context(app), httpx.AsyncClient(transport=httpx.ASGITransport(app)) as http:
-        yield AsyncPapyrus(BASE_URL, API_KEY, http_client=http)
+PAGE = (200, 100)
 
 
 def _papyrus(server: Server, **options: Any) -> AsyncPapyrus:
@@ -36,45 +21,35 @@ def _papyrus(server: Server, **options: Any) -> AsyncPapyrus:
     return AsyncPapyrus('http://papyrus', 'dev', http_client=http, **options)
 
 
-# - - - real app
+# - - - server under test
 
 
-async def test_operations(app: FastAPI, memory_fs: AbstractFileSystem):
-    memory_fs.pipe('bucket/in.html', HTML)
-    async with _connected(app) as client:
-        app.state.services.browser = FakeBrowser()
+async def test_operations(async_sdk: AsyncPapyrus):
+    markdown = await async_sdk.markdown(HTML, filename='rapporto è.html')
+    rendered = await async_sdk.render(pdf(PAGE), page=1, width=100, format='jpeg')
+    thumbnail = await async_sdk.thumbnail(file=pdf(PAGE), width=64, fit='cover')
+    inspected = await async_sdk.inspect(CSV, filename='data.csv')
 
-        markdown = await client.markdown(HTML, filename='report.html')
-        stored = await client.markdown('memory://mem/bucket/in.html', destination='memory://mem/bucket/out.md')
-        rendered = await client.render(pdf_pages((595, 842)), page=1, width=100, format='jpeg')
-        thumbnail = await client.thumbnail(file=pdf_pages((595, 842)), width=64, fit='cover')
-        screenshot = await client.screenshot(URL, full_page=True)
-        inspected = await client.inspect(source='memory://mem/bucket/in.html')
-
-    assert markdown.result.text.startswith('# Report') and markdown.source.name == 'report.html'
-    assert stored.result.uri == 'memory://mem/bucket/out.md' and memory_fs.exists('bucket/out.md')
+    assert markdown.result.text.startswith('# Report') and markdown.source.name == 'rapporto è.html'
     assert (rendered.result.width, rendered.result.mime_type) == (100, 'image/jpeg')
-    assert thumbnail.result.width == 64
-    assert screenshot.result.data == PNG
-    assert inspected.source.label == 'html' and inspected.request_id
+    assert rendered.result.data.startswith(JPEG)
+    assert thumbnail.result.width == 64 and thumbnail.result.data.startswith(WEBP)
+    assert inspected.source.label == 'csv' and inspected.request_id
 
 
-async def test_problems_become_api_errors(app: FastAPI):
-    async with _connected(app) as client:
-        with pytest.raises(APIError) as error:
-            await client.render(pdf_pages((595, 842)), page=9)
+async def test_problems_become_api_errors(async_sdk: AsyncPapyrus):
+    with pytest.raises(APIError) as out_of_range:
+        await async_sdk.render(pdf(PAGE), page=9)
+    with pytest.raises(APIError) as private:
+        await async_sdk.screenshot('http://127.0.0.1:8000/')
 
-    assert (error.value.status, error.value.code) == (422, 'page_out_of_range')
+    assert (out_of_range.value.status, out_of_range.value.code) == (422, 'page_out_of_range')
+    assert (private.value.status, private.value.code) == (403, 'source_forbidden')
 
 
-async def test_probes(app: FastAPI):
-    async with _connected(app) as client:
-        assert (await client.health()).status == 'ok'
-        assert await client.ready() is True
-
-        app.state.admission.in_flight = app.state.admission.limit
-
-        assert await client.ready() is False
+async def test_probes(async_sdk: AsyncPapyrus):
+    assert (await async_sdk.health()).status == 'ok'
+    assert await async_sdk.ready() is True
 
 
 # - - - uploads

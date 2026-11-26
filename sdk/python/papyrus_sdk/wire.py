@@ -2,6 +2,7 @@ import io
 import json
 import os
 import random
+import stat
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -125,13 +126,24 @@ def _upload(content: Any, filename: str | None, disk: bool) -> Upload:
     # a file opened from a descriptor has an int as name
     name = getattr(content, 'name', None)
     filename = filename or (Path(name).name if isinstance(name, str) else 'file')
-    seekable = getattr(content, 'seekable', None)
-    if seekable is None or not seekable():
+    if not _rewindable(content):
         # httpx declares a zero length for pipes, and a retry could not read them again
         content = content.read()
         if not isinstance(content, bytes):
             raise TypeError('open the file in binary mode')
     return Upload(filename, content)
+
+
+def _rewindable(file: Any) -> bool:
+    """Seekable and, with a descriptor, a regular file: Windows reports pipes as seekable"""
+    seekable = getattr(file, 'seekable', None)
+    if seekable is None or not seekable():
+        return False
+    try:
+        descriptor = file.fileno()
+    except (AttributeError, OSError):
+        return True
+    return stat.S_ISREG(os.fstat(descriptor).st_mode)
 
 
 @dataclass(frozen=True)

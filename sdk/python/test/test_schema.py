@@ -5,7 +5,6 @@ from enum import StrEnum
 from typing import Any, Literal, get_args, get_origin, get_type_hints
 
 import pytest
-from fastapi.testclient import TestClient
 from papyrus_sdk import AsyncPapyrus, Papyrus, models
 from pydantic.alias_generators import to_camel
 
@@ -23,12 +22,11 @@ BASES = {'OpModel', 'OpResponse'}
 
 
 @pytest.fixture
-def components(client: TestClient) -> dict[str, Any]:
-    """Schemas reachable from the paths: the registry is global, other tests add their own models to it"""
-    spec = client.get('/openapi.json').json()
-    schemas = spec['components']['schemas']
+def components(openapi: dict[str, Any]) -> dict[str, Any]:
+    """Schemas reachable from the paths, from `GET /openapi.json` of the server under test"""
+    schemas = openapi['components']['schemas']
     found: dict[str, Any] = {}
-    pending = _refs(spec['paths'])
+    pending = _refs(openapi['paths'])
     while pending:
         name = pending.pop()
         if name not in found:
@@ -101,8 +99,8 @@ def _parameters(operation: str) -> set[str]:
     return set(inspect.signature(getattr(Papyrus, operation)).parameters) - {'self'} - _INPUT
 
 
-def test_every_operation_has_a_method(client: TestClient):
-    paths = client.get('/openapi.json').json()['paths']
+def test_every_operation_has_a_method(openapi: dict[str, Any]):
+    paths = openapi['paths']
 
     assert {path for path in paths if path.startswith('/v1/')} == {f'/v1/{operation}' for operation in OPS}
 

@@ -1,5 +1,6 @@
 """Requests, configuration, errors and retries of the sync client over a mock transport"""
 
+import base64
 import json
 import os
 from pathlib import Path
@@ -7,9 +8,19 @@ from typing import Any
 
 import httpx
 import pytest
-from papyrus_sdk import APIError, ChunkingOptions, ConnectionFailed, InvalidResponse, Papyrus, TimedOut, __version__
-
-from test.fixtures.sdk import Server, problem
+from papyrus_sdk import (
+    APIError,
+    ChunkingOptions,
+    ConnectionFailed,
+    Encoding,
+    InvalidResponse,
+    Papyrus,
+    ReadMode,
+    TimedOut,
+    WaitUntil,
+    __version__,
+)
+from support import PNG, Server, problem
 
 INSPECTED = {'source': {'uri': 'file://file'}, 'options': {}, 'checks': {}}
 URL = 'https://axelered.com'
@@ -67,6 +78,78 @@ def test_read_timeout_outlasts_the_server_deadline():
 
     timeouts = [request.extensions['timeout'] for request in server.requests]
     assert [(t['connect'], t['read']) for t in timeouts] == [(5, 310), (2, 2), (5, 5)]
+
+
+# - - - responses a clean server cannot produce
+
+
+def _result(name: str, mime_type: str, **fields: Any) -> dict[str, Any]:
+    extension = name.rsplit('.', 1)[-1]
+    return {'name': name, 'size': 4, 'mimeType': mime_type, 'extension': extension, 'label': extension, **fields}
+
+
+def test_ocr_response():
+    chunk = {'index': 0, 'kind': 'text', 'text': 'Page', 'headings': [], 'page': 2, 'start': 0, 'end': 4, 'tokens': 1}
+    body = {
+        'source': {'uri': 'file://file', 'name': 'scan.pdf', 'pageCount': 2},
+        'options': {'readMode': 'ocr', 'chunking': {'maxTokens': 512, 'overlap': 0, 'tokenizer': 'o200k_base'}},
+        'result': _result('scan.md', 'text/markdown', group='markup', encoding='utf-8', content='Page'),
+        'chunks': [chunk],
+    }
+    response = _papyrus(Server(httpx.Response(200, json=body))).markdown(
+        b'%PDF', filename='scan.pdf', read_mode='ocr', chunking=ChunkingOptions()
+    )
+
+    assert (response.options.read_mode, response.source.page_count) == (ReadMode.OCR, 2)
+    assert response.chunks and response.chunks[0].page == 2
+
+
+def test_screenshot_response():
+    content = base64.b64encode(PNG).decode()
+    body = {
+        'source': {'uri': URL, 'fetch': {'url': f'{URL}/', 'status': 200}},
+        'options': {'fullPage': True, 'waitUntil': 'networkidle', 'delay': 5},
+        'result': _result('axelered.png', 'image/png', group='image', encoding='base64', content=content),
+    }
+
+    response = _papyrus(Server(httpx.Response(200, json=body))).screenshot(
+        URL, full_page=True, wait_until='networkidle'
+    )
+
+    assert response.result.data == PNG and response.result.encoding is Encoding.BASE64
+    assert response.source.fetch and response.source.fetch.status == 200
+    assert (response.options.full_page, response.options.wait_until) == (True, WaitUntil.NETWORKIDLE)
+
+
+@pytest.mark.parametrize('form', ['positional', 'source'])
+def test_destination_upload(form: str):
+    uri, destination = 's3://bucket/in.html', 's3://bucket/out.md'
+    body = {
+        'source': {'uri': uri},
+        'options': {'readMode': 'text'},
+        'result': {'uri': destination, **_result('out.md', 'text/markdown', group='markup')},
+    }
+    server = Server(httpx.Response(200, json=body))
+    client = _papyrus(server)
+
+    response = (
+        client.markdown(uri, destination=destination)
+        if form == 'positional'
+        else client.markdown(source=uri, destination=destination)
+    )
+
+    sent = json.loads(server.requests[0].content)
+    assert (sent['source'], sent['destination']) == (uri, destination)
+    assert (response.source.uri, response.result.uri) == (uri, destination)
+    with pytest.raises(ValueError, match=destination):
+        _ = response.result.text
+
+
+def test_ready_is_false_at_capacity(sleeps: list[float]):
+    server = Server(problem(503, 'not_ready'))
+
+    assert _papyrus(server).ready() is False
+    assert len(server.requests) == 1 and sleeps == []
 
 
 # - - - input

@@ -40,8 +40,8 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["test", "sdk/python/test"]
-pythonpath = [".", "sdk/python"]
+testpaths = ["test"]
+pythonpath = ["."]
 # the image runs `pytest -m "not live"` to include full tests (adr/development.md)
 addopts = "-m 'not full and not live'"
 markers = [

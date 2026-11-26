@@ -25,6 +25,13 @@ build-backend = "hatchling.build"
 [tool.hatch.version]
 path = "papyrus_sdk/version.py"
 
-# tests need the server of this repository
+# tests need a running server (adr/sdk-python.md)
 [tool.hatch.build.targets.sdist]
 exclude = ["/test"]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+# PAPYRUS_BASE_URL and PAPYRUS_API_KEY name the server under test (adr/sdk-python.md)
+[tool.pytest.ini_options]
+testpaths = ["test"]

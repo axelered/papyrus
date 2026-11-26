@@ -55,7 +55,7 @@ tasks:
     cmd: [
       'docker', 'run', '--rm', '--init', '--name', 'papyrus-test',
       '-v', './server:/app/server:ro', '-v', './test:/app/test:ro', '-v', './scripts:/app/scripts:ro',
-      '-v', './sdk:/app/sdk:ro', 'papyrus:dev', 'pytest', '-m', 'not live',
+      'papyrus:dev', 'pytest', '-m', 'not live',
     ]
     type: job
     deps: [docker/build-dev]
@@ -63,6 +63,25 @@ tasks:
 
   sdk/:
     collapsed: false
+
+  # the server under test of both SDKs: runtime image, authentication on, no config file (adr/sdk-python.md)
+  sdk/server:
+    cmd: [
+      'docker', 'run', '--rm', '--init', '--name', 'papyrus-sdk', '-p', '8003:8000', '-e', 'PAPYRUS_API_KEY=dev',
+      'papyrus',
+    ]
+    deps: [docker/build-prod]
+    ready: { http: 'http://localhost:8003/health' }
+    stop: { cmd: [ 'docker', 'stop', 'papyrus-sdk' ], timeout: 40s }
+
+  # smoke run on the default Python, CI covers 3.11, 3.14 and the wheel
+  sdk/python:
+    cmd: [ 'uv', 'run', '--directory', 'sdk/python', 'pytest' ]
+    type: job
+    env:
+      PAPYRUS_BASE_URL: http://localhost:8003
+      PAPYRUS_API_KEY: dev
+    deps: [sdk/server]
 
   sdk/typescript-install:
     cmd: [ 'bun', 'install', '--cwd', 'sdk/typescript', '--frozen-lockfile' ]
