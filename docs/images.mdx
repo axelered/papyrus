@@ -4,7 +4,7 @@ description: Turn document pages, images and web pages into previews and page im
 icon: Image
 ---
 
-Papyrus turns any page of a document or image into a picture: `POST /v1/thumbnail` for fixed size previews in your UI, `POST /v1/render` for pages at reading size, for viewers and vision models. Both return the image file by default.
+`POST /v1/thumbnail` and `POST /v1/render` turn any page of a document or image into a picture: thumbnails are fixed size previews for your UI, renders are pages at reading size, for viewers and vision models. Both return the image file by default.
 
 ```shell
 curl http://127.0.0.1:8000/v1/thumbnail \

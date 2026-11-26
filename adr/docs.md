@@ -61,11 +61,14 @@ carries the rest.
 | Group        | Reader  | Pages                                                                              |
 |--------------|---------|------------------------------------------------------------------------------------|
 | (top)        | builder | Introduction (`index`): what Papyrus does, one diagram · Quickstart: Docker run, first Markdown request, first chunked request |
-| Guides       | builder | Markdown extraction · RAG chunking · Image rendering · Web screenshots · Remote storage |
-| Concepts     | both    | Request format (`source`, `options`, `result`) · URI formats · File formats · Error codes |
+| Markdown     | builder | Markdown extraction · OCR (read modes, backends, page limits) · RAG chunking       |
+| Images       | builder | Image rendering · Web screenshots                                                  |
+| Utilities    | builder | Inspect · later document tools that are neither Markdown nor images (scan, sign, lock, strip, split, form detection) |
+| Concepts     | both    | Request format (`source`, `options`, `result`) · URI formats · Remote storage · File formats · Error codes |
 | SDKs         | builder | Python SDK · TypeScript SDK                                                        |
 | Deploy       | operator | Docker setup · Configuration · Security (SSRF, sandbox, limits, reverse proxy) · Sizing |
 
+- Guides are grouped by what the reader gets back (Markdown or images); options of an endpoint that need their own workflow, such as OCR and chunking, get their own page in that group.
 - Guides explain workflows and link to the API reference; they never list endpoint fields.
 - `docs/*.nogit.*` files are local notes and never part of the docs.
 

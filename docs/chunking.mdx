@@ -4,7 +4,7 @@ description: Split documents into structure-aware chunks sized for your embeddin
 icon: Scissors
 ---
 
-Add `options.chunking` to a Markdown request to get the document split into chunks that fit your embedding model, each with the headings it sits under and its position in the Markdown.
+`POST /v1/markdown` with `options.chunking` returns the document split into chunks that fit your embedding model, each with the headings it sits under and its position in the Markdown.
 
 ```shell
 curl http://127.0.0.1:8000/v1/markdown \
@@ -94,7 +94,7 @@ Every chunk reports:
 
 - A heading directly followed by a table becomes its own small text chunk, as `## Response times` above. The table chunk still lists the heading in `headings`, so filter chunks with only a heading line if they add noise to your index.
 - Overlap applies to prose only and is taken from the next prose chunk, which may come after a table.
-- With [`readMode: ocr`](./markdown#read-scans-and-images), headings are recognized page by page, so `headings` is less reliable than for a Word file. A paragraph can continue across pages inside one chunk, and `page` is where the chunk starts.
+- With [`readMode: ocr`](./ocr), headings are recognized page by page, so `headings` is less reliable than for a Word file. A paragraph can continue across pages inside one chunk, and `page` is where the chunk starts.
 - Content without headings, such as most PDFs, splits by size only and every chunk has empty `headings`.
 
 ## Store or download the chunks

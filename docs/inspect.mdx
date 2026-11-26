@@ -1,0 +1,93 @@
+---
+title: Inspect
+description: Detect the real format of a document and check its name before you process it
+icon: FileSearch
+---
+
+`POST /v1/inspect` detects the format of a document from its content and checks it, without converting or rendering anything. It returns the same `source` facts as every other operation, plus `checks`. Use it to reject mislabeled uploads or to route a document before a slow conversion.
+
+```shell
+curl http://127.0.0.1:8000/v1/inspect \
+  -H 'Authorization: Bearer dev' \
+  -F file=@report.pdf
+```
+
+```json
+{
+  "source": {
+    "uri": "file://file",
+    "name": "report.pdf",
+    "size": 98,
+    "mimeType": "text/html",
+    "extension": "html",
+    "label": "html",
+    "group": "markup"
+  },
+  "options": {},
+  "checks": {"extensionMatch": false}
+}
+```
+
+This `report.pdf` is an HTML page with a PDF name. `source.name` keeps the name it was sent with, and the other fields describe the content. Inspect accepts every format: content Papyrus does not recognize comes back as `label: unknown` with a `200`, never as `415 unsupported_format`.
+
+## Reject mislabeled uploads
+
+`checks.extensionMatch` compares the extension of the name with the detected content:
+
+| Name and content | `extensionMatch` |
+|---|---|
+| `sample.pdf` that is a PDF | `true` |
+| `photo.jpeg` that is a JPEG, `notes.txt` that is Python | `true`: aliases and generic extensions match |
+| `report.pdf` that is HTML, `data.xyz` | `false`: another format, or an extension Papyrus does not know |
+| `README` | omitted: the name has no extension |
+
+A failed check never rejects the file; your service decides what to do with it. Reject the upload, ask the user to rename it, or process it anyway as what it really is: every other operation reads the content, not the name.
+
+## Route documents
+
+`source.group` tells you where to send the document next:
+
+| `group` | Send it to |
+|---|---|
+| `document`, `presentation`, `spreadsheet`, `email`, `markup`, `data`, `text`, `code` | [`/v1/markdown`](./markdown) |
+| `archive` | `/v1/markdown`, which converts every entry |
+| `image` | [`/v1/render`](./images) for a resized copy, or `/v1/markdown` when the server has an [OCR backend](./ocr) |
+| `unknown` | Nowhere: reject it |
+
+Use `label` when you need the exact format, for example to send only PDFs to a review queue. [File formats](./formats) lists which operation accepts each format.
+
+## Check a URL
+
+A URL whose path has no extension takes its name from the `Content-Type` of the response, so `extensionMatch` compares the content with what the server declared. A server that sends a PDF as `text/html` is flagged.
+
+```shell
+curl http://127.0.0.1:8000/v1/inspect \
+  -H 'Authorization: Bearer dev' \
+  -H 'Content-Type: application/json' \
+  -d '{"source": "https://axelered.com"}'
+```
+
+```json
+{
+  "source": {
+    "uri": "https://axelered.com",
+    "name": "source.html",
+    "size": 94018,
+    "mimeType": "text/html",
+    "extension": "html",
+    "label": "html",
+    "group": "markup",
+    "fetch": {"url": "https://axelered.com", "status": 200}
+  },
+  "options": {},
+  "checks": {"extensionMatch": true}
+}
+```
+
+`source.fetch` has the final URL after redirects and the HTTP status. Storage URIs such as `s3://<connector>/<key>` work the same way; see [URI formats](./uris).
+
+## Cost and limits
+
+- Inspect runs in the API process and uses no worker, so it answers quickly even when the conversion pools are busy. It still reads the whole source: a URL or a bucket object is downloaded in full, within `limits.max_file_size`.
+- It produces no file. The response has no `result`, and `output` or `destination` in the request fails with `422 validation_error`.
+- It reports the format and the name check only. It does not open the document, so it does not report the page count, encryption or a corrupt file, and it does not say whether [`readMode: auto`](./ocr#how-auto-decides) would read the document with OCR.

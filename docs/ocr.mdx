@@ -1,0 +1,119 @@
+---
+title: OCR
+description: Read scans, photos and image-only pages with a vision model on your own GPUs or at Mistral
+icon: ScanText
+---
+
+`POST /v1/markdown` can read a page from its image with a vision model, instead of copying the text stored in the file. That is how scans, photos of documents and PDFs with a broken text layer become Markdown. `options.readMode` controls it, and by default Papyrus decides per document whether a model is needed, so most requests set nothing. The response has the same shape as in text mode, and [chunking](./chunking) works on it.
+
+```shell
+curl http://127.0.0.1:8000/v1/markdown \
+  -H 'Authorization: Bearer dev' \
+  -F file=@scan.pdf
+```
+
+A document read with OCR has a marker at the start of each page, `source.pageCount` is the number of pages, and `options.readMode` in the response is `ocr`:
+
+```markdown
+<!-- Page number: 1 -->
+
+Axelered LLC
+
+# Delivery note 2026-117
+
+Shipped on 12 November 2026 from Ljubljana.
+
+…
+
+<!-- Page number: 2 -->
+
+Axelered LLC
+
+# Terms
+
+…
+```
+
+## Read modes
+
+| `readMode` | What it does | Use it for |
+|---|---|---|
+| `auto` (default) | Checks the document, then reads it as `text` or `ocr` | Mixed inputs where you do not know which files are scans |
+| `text` | Copies the text stored in the file and never calls the model | Documents you know were created on a computer, or that must not reach the backend |
+| `ocr` | Reads every page from its image, even pages with a good text layer | Scans whose text layer is present but wrong |
+
+`options.readMode` in the response is the mode Papyrus used, `text` or `ocr`, never `auto`. Text is exact and fast; OCR costs one model call per page and can misread a digit or a name.
+
+## How auto decides
+
+`auto` sends a document to the model when its text cannot be used:
+
+- Images and presentations always go to the model when the server has one.
+- PDFs go to the model when a page has no text but carries drawn content (a scan, text drawn as shapes, a full-page figure), when its fonts produce unreadable characters, or when it is a scan whose own OCR layer recovered little.
+- Word documents go to the model when they are mostly pictures with little typed text, such as a scan pasted into Word.
+- Everything else is read as text.
+
+The decision covers the whole document. A PDF with one scanned page or one full-page chart is read entirely with OCR, while a Word file that mixes typed and scanned pages is read as text, and its scanned pages come back empty. Send `readMode: ocr` for such files.
+
+Without a backend, `auto` reads every document as text. Images then fail with `415 unsupported_format`, and scans come back empty.
+
+## Formats
+
+- PDF: every page. TIFF: every frame. PNG, JPEG, WebP, GIF, BMP and AVIF: the first frame, as one page.
+- Word, PowerPoint, RTF and OpenDocument text and presentations: exported to PDF with LibreOffice, then read page by page. Slides lose their speaker notes.
+- Spreadsheets and formats without pages, such as HTML, CSV or email, are read as text in every mode.
+
+The [formats table](./formats#by-operation) lists every format with its OCR behavior.
+
+## What comes back
+
+- Every page starts with `<!-- Page number: N -->`, single-page documents included. Presentations use `<!-- Slide number: N -->`. With chunking, `chunks[].page` or `chunks[].slide` is where each chunk starts.
+- Tables become Markdown tables, and formulas become LaTeX.
+- Page headers and footers stay, so letterheads and invoice numbers are kept. Pictures are left out, but text inside them is read.
+- Text stays in the language of the document, without translation or correction.
+- The model decides heading levels one page at a time, so `chunks[].headings` is less reliable than for a Word file. A paragraph can continue across pages, and a table that spans two pages becomes two tables.
+
+## Choose a backend
+
+The operator connects one backend for the whole deployment. Without one, no document leaves the server: `auto` reads as text and `ocr` fails with `422 ocr_not_configured`.
+
+| Backend | Where page images go | Pick it when |
+|---|---|---|
+| `qwen` | A Qwen VL model on any OpenAI-compatible server: vLLM or Ollama on your GPUs, or a hosted provider such as OpenRouter | Documents must stay in your network, or you already serve models |
+| `mistral` | Mistral OCR on the Mistral API | You have no GPUs and your agreements allow sending documents to Mistral |
+
+A Qwen VL model on vLLM in your network:
+
+```yaml
+ocr:
+  type: qwen
+  model: Qwen/Qwen3-VL-8B-Instruct
+  url: http://vllm:8000/v1
+  api_key: ${OCR_API_KEY}
+```
+
+Mistral OCR:
+
+```yaml
+ocr:
+  type: mistral
+  api_key: ${MISTRAL_API_KEY}
+```
+
+## Long documents
+
+- `ocr.max_pages`, 100 by default, is the longest document read with OCR. Papyrus checks it before any model call. A longer document is read as text in `auto`, so a long scan comes back empty, and fails with `413 too_many_pages` in `ocr`. Split it to read it with OCR.
+- Each container reads up to `ocr.concurrency` pages at once, 8 by default, shared by all OCR requests. A document takes about `pages / concurrency` times the seconds your model needs per page: at 10 seconds per page, 100 pages take about 2 minutes.
+- `limits.deadline`, 300 seconds by default, covers the whole document. Raise it together with `max_pages`, and raise your client timeout with it. [Sizing](./sizing#ocr) has the capacity limits.
+
+## Handle failures
+
+- `422 ocr_not_configured`: `readMode: ocr` on a server without a backend. Ask your operator, or use `auto` or `text`.
+- `413 too_many_pages`: with `readMode: ocr`, the document has more pages than `ocr.max_pages`; `detail` has the page count. Split it, or let `auto` read it as text.
+- `415 unsupported_format`: an image read as text, in `text` mode or in `auto` without a backend.
+- `413 image_too_large`: the image has more pixels than the decompression guard allows.
+- `502 ocr_failed`: the backend failed after retries, rejected the page or cut it off; `detail` names the page. Retry once; a page that fails again needs `readMode: text` or a different model.
+- `503 ocr_rate_limited`: the backend is at capacity after Papyrus retried. Wait for `Retry-After`.
+- `504 processing_timeout` or `deadline_exceeded`: a page or the whole document took too long.
+
+[Error codes](./errors) lists how your client should react to each one.

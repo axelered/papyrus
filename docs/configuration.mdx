@@ -74,7 +74,7 @@ These settings apply to URL sources and to everything a screenshot page loads.
 
 ## OCR
 
-A vision model on a remote server reads page images. With this section, Markdown requests in the default `readMode: auto` send it scans, images and presentations, and `readMode: ocr` sends it every page. Without it OCR is off: `auto` reads every document as text, `ocr` fails with `422 ocr_not_configured`, and no document leaves the server. A deployment has one backend, and requests cannot choose another.
+A vision model on a remote server reads page images. With this section, Markdown requests in the default `readMode: auto` send it scans, images and presentations, and `readMode: ocr` sends it every page. Without it OCR is off: `auto` reads every document as text, `ocr` fails with `422 ocr_not_configured`, and no document leaves the server. A deployment has one backend, and requests cannot choose another. [OCR](./ocr#choose-a-backend) compares the two.
 
 With a Qwen VL model on any OpenAI-compatible server, such as vLLM, Ollama or OpenRouter:
 

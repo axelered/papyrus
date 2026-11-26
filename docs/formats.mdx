@@ -35,7 +35,7 @@ A format an operation does not accept fails with `415 unsupported_format` before
 
 ## What to expect per format
 
-- **Scanned PDFs** have no text layer. The default [`readMode: auto`](./markdown#read-scans-and-images) reads their page images with a vision model when the server has one configured; without one they return little or no text.
+- **Scanned PDFs** have no text layer. The default [`readMode: auto`](./ocr#how-auto-decides) reads their page images with a vision model when the server has one configured; without one they return little or no text.
 - **Legacy and OpenDocument files** (`.doc`, `.ppt`, `.rtf`, `.odt`, `.odp`, `.ods`) are converted with LibreOffice before Markdown extraction, which adds time to every request.
 - **Office files and HTML in render and thumbnail**, `.docx`, `.pptx` and `.xlsx` included, are exported by LibreOffice one page at a time, so `source.pageCount` is not reported. HTML thumbnails are the exception: they are browser captures.
 - **HTML** keeps headings, lists, links and tables. Site navigation and footers come through as text, as on the page.
@@ -58,14 +58,4 @@ Use `group` to route documents in your own pipeline, and `label` when you need t
 
 ## Check a file before processing
 
-Inspect returns these fields without processing the document. Use it to route or reject a file before a slow conversion. It accepts every format and adds `checks`:
-
-```json
-{
-  "source": {"uri": "file://file", "name": "report.pdf", "size": 98, "mimeType": "text/html", "extension": "html", "label": "html", "group": "markup"},
-  "options": {},
-  "checks": {"extensionMatch": false}
-}
-```
-
-`extensionMatch` is `false` when the name claims a different format than the content, like this HTML page saved as `report.pdf`. A generic name is not a mismatch: `notes.txt` that contains Python passes. The check is omitted when the name has no extension, and a failed check never rejects the file.
+[Inspect](./inspect) returns these fields and checks the name against the content, without processing the document.

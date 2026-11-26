@@ -5,13 +5,13 @@ icon: BookOpen
 footer: false
 ---
 
-import { Camera, FileText, ImageIcon, Scissors } from 'lucide-react'
+import { Camera, FileText, ImageIcon, ScanText, Scissors } from 'lucide-react'
 
 Papyrus is a self-hosted HTTP API that converts documents and web pages into Markdown, chunks and images for LLM and agent pipelines. It reads PDFs, Office files, emails, HTML pages and other formats listed in [File formats](./formats), and returns content in a shape that models and retrieval systems can use directly.
 
 <br/>
 <Cards>
-  <Card icon={<FileText />} title="Markdown extraction" description="PDF, Office, email and HTML to Markdown, with OCR for scans" href="./markdown" />
+  <Card icon={<FileText />} title="Markdown extraction" description="PDF, Office, email and HTML to Markdown" href="./markdown" />
   <Card icon={<Scissors />} title="RAG chunking" description="Structure-aware chunks with headings, token counts and offsets" href="./chunking" />
   <Card icon={<ImageIcon />} title="Image rendering" description="Page renders and fixed-size thumbnails" href="./images" />
   <Card icon={<Camera />} title="Web screenshots" description="Web page capture in headless Chromium" href="./screenshots" />

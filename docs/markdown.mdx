@@ -50,12 +50,9 @@ curl http://127.0.0.1:8000/v1/markdown \
 
 ## Read scans and images
 
-By default, `readMode` is `auto`: Papyrus checks each document before reading it. Images, presentations, and PDF or Word documents whose text cannot be extracted (scans, text drawn as shapes, broken fonts) are read from their page images by a vision model; everything else is read from the text stored in the file. `options.readMode` in the response is the mode that was used, `text` or `ocr`. Your operator connects the model once, see [configuration](./configuration#ocr); without one, `auto` reads every document as text.
+By default, `readMode` is `auto`: Papyrus checks each document, sends scans, images and presentations to a vision model, and reads everything else from the text stored in the file. `options.readMode` in the response is the mode that was used, `text` or `ocr`. Your operator connects the model once; without one, `auto` reads every document as text.
 
-Set `readMode` yourself to choose:
-
-- `text` never sends a page to the model. Use it for documents you know are born digital.
-- `ocr` reads every page from its image, also when the text layer is good. Without a model, the request fails with `422 ocr_not_configured`.
+Set `readMode` to `text` to never send a page to the model, or to `ocr` to read every page from its image:
 
 ```shell
 curl http://127.0.0.1:8000/v1/markdown \
@@ -64,38 +61,7 @@ curl http://127.0.0.1:8000/v1/markdown \
   -F file=@scan.pdf
 ```
 
-Each page starts with a marker, and `source.pageCount` is the number of pages:
-
-```markdown
-<!-- Page number: 1 -->
-
-Axelered LLC
-
-# Delivery note 2026-117
-
-Shipped on 12 November 2026 from Ljubljana.
-
-…
-
-<!-- Page number: 2 -->
-
-Axelered LLC
-
-# Terms
-
-…
-```
-
-- PDF, TIFF, Word, PowerPoint, RTF and OpenDocument text and presentations are read page by page. Other images are read as one page, the first frame of an animation.
-- Presentations use `<!-- Slide number: N -->` markers.
-- Formats without pages, such as HTML or CSV, and spreadsheets are read as in `text` mode. `options.readMode` in the response is the mode that was used.
-- Tables become Markdown tables. Page headers and footers are kept, but pictures are left out.
-- `auto` decides per document: a PDF with one scanned page or one full-page figure is read entirely with OCR, while a Word file mixing typed and scanned pages is read as text.
-- One model call per page makes OCR slower than `text`, and `limits.deadline` covers the whole document.
-- In `auto`, a document with more pages than the server reads with OCR, 100 by default, is read as text instead. With `ocr` it fails with `413 too_many_pages`.
-- In `auto`, a model that fails still fails the request, so a scan never comes back as empty Markdown with a `200`.
-- A page that the model reports as failed or cut off fails the request. Mistral OCR does not report cut-off pages: a very dense page, such as hundreds of lines in small print, can come back cut or empty, so check the result of such documents.
-- A model can misread a page or follow instructions written on it, so treat the Markdown as untrusted content.
+A document read with OCR starts each page with a `<!-- Page number: N -->` marker. [OCR](./ocr) covers how `auto` decides, the formats, the backends, long documents and the errors.
 
 ## Get a file instead of JSON
 
@@ -113,7 +79,7 @@ The response is `text/markdown; charset=utf-8` with `Content-Disposition: attach
 
 ## What each format gives you
 
-- PDF: the text layer. Scanned pages have no text layer: `auto` reads them with OCR when the server has a model, otherwise they come back empty; see [scans and images](#read-scans-and-images).
+- PDF: the text layer. Scanned pages have no text layer: `auto` reads them with OCR when the server has a model, otherwise they come back empty; see [OCR](./ocr).
 - Word, PowerPoint, Excel: headings, lists and tables. Slides keep their text, tables and notes; spreadsheets become one table per sheet.
 - Legacy and OpenDocument (`.doc`, `.ppt`, `.rtf`, `.odt`, `.odp`, `.ods`): converted with LibreOffice first, so expect a slower response than the OOXML equivalents.
 - HTML and web pages: the page as Markdown, including navigation and footer text. Links stay relative when the page uses relative links.
@@ -125,9 +91,8 @@ The full list is in [file formats](./formats).
 
 ## Handle failures
 
-- `415 unsupported_format`: the detected format cannot become Markdown, for example a video, or an image read as text: in `text` mode, or in `auto` when the server has no OCR model. Corrupt and encrypted files fail the same way. Use [Inspect](./formats#check-a-file-before-processing) to check the format first.
-- `413 too_many_pages`: with `readMode: ocr`, the document has more pages than the server reads with OCR, 100 by default. Split it, or let `auto` read it as text.
-- `502 ocr_failed` or `503 ocr_rate_limited`: the OCR model failed or is at capacity. Retry later; see [error codes](./errors).
+- `415 unsupported_format`: the detected format cannot become Markdown, for example a video, or an image read as text: in `text` mode, or in `auto` when the server has no OCR model. Corrupt and encrypted files fail the same way. Use [Inspect](./inspect) to check the format first.
+- `413 too_many_pages`, `502 ocr_failed` or `503 ocr_rate_limited`: OCR errors, see [OCR](./ocr#handle-failures).
 - `413 payload_too_large` or `source_too_large`: the document exceeds the server limit, 100 MB by default.
 - `504 processing_timeout`: one step took too long. LibreOffice conversion and text extraction each stop after 120 seconds.
 - `504 deadline_exceeded`: the conversion took longer than the server deadline, 300 seconds by default.

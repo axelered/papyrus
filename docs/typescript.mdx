@@ -111,7 +111,7 @@ The same argument takes `timeout` and `signal`. When you abort, the call rejects
 
 ## Read scans and images
 
-By default, `readMode` is `auto`: the server reads scans, images and presentations from their page images when your operator has [configured a vision model](./configuration#ocr), and everything else from its text. Set `readMode: 'ocr'` to read every page from its image, or `'text'` to never use the model. See [scans and images](./markdown#read-scans-and-images) for the formats and limits.
+By default, `readMode` is `auto`: the server reads scans, images and presentations from their page images when your operator has [configured a vision model](./configuration#ocr), and everything else from its text. Set `readMode: 'ocr'` to read every page from its image, or `'text'` to never use the model. [OCR](./ocr) covers how `auto` decides, the formats, the backends and the limits.
 
 ```ts
 const doc = await client.markdown(await openAsBlob('scan.pdf'), {
