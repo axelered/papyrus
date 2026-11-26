@@ -1,7 +1,7 @@
 """
 Decides whether a document needs OCR: picks the classifier of its format and maps the class to the decision.
 
-Classes needing OCR are `graphic`, `garbage` and `scan` (`classify_pdf.OCR_CLASSES`, DOCX only has `graphic`); a file
+Classes needing OCR are `graphic`, `garbage` and `scan` (`pdf.OCR_CLASSES`, DOCX only has `graphic`); a file
 the classifier cannot open does not need OCR, the text reader then reports it.
 """
 
@@ -11,8 +11,8 @@ from xml.etree import ElementTree
 
 import pypdfium2 as pdfium
 
-from server.ocr.classify_docx import classify_docx
-from server.ocr.classify_pdf import OCR_CLASSES, classify_pdf
+from server.ocr.classify.docx import classify_docx
+from server.ocr.classify.pdf import OCR_CLASSES, classify_pdf
 
 UNREADABLE = 'unreadable'
 # not a zip, no document.xml, broken XML

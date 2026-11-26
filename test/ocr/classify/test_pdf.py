@@ -3,7 +3,7 @@ from pathlib import Path
 import pypdfium2 as pdfium
 import pytest
 
-from server.ocr.classify_pdf import classify_pdf, classify_pdf_page
+from server.ocr.classify.pdf import classify_pdf, classify_pdf_page
 from test.fixtures.samples import PDF_IMAGE, pdf_streams, pdf_text
 
 # 42 characters, 36 of them not whitespace: above MIN_CHARS, below SCAN_CHARS

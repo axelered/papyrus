@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from server.ocr.classify_docx import CHARS_PER_IMAGE, MIN_IMAGE_BYTES, classify_docx, docx_stats
+from server.ocr.classify.docx import CHARS_PER_IMAGE, MIN_IMAGE_BYTES, classify_docx, docx_stats
 from test.fixtures.samples import docx_media
 
 CAPTION = 'Signed copy of the application'

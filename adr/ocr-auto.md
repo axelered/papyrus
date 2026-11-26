@@ -77,8 +77,8 @@ if mode == ReadMode.TEXT:
 
 - `Extracted(title, page_count, width, height)` in `types/markdown.py`; the response `source` describes the detected
   original, filled with these facts.
-- `server/ocr/classify.py` has `needs_ocr(path, label) -> tuple[bool, str]`: picks the classifier by label and maps
-  the class with `OCR_CLASSES` (`graphic`, `garbage`, `scan`). `OCR_CLASSES` lives in `classify_pdf.py`, whose early
+- `server/ocr/classify/__init__.py` has `needs_ocr(path, label) -> tuple[bool, str]`: picks the classifier by label
+  and maps the class with `OCR_CLASSES` (`graphic`, `garbage`, `scan`). `OCR_CLASSES` lives in `classify/pdf.py`, whose early
   stop needs it; DOCX classes are a subset. Unreadable files are classed `unreadable`. The markdown worker calls it
   (`adr/architecture.md`, Services).
 - The classifier runs in the markdown pool, not in `DetectService`: pdfium is not thread-safe and a crash on a hostile
@@ -106,8 +106,9 @@ Falls back to `text` only on facts known before any model call; a backend failur
 
 ## Classifiers
 
-`server/ocr/classify_pdf.py` and `server/ocr/classify_docx.py` return only a class. Deterministic, existing
-dependencies (pypdfium2, stdlib), thresholds as module constants.
+`server/ocr/classify/pdf.py` (`classify_pdf`, `classify_pdf_page`) and `server/ocr/classify/docx.py`
+(`classify_docx`, and `docx_stats` for threshold tuning) return only a class. Deterministic, existing dependencies
+(pypdfium2, stdlib), thresholds as module constants.
 
 - Run in the markdown pool through `needs_ocr` (Services above): pypdfium2 is imported only in workers, and the render
   pool stays free for thumbnails and OCR pages. `init_worker` imports pypdfium2 for warm start.
@@ -162,10 +163,10 @@ DOCX text is the XML itself and always readable; OCR pays off only when images c
 ## Tests
 
 - Classifiers on documents generated in `test/fixtures/samples.py`, no committed binaries:
-  - `test/ocr/test_classify_pdf.py`: one page per class from raw content streams (`samples.pdf_streams`: blank,
+  - `test/ocr/classify/test_pdf.py`: one page per class from raw content streams (`samples.pdf_streams`: blank,
     full-page image, text, image behind invisible text, photo cover with visible text, control-character glyphs),
     early stop, `PdfiumError` on corrupt input.
-  - `test/ocr/test_classify_docx.py`: `_zip` with random bytes of the declared size as images; each class, the 32 KB
+  - `test/ocr/classify/test_docx.py`: `_zip` with random bytes of the declared size as images; each class, the 32 KB
     boundary, early stop, broken zip.
 - `test/api/test_markdown_ocr.py` over the fake adapter: `auto` default, scan to `ocr` and native to `text` with the
   resolved mode, no backend to `text`, backend failure `502`, page limit to `text`, images and presentations to

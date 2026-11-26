@@ -95,7 +95,7 @@ def fence_code(
 
 
 def classify_document(source: str, label: str) -> tuple[bool, str]:
-    """Pool worker: whether the text layer is unusable and the class that says so (server/ocr/classify.py)"""
+    """Pool worker: whether the text layer is unusable and the class that says so (server/ocr/classify/)"""
     from server.ocr.classify import needs_ocr
 
     try:

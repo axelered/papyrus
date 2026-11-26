@@ -76,11 +76,12 @@ server/ocr/
   base.py       OcrAdapter: read(image: Path) -> str, aclose(), dpi, max_pixels; OcrError hierarchy
   qwen.py       openai SDK, prompt, parameters, cleaning
   mistral.py    mistralai SDK, parameters, cleaning
+  classify/     auto mode classifiers, run in the markdown pool (adr/ocr-auto.md)
 server/services/ocr.py   OcrService(render, convert, markdown): configured, accepts, read(document, workspace, target, chunking, chunks_target)
 ```
 
-- **Layering:** `server/ocr/` imports stdlib and third-party only, like `utils/`; only `services/ocr.py` and the
-  wiring import it.
+- **Layering:** `server/ocr/` imports stdlib and third-party only, like `utils/`; only `services/ocr.py` (adapters),
+  `services/markdown.py` (classifiers, in its worker) and the wiring import it.
 - **Adapter:** wraps one model family: one call, no policy. `type` names the family, not the protocol, because prompt,
   cleaning, resolution and token limits are model biased. A new model is a new adapter. It maps SDK exceptions to
   `OcrTransient`, `OcrThrottled(retry_after)`, `OcrTimeout`, `OcrTruncated`, `OcrRejected` and knows no
