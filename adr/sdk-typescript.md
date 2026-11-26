@@ -37,7 +37,7 @@ sdk/typescript/
 
 - Sources run unbuilt on Node and Bun: relative imports end in `.ts`, `erasableSyntaxOnly`, and `rewriteRelativeImportExtensions` for the build.
 - zod is imported as `import * as z from 'zod/mini'`: about 5 KB gzipped, `import { z }` is not tree-shaken and takes about 90 KB.
-- `version.ts` and `package.json` keep `0.0.0` in git; a test checks that they match.
+- `version.ts` and `package.json` keep `0.0.0` in git; a test checks that they match. Both are stamped on release and published to npm with Trusted Publishing (`adr/development.md`, Release).
 - `node_modules/` is added to `.gitignore`. `dist/` and `openapi.json` are already ignored.
 
 ## Client
@@ -162,8 +162,8 @@ Allowed where the server sets `cors.allow_origins`, with no opt-in flag. README 
 3. `models.test.ts`: `text`, `bytes`, unknown fields and enum values, responses through `structuredClone` and JSON.
 4. `integration.test.ts`: every operation against the server under test, with `Blob`, `Uint8Array` and `File`, a non-ASCII file name, real errors, `health` and `ready`. The SSRF guard refuses local pages, so for `screenshot` it checks the refusal; a successful capture is covered by the fake `fetch`.
 
-- Script `test` runs 1 to 3 on Node and Bun, and 2 and 3 on Node 22 (container): the schema test needs the server, which the container cannot reach as `localhost`, and compares data only, so Node 22 adds nothing to it. CI runs differently, with the CI/CD rework. `test:integration` runs 4 on Node and Bun. An unset or unreachable server fails, it does not skip: a silent skip would hide drift. The `openapi` script goes away, and with it the host's need for the server's Python environment; the root `.gitignore` keeps `openapi.json` for `scripts/openapi.py`.
-- Script `test:package` (`scripts/package.sh`): `npm pack`, install in a clean folder, `import` and `require` on Node 22.12, `import` on Bun, typecheck of a consumer with `nodenext` and `bundler` resolution. Not part of `test:all`: it checks what is published, so it runs in CI before publishing, with the CI/CD rework.
+- Script `test` runs 1 to 3 on Node and Bun, and 2 and 3 on Node 22 (container): the schema test needs the server, which the container cannot reach as `localhost`, and compares data only, so Node 22 adds nothing to it. `test:integration` runs 4 on Node and Bun. An unset or unreachable server fails, it does not skip: a silent skip would hide drift. The `openapi` script goes away, and with it the host's need for the server's Python environment; the root `.gitignore` keeps `openapi.json` for `scripts/openapi.py`.
+- Script `test:package` (`scripts/package.sh`): `npm pack`, install in a clean folder, `import` and `require` on Node 22.12, `import` on Bun, typecheck of a consumer with `nodenext` and `bundler` resolution. Not part of `test:all`: it checks what is published, so `_sdk_typescript.yml` runs it after `test:all` (`adr/development.md`).
 - dekit task `sdk/typescript`: deps `sdk/typescript-install` and `sdk/server`, `PAPYRUS_BASE_URL=http://localhost:8003`, `PAPYRUS_API_KEY=dev`, runs `test:all`, i.e. typecheck, Biome and tests 1 to 4. `sdk/typescript-server` is removed.
 
 ## Documentation
@@ -174,8 +174,6 @@ Allowed where the server sets `cors.allow_origins`, with no opt-in flag. README 
 
 ## Out of Scope
 
-- todo: publishing to npm. Stamp `version.ts` and `package.json` in the semver step, run `test:package`, Trusted Publishing.
-- todo: `check.yml` does not run the TypeScript tests, so drift is caught only locally. Owned by the user.
 - todo: `Retry-After` in `EXPOSE_HEADERS` of `server/utils/cors.py`.
 - todo: add `zod` and the development tools to `adr/license.md` once `feat/license` is merged.
 - todo: local paths (a `/node` entry point), streaming input and output, CDN build.

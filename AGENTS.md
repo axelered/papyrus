@@ -34,7 +34,11 @@
 - [x] Publish the image to GHCR on `v*` tags
 - [x] Versioning: semver stamps `server/version.py`, watermark build arg, both returned by `GET /`
 - [x] GitHub release with the semver changelog after the image push
-- [ ] Review and simplify the whole CI/CD pipeline and Dockerfile: publish gating, job split (check vs release), summary step, stage layout
+- [ ] Split the pipeline: `ci.yml` and `release.yml` over the reusable `_server`, `_sdk_python`, `_sdk_typescript` and the `sdk-server` action; delete `check.yml`
+- [ ] Dispatch release: checks, `semver@v3` tag, parallel idempotent GHCR, PyPI and npm publishes, GitHub release with install lines, `dry-run`
+- [ ] Bootstrap: PyPI pending publisher, npm `axelered` organization and first manual publish, `pypi` and `npm` environments
+- [!] Enable `pull_request` in `ci.yml` and protect `main` with the three checks
+- [ ] Review and simplify the Dockerfile stage layout
 
 ### Conversion (spec: `adr/convert.md`)
 
@@ -119,7 +123,7 @@
 - [x] Move the project to `sdk/python/` and its tests from `test/sdk/` to `sdk/python/test/`
 - [x] OCR: `read_mode`, `chunks[].page`
 - [x] Test independently against `sdk/server` (spec: `adr/sdk-python.md` Tests): own uv project, schema from `/openapi.json`, dekit smoke run
-- [!] Run the Python SDK tests in `check.yml` with the CI/CD rework: 3.11 and 3.14, wheel check; until then drift is caught only locally
+- [!] Run the Python SDK tests in `_sdk_python.yml`: 3.11 and 3.14, wheel check; until then drift is caught only locally
 - [!] `destination` uploads are covered only by `MockTransport`: the clean server has no `memory://` storage, find a real destination for the integration tests (e.g. a `file://` volume mounted in `sdk/server`)
 
 ### TypeScript SDK (spec: `adr/sdk-typescript.md`)
@@ -131,7 +135,7 @@
 - [x] `docs/typescript.mdx` guide
 - [x] OCR: `readMode`, `chunks[].page`, error codes
 - [!] Publish to npm before the next tag, the guide is already in `docs/`: `axelered` organization, version stamp, Trusted Publishing
-- [!] Run the TypeScript tests in `check.yml`, and `test:package` before publishing; until then drift is caught only locally
+- [!] Run the TypeScript tests in `_sdk_typescript.yml`, `test:all` and `test:package`; until then drift is caught only locally
 - [!] Expose `Retry-After` to browsers in `server/utils/cors.py`
 - [!] Add `zod` and the development tools to `adr/license.md` once `feat/license` is merged
 

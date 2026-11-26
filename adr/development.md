@@ -19,8 +19,9 @@ full-fidelity image loop.
 | Full loop       | `dev` Docker stage with source bind-mounted, driven by dekit                              |
 | Orchestration   | dekit only, no compose: `cmd` is an argv array, so relative `-v ./x:/app/x` works in any shell |
 | Image layout    | One multi-stage Dockerfile, `runtime` stays last so `docker build .` builds prod           |
-| CI              | Job `build`: stamp version and watermark, build `dev`, lint and test inside it, build `runtime`, push it to GHCR on release. Job `release`: GitHub release with the changelog |
-| Versioning      | Hand-pushed `vX.Y.Z` tags; `svaraborut/semver` (always preview) and `svaraborut/watermark` stamp the build |
+| CI              | `ci.yml` on `main` and `release.yml` on dispatch, both over the reusable `_server`, `_sdk_python`, `_sdk_typescript` |
+| Versioning      | One version for server and SDKs, tagged by `svaraborut/semver@v3` after the checks pass, capped at minor |
+| Release         | GHCR image, PyPI and npm in parallel and idempotent, Trusted Publishing, then the GitHub release |
 | Skip guard      | `full` marker deselected by `addopts` on the host, re-included with `-m "not live"` in the image; `live` deselected in both |
 
 ## Dockerfile
@@ -90,81 +91,169 @@ runtime  FROM base: prod venv, assets, server; HEALTHCHECK and CMD as today (las
 
 ## CI
 
-`.github/workflows/check.yml`, triggered on `pull_request`, `push` to `main` and `v*` tags. Job `build`
-(`contents: read`, `packages: write`) on `ubuntu-latest`:
+Two entry workflows call three reusable ones (`on: workflow_call`). GitHub allows no subfolders in
+`.github/workflows`, so the `_` prefix marks the reusable files.
 
-1. `actions/checkout`.
-2. Versioning, always run (see Versioning): `svaraborut/semver` stamps `server/version.py`, then
-   `svaraborut/watermark` builds the watermark from its version.
-3. Publish decision: `publish` is true when the ref is a `v*` tag and semver reports `prerelease == 'false'`.
-4. Job summary with the version, watermark and changelog.
-5. `docker/setup-buildx-action`, then `docker/build-push-action` with `target: dev`, `load: true`,
-   `tags: papyrus:dev`, GHA cache in scope `dev`.
-6. Run inside `papyrus:dev` with the same mounts as dekit `docker/test` plus `ruff.toml`: `ruff format --check`,
-   `ruff check`, `pytest -m "not live"`.
-7. Docs bundle (`axelered-docs` skill): `scripts/openapi.py` inside `papyrus:dev` writes `openapi.json` (`jq empty`
+```
+.github/workflows/
+  ci.yml               push to main                 → _server, then _sdk_python and _sdk_typescript
+  release.yml          workflow_dispatch on main    → the same checks, then tag, publish, GitHub release
+  _server.yml          dev image: ruff, pytest, docs bundle; runtime image built, not pushed
+  _sdk_python.yml      runtime image as server under test: SDK tests on 3.11 and 3.14, wheel check
+  _sdk_typescript.yml  runtime image as server under test: test:all, test:package
+.github/actions/
+  sdk-server/          composite: build the runtime image from cache, start it, wait for /health
+```
+
+- `ci.yml` triggers on `push: branches: [main]`. `pull_request` stays commented out for now.
+- `concurrency` cancels superseded runs on pull requests only (`cancel-in-progress` on the event name), so
+  every `main` commit gets a full status.
+- No path filters: every check is 1-2 min warm, and filtered required checks would stay pending forever.
+- The SDK checks `needs:` the server check and run in parallel with each other: a server failure stops the run
+  before them, and they always find a warm `dev` and `runtime` cache. Each suite fails in its own job, so a red
+  check names the package.
+- Checks stamp no version: the runtime image they build is thrown away. Only the publish jobs stamp.
+- Commit subjects in the changelog are untrusted. They go into action `with:` inputs and reach `run:` scripts only
+  through `env:`, never through `${{ }}` inside a script.
+
+### `_server.yml`
+
+Permissions `contents: read`, on `ubuntu-latest`:
+
+1. `actions/checkout`, `docker/setup-buildx-action`.
+2. `docker/build-push-action` with `target: dev`, `load: true`, `tags: papyrus:dev`, GHA cache in scope `dev`.
+3. Inside `papyrus:dev`, mounting `./server`, `./test`, `./scripts`, `./sdk` and `./ruff.toml` read-only:
+   `ruff format --check`, `ruff check`. `sdk` is mounted only here: one Ruff config covers the whole repository.
+4. `pytest -m "not live"` with the mounts of dekit `docker/test` (`server`, `test`, `scripts`), with the comment
+   about the `-m` override (see Tests).
+5. Docs bundle (`axelered-docs` skill): `scripts/openapi.py` inside `papyrus:dev` writes `openapi.json` (`jq empty`
    fails on stray stdout), then `docs.tar.gz` packs `bundle.json`, `openapi.json`, `docs/` and `bruno/` without
-   `bruno/environments` and `.env*`, and the step fails if either slipped in. Packed on every run, uploaded as the
-   `docs-bundle` artifact only when `publish` is true. Gitignored `*.nogit.*` notes never reach the CI checkout.
-8. `docker/build-push-action`: default target (`runtime`), `build-args: WATERMARK=<watermark>`, reads the `dev`
-   and `runtime` cache scopes, writes `runtime`. This always proves the prod image builds, and it pushes only when
-   `publish` is true.
+   `bruno/environments` and `.env*`, and the step fails if either slipped in. Uploaded on every run as the
+   `docs-bundle` artifact (`retention-days: 7`), so the release job reuses it.
+6. `docker/build-push-action` with the default target (`runtime`), no push, reading the `dev` and `runtime` cache
+   scopes and writing `runtime`. This proves the prod image builds.
 
-`build` exports `publish`, `version`, `tag` and `changelog` as job outputs for `release` (see Release).
+### `.github/actions/sdk-server`
 
-- Commit subjects in the changelog are untrusted (anyone can open a PR). They go into action `with:` inputs and
-  reach `run:` scripts only through `env:`, never through `${{ }}` inside a script.
-- Timing: about 5-8 min with a cold cache (LibreOffice apt layer), about 1-2 min warm.
-- `concurrency` cancels superseded runs on the same ref.
+The CI twin of dekit `sdk/server` (`adr/sdk-python.md`): `docker/setup-buildx-action`, `docker/build-push-action`
+of `runtime` with `load: true`, `tags: papyrus`, both cache scopes read, nothing written; then
+`docker run -d --init --name papyrus-sdk -p 8003:8000 -e PAPYRUS_API_KEY=dev papyrus`, no config file, and a
+`curl --retry` wait on `/health`. Callers set `PAPYRUS_BASE_URL=http://localhost:8003` and `PAPYRUS_API_KEY=dev`
+and print `docker logs papyrus-sdk` on failure.
+
+### `_sdk_python.yml`
+
+1. `actions/checkout`, `./.github/actions/sdk-server`, `astral-sh/setup-uv`.
+2. `uv run --directory sdk/python -p 3.11 pytest`, then `-p 3.14`, against the same server.
+3. Wheel check: `uv build --directory sdk/python`, a clean 3.11 venv (`uv venv -p 3.11`), install the wheel,
+   `python -c "import papyrus_sdk"`.
+
+### `_sdk_typescript.yml`
+
+1. `actions/checkout`, `./.github/actions/sdk-server`, `oven-sh/setup-bun`, `actions/setup-node` (current
+   release; Node 22 runs in its container from the `test:node22` script).
+2. `bun install --cwd sdk/typescript --frozen-lockfile`.
+3. `bun run test:all`, then `bun run test:package`: the scripts dekit runs, so CI and local runs match.
 
 ## Versioning
 
-Git tags are the only source of truth: releases are `vX.Y.Z` tags pushed by hand, nothing is committed back.
+Releases are `vX.Y.Z` tags pushed by `svaraborut/semver@v3` from the release workflow, never by hand. Nothing is
+committed back. Server, Python SDK and TypeScript SDK share one version.
 
-| Step      | Config                                                                                       |
-|-----------|----------------------------------------------------------------------------------------------|
-| Version   | `svaraborut/semver@v2`, `preview: true` always, `files: server/version.py`                    |
-| Watermark | `svaraborut/watermark@v2`, `version: <semver version>`, `format: vVERSION #SHA7 DATE`          |
+| Input          | Value                                                            |
+|----------------|------------------------------------------------------------------|
+| `preview`      | `${{ inputs.dry-run }}` in the tag job, `true` everywhere else   |
+| `minimum-bump` | `minor`                                                          |
+| `maximum-bump` | `minor`: going to `1.0.0` is a deliberate edit of `release.yml`  |
+| `aliases`      | `''`: moving `vX`, `vX.Y`, `latest` git tags only serve Actions repositories |
 
-- semver checks for a tagged HEAD before it checks preview. A `vX.Y.Z` tag at HEAD gives that version with
-  `prerelease: false`. Anything else renders the next version as `X.Y.Z-rcN` (N = commits since the last release)
-  with `prerelease: true`. With preview always on it never pushes tags. Every run logs a version.
+- With both bounds at `minor`, every release bumps the minor version, whatever the Conventional Commits since the
+  highest reachable `vX.Y.Z` say: breaking changes cannot reach `1.0.0`, and patch releases need `minimum-bump:
+  patch`. Starting from another version means pushing that tag by hand once.
+- With `preview: true` on a commit tagged `vX.Y.Z`, semver outputs that version as is. Every publish job checks
+  out the tag and runs semver that way to stamp its files, so no version passes between jobs and a re-run builds
+  the same thing.
 - `changelog` lists the commits since the previous `vX.Y.Z`, newest first, with links. On a tagged HEAD the tag
   itself is skipped, so a release lists exactly its own commits.
-- Example watermarks: `v1.2.3 #2e6dcdd 2026-11-17` on a release, `v1.2.4-rc5 #9f1c0de 2026-11-20` on `main` or a PR.
-- `server/version.py` holds `__version__ = '0.0.0'` (stamped in the CI workspace, never committed) and
-  `__watermark__ = os.environ.get('WATERMARK') or None`. semver keeps the existing quote style.
-- The `runtime` stage ends with `ARG WATERMARK=` and `ENV WATERMARK=$WATERMARK`. They are last so they never
-  invalidate cached layers. `dev` has no watermark.
+- Releases are always `X.Y.Z`: there is no prerelease channel.
+
+Stamped files (`files:`), all keeping `0.0.0` in git:
+
+```
+server/version.py                   __version__
+sdk/python/papyrus_sdk/version.py   __version__, read by hatchling as the wheel version
+sdk/typescript/package.json         version
+sdk/typescript/src/version.ts       export const VERSION
+```
+
+- The root `pyproject.toml` keeps its `0.0.0` placeholder: `uv.lock` records the project version, so stamping it
+  breaks `uv sync --locked`. The server is never published as a wheel, so nothing reads it.
+- `svaraborut/watermark@v2` (`version: <semver version>`, `format: vVERSION #SHA7 DATE`) runs in the image publish
+  job only. The `runtime` stage ends with `ARG WATERMARK=` and `ENV WATERMARK=$WATERMARK`, last so they never
+  invalidate cached layers; `dev` has no watermark.
 - `GET /` (`HelloResponse`) returns `version` from `__version__` and `watermark` from `__watermark__`. Locally that
   is `0.0.0` and `null`.
-- `pyproject.toml` keeps the `0.0.0` placeholder: `uv.lock` records the project version, so stamping it breaks
-  `uv sync --locked`. The server is never published as a wheel, so nothing reads it.
-- todo: packages added to the repo get their own `__version__` stamped the same way. Stamping their
-  `pyproject.toml` means building with `uv sync --frozen` behind a `uv lock --check` step that runs before stamping.
-- todo: semver only recognises `vX.Y.Z`, so a hand-pushed `v1.3.0-rc1` comes out as `prerelease: true` and
-  publishes nothing. Decide on an RC naming scheme before publishing RCs.
 
 ## Release
 
-Publishing happens only when `publish` is true, so only on a `vX.Y.Z` tag run. A push to `main` at a commit that is
-already tagged does not publish again, and `v*` tags that are not exactly `vX.Y.Z` build and test without
-publishing.
+`release.yml`, `on: workflow_dispatch` with one input `dry-run` (boolean, default `false`). Every job is guarded
+by `github.ref == 'refs/heads/main'`. `concurrency: release`, never cancelled: two releases must not race for the
+same tag.
 
-1. `build` logs in to GHCR with `GITHUB_TOKEN` and pushes the runtime image to `ghcr.io/<owner>/<repo>`.
-   `docker/metadata-action` turns `v1.2.3` into the image tags `1.2.3`, `1.2` and `latest`.
-2. Job `release` (`needs: build`, `contents: write`, the only job that can write to the repository) runs
-   `softprops/action-gh-release@v2`. It creates the GitHub release named after the tag, with the changelog
-   followed by the image reference as the body, and attaches `docs.tar.gz` from the `docs-bundle` artifact. It
-   starts only after the image push succeeded.
+```
+server ┬→ sdk-python     ┬→ tag ┬→ publish-image ┬→ github-release
+       └→ sdk-typescript ┘      ├→ publish-pypi  ┤
+                                └→ publish-npm   ┘
+```
 
-- todo: notify `axelered/docs` with a `docs-release` dispatch after the release, once the `axelered-docs` GitHub App
-  and its `DOCS_APP_ID`/`DOCS_APP_PRIVATE_KEY` secrets are set up; until then a docs `deploy` run picks it up.
+1. Checks: the three reusable workflows, as in `ci.yml`. They run again on purpose: the tag is pushed only after
+   they pass on the exact commit, so a red run never leaves a tag behind.
+2. `tag` (`contents: write`): semver with the inputs above. It writes version and changelog to the job summary
+   and exports `version`, `tag` and `changelog`. With `dry-run` the run stops here: the preview version shows what
+   would be released, nothing is pushed or published.
+3. Publishes, in parallel, each checking out `needs.tag.outputs.tag` and stamping as in Versioning. Each is
+   idempotent, so a failure is fixed with "Re-run failed jobs" on the same run, never a new dispatch:
+   - `publish-image` (`packages: write`): GHCR login with `GITHUB_TOKEN`, watermark, `docker/metadata-action`
+     (`type=semver` on the tag: `{{version}}`, `{{major}}.{{minor}}` and `latest`), then `runtime` with
+     `build-args: WATERMARK=<watermark>` pushed to `ghcr.io/<owner>/<repo>`. Pushing the same tags again is
+     harmless.
+   - `publish-pypi` (environment `pypi`, `id-token: write`): `uv build --directory sdk/python`, then
+     `pypa/gh-action-pypi-publish` with `packages-dir: sdk/python/dist` and `skip-existing: true`.
+   - `publish-npm` (environment `npm`, `id-token: write`): `actions/setup-node` with the npm registry and npm
+     >= 11.5.1 (Trusted Publishing), `bun install`, then `npm publish` (`prepack` builds `dist`) to the `latest`
+     dist-tag, with provenance. A step skips it when `npm view @axelered/papyrus@<version> version` already
+     answers: npm refuses to publish a version twice.
+4. `github-release` (`needs` all three publishes, `contents: write`): downloads `docs-bundle` and runs
+   `softprops/action-gh-release@v2` with the tag as name, `docs.tar.gz` attached, and as body the changelog
+   followed by the install lines: `ghcr.io/<owner>/<repo>:X.Y.Z`, `pip install papyrus-sdk==X.Y.Z`,
+   `npm install @axelered/papyrus@X.Y.Z`. A release page appears only once every artifact exists; a re-run
+   updates it.
 
-- todo: amd64 only, add `linux/arm64` with QEMU once arm hosts need it.
+- Only `tag` and `github-release` can write to the repository, and only the PyPI and npm jobs get `id-token`.
+- Environments `pypi` and `npm` have no reviewers: pressing dispatch is the manual gate. They exist because
+  Trusted Publishing is bound to an environment name.
+
+### Bootstrap
+
+One-time setup before the first release:
+
+1. PyPI: a pending Trusted Publisher for `papyrus-sdk` (repository `axelered/papyrus`, workflow `release.yml`,
+   environment `pypi`). It works before the project exists.
+2. npm: the `axelered` organization, one manual first publish of `@axelered/papyrus` (Trusted Publishing can be
+   configured only on an existing package), then the trusted publisher (workflow `release.yml`, environment
+   `npm`), and the token of the first publish revoked.
+3. Repository environments `pypi` and `npm`, no reviewers.
+4. `check.yml` deleted, replaced by `ci.yml`.
 
 ## Out of Scope
 
+- todo: notify `axelered/docs` with a `docs-release` dispatch after the GitHub release, once the `axelered-docs`
+  GitHub App and its `DOCS_APP_ID`/`DOCS_APP_PRIVATE_KEY` secrets are set up; until then a docs `deploy` run picks
+  it up.
+- todo: enable `pull_request` in `ci.yml`, then protect `main` requiring the three checks.
+- todo: review and simplify the Dockerfile stage layout, independent of the workflows.
+- todo: Helm chart lint and OCI push (`adr/chart.md`) join `_server.yml` and the publishes later.
+- todo: amd64 only, add `linux/arm64` with QEMU once arm hosts need it.
 - todo: a parallel host job (uv, fast tests) if CI feedback on a cold cache becomes a bottleneck.
-- todo: Python version matrix, only once more than one version is supported.
+- todo: Python version matrix for the server, only once more than one version is supported.
 - Devcontainers and compose: dekit already covers the same workflows.

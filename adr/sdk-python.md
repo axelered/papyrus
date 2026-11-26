@@ -168,6 +168,7 @@ Operations are safe to repeat, but expensive: only failures where the server did
 
 ## Versioning and Compatibility
 
+- Released with the server, same version, to PyPI with Trusted Publishing (`adr/development.md`, Release).
 - SDK `X.Y` is guaranteed with server `X.Y`. Newer servers work while they only add fields; new enum values require upgrading the SDK. No runtime version check.
 - `version.py` keeps the `0.0.0` placeholder in git, as `server/version.py`.
 
@@ -184,7 +185,7 @@ Operations are safe to repeat, but expensive: only failures where the server did
 
 - The server under test is the runtime image with authentication on and no config file: dekit `sdk/server` (`papyrus` image, port 8003, `PAPYRUS_API_KEY=dev`, deps `docker/build-prod`), the same in CI.
 - dekit task `sdk/python`: deps `sdk/server`, `PAPYRUS_BASE_URL=http://localhost:8003`, `PAPYRUS_API_KEY=dev`, runs `uv run --directory sdk/python pytest`, i.e. 1 to 5 once. No shell script: dekit runs on Windows too.
-- todo: the CI job (3.11 and 3.14, wheel check) is specified with the CI/CD rework in `adr/development.md`.
+- CI: `_sdk_python.yml` (`adr/development.md`) runs 1 to 5 on 3.11 and 3.14, then 6.
 
 ## Documentation
 
@@ -194,8 +195,6 @@ Operations are safe to repeat, but expensive: only failures where the server did
 
 ## Out of Scope
 
-- todo: publishing. Stamp `sdk/python/papyrus_sdk/version.py` in the semver step; publish with PyPI Trusted Publishing (needs the publisher configured on PyPI, environment `pypi`), before the GitHub release.
-- todo: `check.yml` runs on tags only (`push: main` and `pull_request` are commented out), so drift surfaces at release time. Owned by the user.
 - todo: add `hatchling` (MIT) to the development table of `adr/license.md` once `feat/license` is merged.
 - todo: disk uploads in `AsyncPapyrus`, multiple file parts, `GET /`.
 - SDKs in languages other than Python and TypeScript (`adr/sdk-typescript.md`).
