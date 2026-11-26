@@ -118,7 +118,8 @@ Two entry workflows call three reusable ones (`on: workflow_call`). GitHub allow
 
 ### `_server.yml`
 
-Permissions `contents: read`, on `ubuntu-latest`:
+Permissions `contents: read`, on `ubuntu-latest`. Each check step runs when the dev image built, also after an
+earlier check failed (`!cancelled()`), so one run reports format, lint, tests and docs together:
 
 1. `actions/checkout`, `docker/setup-buildx-action`.
 2. `docker/build-push-action` with `target: dev`, `load: true`, `tags: papyrus:dev`, GHA cache in scope `dev`.

@@ -1,0 +1,20 @@
+# Checks every change on main: server first, then the SDKs against it (adr/development.md)
+name: ci
+
+on:
+  push:
+    # todo: feat/cicd is temporary, to see the workflows run before the merge
+    branches: [main, feat/cicd]
+#  pull_request:
+
+# superseded pull request runs are cancelled, every main commit gets a full status
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  server:
+    uses: ./.github/workflows/_server.yml
