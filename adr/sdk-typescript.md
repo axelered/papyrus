@@ -32,7 +32,7 @@ sdk/typescript/
     errors.ts
     version.ts
   test/
-  scripts/package.sh
+    package/         consumer fixtures of the package check: package.json, use.mjs, use.cjs, use.ts, tsconfigs
 ```
 
 - Sources run unbuilt on Node and Bun: relative imports end in `.ts`, `erasableSyntaxOnly`, and `rewriteRelativeImportExtensions` for the build.
@@ -162,9 +162,19 @@ Allowed where the server sets `cors.allow_origins`, with no opt-in flag. README 
 3. `models.test.ts`: `text`, `bytes`, unknown fields and enum values, responses through `structuredClone` and JSON.
 4. `integration.test.ts`: every operation against the server under test, with `Blob`, `Uint8Array` and `File`, a non-ASCII file name, real errors, `health` and `ready`. The SSRF guard refuses local pages, so for `screenshot` it checks the refusal; a successful capture is covered by the fake `fetch`.
 
-- Script `test` runs 1 to 3 on Node and Bun, and 2 and 3 on Node 22 (container): the schema test needs the server, which the container cannot reach as `localhost`, and compares data only, so Node 22 adds nothing to it. `test:integration` runs 4 on Node and Bun. An unset or unreachable server fails, it does not skip: a silent skip would hide drift. The `openapi` script goes away, and with it the host's need for the server's Python environment; the root `.gitignore` keeps `openapi.json` for `scripts/openapi.py`.
-- Script `test:package` (`scripts/package.sh`): `npm pack`, install in a clean folder, `import` and `require` on Node 22.12, `import` on Bun, typecheck of a consumer with `nodenext` and `bundler` resolution. Not part of `test:all`: it checks what is published, so `_sdk_typescript.yml` runs it after `test:all` (`adr/development.md`).
-- dekit task `sdk/typescript`: deps `sdk/typescript-install` and `sdk/server`, `PAPYRUS_BASE_URL=http://localhost:8003`, `PAPYRUS_API_KEY=dev`, runs `test:all`, i.e. typecheck, Biome and tests 1 to 4. `sdk/typescript-server` is removed.
+Scripts, each running every test on one runtime, so a failure names it:
+
+| Script | Runs |
+|---|---|
+| `check` | `tsc` and Biome |
+| `test:node` | `node --test 'test/*.test.ts'`, 1 to 4 on the Node on `PATH` (Node expands the quoted glob, so no shell differences) |
+| `test:bun` | `bun test ./test`, 1 to 4 |
+| `test:all` | `check`, `test:node`, `test:bun`: the local run of dekit `sdk/typescript` |
+
+- An unset or unreachable server fails, it does not skip: a silent skip would hide drift. The host needs no Docker and no server Python environment; the root `.gitignore` keeps `openapi.json` for `scripts/openapi.py`.
+- Locally only the installed Node runs. Node 22 and the package check run in CI (`_sdk_typescript.yml`, `adr/development.md`), as the Python wheel check.
+- Package check, CI steps over the fixtures of `test/package/`, no script: `npm pack` into `papyrus.tgz` (ignored) with `README.md`, `LICENSE`, `NOTICE`, `dist/index.js` and `dist/index.d.ts` present; `npm install --no-save` of it into `test/package/`; `use.mjs` and `use.cjs` on Node 22.12, the declared minimum, and `use.mjs` on Bun; `tsc -p` of `use.ts` with `tsconfig.nodenext.json` and `tsconfig.bundler.json`, a strict consumer with `exactOptionalPropertyTypes` and its own `@types/node`. The root `tsconfig.json` excludes `test/package`, which imports the installed package.
+- dekit task `sdk/typescript`: deps `sdk/typescript-install` and `sdk/server`, `PAPYRUS_BASE_URL=http://localhost:8003`, `PAPYRUS_API_KEY=dev`, runs `test:all`. `sdk/typescript-server` is removed.
 
 ## Documentation
 

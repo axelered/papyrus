@@ -33,13 +33,9 @@
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "check": "tsc && biome check --error-on-warnings .",
     "format": "biome check --write .",
-    "test": "bun run test:node && bun run test:node22 && bun run test:bun",
-    "test:all": "bun run check && bun run test && bun run test:integration",
-    "test:node": "node --test test/client.test.ts test/models.test.ts test/schema.test.ts",
-    "test:bun": "bun test ./test/client.test.ts ./test/models.test.ts ./test/schema.test.ts",
-    "test:node22": "docker run --rm -v ./:/app:ro -w /app node:22-slim node --test test/client.test.ts test/models.test.ts",
-    "test:integration": "node --test test/integration.test.ts && bun test ./test/integration.test.ts",
-    "test:package": "scripts/package.sh",
+    "test:node": "node --test 'test/*.test.ts'",
+    "test:bun": "bun test ./test",
+    "test:all": "bun run check && bun run test:node && bun run test:bun",
     "prepack": "bun run build"
   },
   "publishConfig": {

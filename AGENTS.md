@@ -135,7 +135,8 @@
 - [x] `docs/typescript.mdx` guide
 - [x] OCR: `readMode`, `chunks[].page`, error codes
 - [!] Publish to npm before the next tag, the guide is already in `docs/`: `axelered` organization, version stamp, Trusted Publishing
-- [!] Run the TypeScript tests in `_sdk_typescript.yml`, `test:all` and `test:package`; until then drift is caught only locally
+- [x] Tests segmented per runtime (`test:node`, `test:bun`), package check as fixtures in `test/package/`, no Docker or shell script
+- [!] Run the TypeScript tests in `_sdk_typescript.yml`: Node 22, Node 24, Bun, package check on Node 22.12; until then drift is caught only locally
 - [!] Expose `Retry-After` to browsers in `server/utils/cors.py`
 - [!] Add `zod` and the development tools to `adr/license.md` once `feat/license` is merged
 

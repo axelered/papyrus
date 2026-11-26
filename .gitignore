@@ -34,3 +34,4 @@ openapi.json
 
 # node
 node_modules/
+*.tgz

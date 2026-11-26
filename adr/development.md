@@ -100,7 +100,7 @@ Two entry workflows call three reusable ones (`on: workflow_call`). GitHub allow
   release.yml          workflow_dispatch on main    → the same checks, then tag, publish, GitHub release
   _server.yml          dev image: ruff, pytest, docs bundle; runtime image built, not pushed
   _sdk_python.yml      runtime image as server under test: SDK tests on 3.11 and 3.14, wheel check
-  _sdk_typescript.yml  runtime image as server under test: test:all, test:package
+  _sdk_typescript.yml  runtime image as server under test: Node 22, Node 24, Bun, package check
 .github/actions/
   sdk-server/          composite: build the runtime image from cache, start it, wait for /health
 ```
@@ -150,10 +150,22 @@ and print `docker logs papyrus-sdk` on failure.
 
 ### `_sdk_typescript.yml`
 
-1. `actions/checkout`, `./.github/actions/sdk-server`, `oven-sh/setup-bun`, `actions/setup-node` (current
-   release; Node 22 runs in its container from the `test:node22` script).
-2. `bun install --cwd sdk/typescript --frozen-lockfile`.
-3. `bun run test:all`, then `bun run test:package`: the scripts dekit runs, so CI and local runs match.
+One named step per runtime, `actions/setup-node` switching the Node on `PATH` between them. Test steps run with
+`if: ${{ !cancelled() }}`, so every runtime reports after an earlier one failed.
+
+```
+setup                 checkout, sdk-server, setup-bun, bun install --frozen-lockfile
+Check                 bun run check
+Test (Node 22)        setup-node 22 (latest 22.x: running sources needs 22.18) → bun run test:node
+Test (Node 24)        setup-node 24, the active LTS, pinned → bun run test:node
+Test (Bun)            bun run test:bun
+Pack                  npm pack → papyrus.tgz, required files present
+Package (Node 22.12)  setup-node 22.12, the declared minimum → npm install --no-save, node use.mjs, use.cjs
+Package (Bun)         bun use.mjs
+Package (types)       tsc -p tsconfig.nodenext.json, tsc -p tsconfig.bundler.json
+```
+
+Fixtures and checks are those of `adr/sdk-typescript.md` Tests.
 
 ## Versioning
 
