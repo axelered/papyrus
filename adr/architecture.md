@@ -36,7 +36,7 @@ and returns the result as a file or JSON, or writes it to a configured destinati
   services, and builds the output. It holds no CPU work.
 - **Deadline:** the whole coordinator runs under `asyncio.timeout(limits.deadline)`; on expiry `504 deadline_exceeded`.
 - **Cancellation:** the deadline cancels the coordinator; services propagate the cancel to their backend (pebble
-  future cancel terminates the running worker). todo: uvicorn does not cancel handlers on client disconnect; watch
+  future cancel terminates the running worker). The pool helper hands pebble at most `processes` tasks, the rest wait in asyncio, so cancelling a queued task costs no worker (pebble kills the worker of any dispatched task it finds cancelled). todo: uvicorn does not cancel handlers on client disconnect; watch
   `request.is_disconnected()` and cancel the coordinator if abandoned requests waste capacity.
 - todo: one global admission limit allows head-of-line blocking (a markdown flood starves thumbnails within a
   container); add per-service queue caps if metrics show a need.
@@ -75,7 +75,7 @@ Rules:
   constructed in the FastAPI lifespan, exposed via a dependency, and closed on shutdown through an `AsyncExitStack`.
 - **Heavy imports** (markitdown, pypdfium2, Pillow) happen only inside worker functions so the API process stays light.
   OCR SDKs load in the API process, only the one of the configured backend.
-- **Pool helper** (`utils/pool.py`): wraps `pool.schedule(fn, args, timeout)` with `asyncio.wrap_future`, raises
+- **Pool helper** (`utils/pool.py`): wraps `pool.schedule(fn, args, timeout)` with `asyncio.wrap_future`, gated by an `asyncio.Semaphore(processes)`, raises
   `PoolTimeout` and `PoolFailed` (worker crash), and cancels the future on `CancelledError`; `services/base.py`
   `pool_errors()` maps them to `504 processing_timeout` and `500 processing_failed`.
 - **Worker errors:** worker functions translate library exceptions into `ProblemError` subclasses (raised

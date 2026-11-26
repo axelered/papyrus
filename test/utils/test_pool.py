@@ -92,6 +92,18 @@ async def test_cancellation_terminates_running_task(pool: ProcessPool):
     assert time.monotonic() - started < 10
 
 
+async def test_cancelling_a_queued_task_keeps_the_worker(pool: ProcessPool):
+    before = await pool.run(workers.pid)
+    running = asyncio.create_task(pool.run(workers.sleep, 0.5))
+    queued = asyncio.create_task(pool.run(workers.sleep, 1))
+    await asyncio.sleep(0.1)
+
+    queued.cancel()
+    await running
+
+    assert await pool.run(workers.pid) == before
+
+
 async def test_idle_worker_death_replaces_pool_and_its_workers(tmp_path: Path):
     initializer = partial(workers.mark, str(tmp_path))
     async with ProcessPool('idle', processes=2, timeout=5, initializer=initializer) as pool:

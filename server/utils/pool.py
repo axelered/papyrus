@@ -45,6 +45,8 @@ class ProcessPool:
         self.max_tasks = max_tasks
         self.initializer = initializer
         self._pool: pebble.ProcessPool | None = None
+        # pebble kills the worker of any dispatched task it finds cancelled: extra tasks wait here, where cancel is free
+        self._slots = asyncio.Semaphore(processes)
         self._ready: Any = None
         self._error: Any = None
 
@@ -67,26 +69,27 @@ class ProcessPool:
 
     async def run[T](self, fn: Callable[..., T], *args: Any) -> T:
         """Worker functions must be top-level and should raise ProblemError, other errors become PoolFailed"""
-        # a worker that dies while the pool is idle breaks the whole pool for good; closing it also stops the others
-        if self._pool is not None and not self._pool.active:
-            logger.warning('%s pool is broken, replacing it', self.name)
-            await self.aclose()
-        try:
-            future = self._ensure().schedule(fn, args=args, timeout=self.timeout)
-            return await asyncio.wrap_future(future)
-        except asyncio.CancelledError:
-            future.cancel()
-            raise
-        except TimeoutError as e:
-            raise PoolTimeout(f'{self.name} exceeded {self.timeout}s') from e
-        except pebble.ProcessExpired as e:
-            logger.warning('%s worker died with exit code %s', self.name, e.exitcode)
-            raise PoolFailed(f'{self.name} worker died') from e
-        except ProblemError:
-            raise
-        except Exception as e:
-            logger.warning('%s task failed', self.name, exc_info=e)
-            raise PoolFailed(f'{self.name} failed ({type(e).__name__})') from e
+        async with self._slots:
+            # a worker that dies while the pool is idle breaks the whole pool for good; closing it also stops the others
+            if self._pool is not None and not self._pool.active:
+                logger.warning('%s pool is broken, replacing it', self.name)
+                await self.aclose()
+            try:
+                future = self._ensure().schedule(fn, args=args, timeout=self.timeout)
+                return await asyncio.wrap_future(future)
+            except asyncio.CancelledError:
+                future.cancel()
+                raise
+            except TimeoutError as e:
+                raise PoolTimeout(f'{self.name} exceeded {self.timeout}s') from e
+            except pebble.ProcessExpired as e:
+                logger.warning('%s worker died with exit code %s', self.name, e.exitcode)
+                raise PoolFailed(f'{self.name} worker died') from e
+            except ProblemError:
+                raise
+            except Exception as e:
+                logger.warning('%s task failed', self.name, exc_info=e)
+                raise PoolFailed(f'{self.name} failed ({type(e).__name__})') from e
 
     async def aclose(self) -> None:
         pool, self._pool = self._pool, None
