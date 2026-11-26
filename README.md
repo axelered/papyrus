@@ -1,153 +1,129 @@
+<div align="center">
+
 # 📄 Papyrus
 
-Axelered Papyrus is a self-hosted HTTP API that converts documents and web pages into Markdown, chunks and images for LLM and agent pipelines.
+**Papyrus turns documents and web pages into Markdown, chunks and images for your LLM pipeline. It runs as one Docker service, separate from your app.**
 
-## 📚 Supported Files
+[![Release](https://img.shields.io/github/v/release/axelered/papyrus?style=for-the-badge&logo=github&logoColor=white&label=release&labelColor=18181b&color=3f3f46)](https://github.com/axelered/papyrus/releases)
+[![Check](https://img.shields.io/github/actions/workflow/status/axelered/papyrus/check.yml?style=for-the-badge&logo=githubactions&logoColor=white&label=check&labelColor=18181b)](https://github.com/axelered/papyrus/actions/workflows/check.yml)
+[![License](https://img.shields.io/github/license/axelered/papyrus?style=for-the-badge&label=license&labelColor=18181b&color=3f3f46)](https://github.com/axelered/papyrus/blob/main/LICENSE)
+[![Stars](https://img.shields.io/github/stars/axelered/papyrus?style=for-the-badge&logo=github&logoColor=white&label=stars&labelColor=18181b&color=3f3f46)](https://github.com/axelered/papyrus/stargazers)
+[![Docs](https://img.shields.io/badge/docs-axelered.com-3f3f46?style=for-the-badge&labelColor=18181b)](https://docs.axelered.com/papyrus)
 
-| Format     | Extensions             | Notes                                   |
-|------------|------------------------|-----------------------------------------|
-| PDF        | `.pdf`                 | Text layer, or OCR for scans            |
-| Word       | `.docx`, `.doc`, `.rtf` | Legacy formats converted with LibreOffice |
-| PowerPoint | `.pptx`, `.ppt`        | Slide text, tables and notes            |
-| Excel      | `.xlsx`, `.xls`        | One table per sheet                     |
-| OpenDocument | `.odt`, `.odp`, `.ods` | Converted with LibreOffice            |
-| Outlook    | `.msg`                 | Headers and body                        |
-| HTML       | `.html`, `.htm`        |                                         |
-| CSV / TSV  | `.csv`, `.tsv`         | Rendered as a table                     |
-| Jupyter    | `.ipynb`               |                                         |
-| EPUB       | `.epub`                |                                         |
-| RSS / Atom | `.rss`, `.atom`, `.xml`|                                         |
-| ZIP        | `.zip`                 | Each entry converted recursively        |
-| Data       | `.json`, `.jsonl`      | Passed through                          |
-| Text       | `.txt`, `.md`, `.rst`, `.tex`, ... | Passed through              |
-| Code       | `.py`, `.ts`, `.go`, `.sql`, `.yaml`, ... | Any text format magika knows |
-| Images     | `.png`, `.jpg`, `.webp`, `.gif`, `.bmp`, `.tiff`, `.avif` | Thumbnail, render, Markdown with OCR |
+<img src="docs/assets/sticker.png" alt="Papyrus" width="100%">
 
-The format is detected from the content (magika); the extension only refines generic matches such as `.csv` or
-`.rss`. Mislabeled files are processed by their real type and reported in `source`.
+[Documentation](https://docs.axelered.com/papyrus) · [Quickstart](https://docs.axelered.com/papyrus/quickstart) · [API Reference](https://docs.axelered.com/papyrus/api) · [Python SDK](https://pypi.org/project/papyrus-sdk/) · [TypeScript SDK](https://www.npmjs.com/package/@axelered/papyrus) · [HELM Chart](chart)
 
-## 🔌 API
+</div>
 
-Full documentation: [docs.axelered.com/papyrus](https://docs.axelered.com/papyrus). The Bruno collection in `bruno/` has a request and real examples for every endpoint.
+📦 **One service instead of a parser stack.** PDF, Word, PowerPoint, Excel, Outlook, HTML, EPUB, ZIP and images go in, Markdown or chunks sized for your embedding model come out. LibreOffice, pdfium, Chromium and the OCR clients ship inside the image, so your app needs an HTTP client and nothing else.
 
-| Endpoint              | Does                                                              | Default output |
-|-----------------------|-------------------------------------------------------------------|----------------|
-| `POST /v1/markdown`   | Markdown from a document or web page, with optional OCR and RAG chunks | `json`         |
-| `POST /v1/render`     | One page or image frame at a readable size                        | `file`         |
-| `POST /v1/thumbnail`  | One page, image or web page fitted into a box                     | `file`         |
-| `POST /v1/screenshot` | A web page captured in headless Chromium                          | `file`         |
-| `POST /v1/inspect`    | Detected format and checks of a document, without processing it   | `json`         |
-| `GET /`, `/health`, `/ready` | Version, liveness and readiness, public                    | `json`         |
+🛡️ **Your app never parses untrusted files.** Every document is read in a worker process inside the container, and a file that crashes or hangs a worker fails its own request while the worker is replaced. URLs pass an SSRF guard that refuses private and internal addresses, and images are checked against a pixel limit before decoding. Your developers call an API and don't have to get parser isolation and security right themselves.
 
-All `/v1` routes require `Authorization: Bearer <key>`. Requests are `application/json`, or `multipart/form-data` with the upload in `file` and the request as JSON in `metadata`. Keys are camelCase.
+🔍 **OCR on your own GPUs or through Mistral.** Point Papyrus at a Qwen VL model on vLLM, Ollama or any OpenAI compatible server and page images stay in your network, or use Mistral OCR. Switching backends is a configuration change, and callers keep the same request. Auto mode sends only the pages without a usable text layer to the model.
 
-| Field         | Description                                                                     |
-|---------------|---------------------------------------------------------------------------------|
-| `source`      | `file://<part>`, `http(s)://...` or `<protocol>://<connector>/<path>`; defaults to `file://file` on uploads |
-| `destination` | Optional connector URI, the result is written there and the response omits `content` |
-| `output`      | `json` for the envelope, `file` for the artifact as the body                    |
-| `options`     | Operation options, echoed back with defaults applied                            |
+The same service renders pages, makes thumbnails of documents and web pages, and takes screenshots in headless Chromium, for previews in your UI.
 
-Inspect takes only `source` and `options`: it rejects `destination` and `output`, and its response has no `result`.
+## 🚀 Quickstart
 
 ```shell
-curl -H "Authorization: Bearer <key>" -F file=@report.docx http://localhost:8000/v1/markdown
-curl -H "Authorization: Bearer <key>" -H 'content-type: application/json' \
-  -d '{"source": "s3://prod/docs/report.pdf", "destination": "s3://prod/md/report.md"}' \
-  http://localhost:8000/v1/markdown
+docker run --rm -p 8000:8000 -e PAPYRUS_API_KEY=dev ghcr.io/axelered/papyrus:latest
 ```
 
-`"options": {"readMode": "ocr"}` reads scans and images with a Qwen VL or Mistral OCR backend, off until you add `ocr` to the configuration.
+Read any file:
 
-The other operations answer JSON with the `{source, result, options}` envelope, plus data sections such as `chunks`:
+```shell
+curl http://127.0.0.1:8000/v1/markdown -H 'Authorization: Bearer dev' -F file=@sample.pdf
+```
 
 ```json
 {
-  "source": {"uri": "file://file", "name": "report.docx", "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "extension": "docx", "label": "docx", "group": "document"},
-  "result": {"name": "report.md", "mimeType": "text/markdown", "extension": "md", "label": "markdown", "group": "markup", "encoding": "utf-8", "content": "# Report ..."},
+  "source": {"uri": "file://file", "name": "sample.pdf", "size": 18810, "mimeType": "application/pdf", "label": "pdf", "group": "document"},
+  "result": {"name": "sample.md", "size": 3092, "mimeType": "text/markdown", "encoding": "utf-8", "content": "Sample PDF\nThis is a simple PDF file. Fun fun fun.\n\n…"},
   "options": {"readMode": "text"}
 }
 ```
 
-Errors are `application/problem+json` with a stable `code`, listed in the [errors page](https://docs.axelered.com/papyrus/errors). Interactive docs are served at `/docs`.
+Send a URL instead of a file with `-d '{"source": "https://axelered.com"}'`, or add
+`{"options": {"chunking": {"maxTokens": 512}}}` to get the Markdown chunked ready for RAG. See more in the
+[quickstart](https://docs.axelered.com/papyrus/quickstart).
 
-## 🧑🏼‍💻 Development
+## 🧩 SDKs
 
-The server refuses to start without an API key. For local development create a gitignored `.env`:
+Typed clients for Python and TypeScript, with retries and the same options as the API.
 
-```shell
-PAPYRUS_AUTH_DISABLED=true
-PAPYRUS_CONFIG=config.local.yml
+```python
+# pip install papyrus-sdk
+from pathlib import Path
+from papyrus_sdk import Papyrus
+
+with Papyrus(base_url='http://127.0.0.1:8000', api_key='dev') as client:
+    doc = client.markdown(Path('report.pdf'))
+
+print(doc.result.content)
 ```
 
-Logs are plain text on stderr. `PAPYRUS_LOG_LEVEL` (`debug`, `info`, `warning`, `error`) sets the papyrus
-loggers, uvicorn keeps its own `--log-level`, and `PAPYRUS_LOG_FORMAT=json` switches every line to JSON for log
-pipelines.
+```ts
+// npm install @axelered/papyrus
+import { openAsBlob } from 'node:fs'
+import { Papyrus } from '@axelered/papyrus'
 
-To profile requests set `PAPYRUS_TIMING=true`: every response then carries a `Server-Timing` header with the
-duration of each stage (`parse`, `materialize`, `detect`, `convert`, `render`, `browser.goto`, ...) and the same
-values are logged once per request. Keep it off in production, the header reveals internal timings.
-`docker exec papyrus-dev python -m scripts.bench` prints cold and hot latency per service operation
-(`adr/performance.md`).
-
-Download the chunking grammars and tokenizers once into the gitignored `.assets/` (the server never downloads at
-runtime, the Docker build does the same):
-
-```shell
-uv run python -m scripts.prefetch
+const client = new Papyrus({ baseUrl: 'http://127.0.0.1:8000', apiKey: 'dev' })
+const doc = await client.markdown(await openAsBlob('report.pdf'), { filename: 'report.pdf' })
+console.log(doc.result.content)
 ```
 
-```shell
-uv run fastapi dev --entrypoint server.main:app --reload
-```
+Guides: [Python](https://docs.axelered.com/papyrus/python), [TypeScript](https://docs.axelered.com/papyrus/typescript).
 
-Or run development environment with Dekit
+## 🤔 Why Papyrus
 
-```shell
-dekit reload --yes
-dekit up
-```
+Reading documents looks like a small feature until it reaches production. Every format needs its own parser with its own bugs, a `.doc` from 2003 needs LibreOffice, a scanned contract needs OCR, a file named `.pdf` turns out to be a ZIP, and one upload or URL from a user can crash your process, hang it for minutes or make it fetch your cloud metadata endpoint. Each of these problems ends up in your codebase, your dependency tree and your on-call rotation.
 
-LibreOffice (legacy formats) only runs in the Linux image. On any OS with Docker, dekit runs the image loop
-(`adr/development.md`):
+Papyrus takes all of it out of your app. You send a file or a URL and get Markdown, chunks or an image back, in one response shape with stable error codes, whatever the input was. Everything else happens behind the API:
 
-| Task                | What                                                           | Port |
-|---------------------|----------------------------------------------------------------|------|
-| `docker/dev`        | dev image, source mounted read-only, reload, auth disabled     | 8001 |
-| `docker/prod`       | prod image as shipped, API key `dev`                           | 8002 |
-| `docker/test`       | full test suite inside the dev image                           |      |
+- Formats: Papyrus detects the real type from the content, routes it to the right engine and converts legacy Office and OpenDocument files with LibreOffice, so your code never branches on file type.
+- Untrusted input: documents are read in worker processes that Papyrus replaces when a file crashes or hangs them, and that request fails with `500 processing_failed` or `504 processing_timeout` while your service keeps running. URLs, redirects and page resources go through an SSRF guard.
+- OCR: scans and images are read by the backend you configure, on your own GPUs or at Mistral, and callers send the same request either way.
+- Previews: page renders, thumbnails and website screenshots come from the same API, with Chromium running inside the Papyrus container, away from your app.
+- Upgrades: the converters, LibreOffice, Chromium and their security fixes ship as one image, so staying current means changing an image tag.
 
-```shell
-dekit start docker/dev
-dekit start docker/build-dev   # rebuild after changing dependencies or the Dockerfile
-```
+Any language with an HTTP client gets the same results, and the Python and TypeScript SDKs add types on top.
 
-Format and Lint
+## 📚 Supported formats
 
-```shell
-ruff format
-ruff check --fix
-```
+| Group           | Extensions                                                         | What you get                                                                                          |
+|-----------------|--------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------|
+| Documents       | `.pdf`, `.docx`, `.doc`, `.rtf`, `.odt`                            | Markdown from the text layer, or from every page with OCR. Pages render and thumbnail                 |
+| Presentations   | `.pptx`, `.ppt`, `.odp`                                            | Slide text, tables and notes, or every slide with OCR, without notes. Slides render and thumbnail     |
+| Spreadsheets    | `.xlsx`, `.xls`, `.ods`, `.csv`, `.tsv`                            | One Markdown table per sheet. Excel and OpenDocument sheets render and thumbnail                      |
+| Web and email   | `.html`, `.htm`, `.msg`, `.epub`, `.rss`, `.atom`, `.xml`          | Headings, lists, links and tables, Outlook headers and body. HTML thumbnails are browser captures     |
+| Images          | `.png`, `.jpg`, `.webp`, `.gif`, `.bmp`, `.tiff`, `.avif`          | Markdown with OCR, from every frame of a TIFF and the first frame of the others. One frame per render |
+| Archives        | `.zip`                                                             | Every entry converted                                                                                 |
+| Data and text   | `.json`, `.jsonl`, `.ipynb`, `.txt`, `.md`, `.rst`, `.tex`, ...    | Passed through as Markdown                                                                            |
+| Code and config | `.py`, `.ts`, `.go`, `.sql`, `.yaml`, ...                          | One fenced block, for any language                                                                    |
 
-Test, tests marked `full` need the image and are deselected on the host (run them with `dekit start docker/test`)
+Legacy Office and OpenDocument files are converted with LibreOffice before extraction, and every Office file goes through LibreOffice to render, which adds time to each request. Formats without pages are read as text even when a request asks for OCR, and `options.readMode` in the response says so. Screenshots take `http(s)://` URLs and capture whatever the browser shows.
 
-```shell
-uv run pytest
-```
+Papyrus detects the format from the content with Magika and uses the extension only to refine generic matches, so a mislabeled file is processed as what it really is and reported in `source`. The [formats guide](https://docs.axelered.com/papyrus/formats) has the full table per operation.
 
-## 🤖 Agents
+## ☸️ Helm chart
 
-This repository s configured to use `work3` to manage high performance agentic development. Install via `bun install -g @svara/work3`.
-
-## 🐳 Docker
+The chart in `chart/` deploys Papyrus on Kubernetes with two replicas, a PodDisruptionBudget and a generated API key. Install it from a checkout of the repository, with the image set to a released version:
+<!-- todo: switch to oci://ghcr.io/axelered/charts once the chart is published on release -->
 
 ```shell
-docker build -t papyrus .
-docker run -p 8000:8000 -e PAPYRUS_API_KEY=<key> -v ./config.yml:/etc/papyrus/config.yml:ro papyrus
+helm install papyrus ./chart --namespace papyrus --create-namespace --set image.tag=0.3.0
 ```
 
-Copy `config.example.yml` to `config.yml` and change what you need; every key is optional and shows its default. Configuration
-reference: [docs.axelered.com/papyrus/configuration](https://docs.axelered.com/papyrus/configuration).
+The install notes print the commands to read the key and reach the service. Server settings go under `config` in your values file, in the same format as `config.example.yml`. Set `networkPolicy.enabled: true` to block the pods from private and cloud metadata addresses, as a second layer behind the SSRF guard. `chart/values.yaml` documents every key.
+
+Before you expose Papyrus to a network, read the [security checklist](https://docs.axelered.com/papyrus/security). For plain Docker, see [Docker setup](https://docs.axelered.com/papyrus/docker).
+
+## 🤝 Support and contributing
+
+Star the repository to follow releases. If you run Papyrus in production and need support, write to [oss@axelered.com](mailto:oss@axelered.com).
+
+To report a vulnerability, see [SECURITY.md](SECURITY.md). To build and test Papyrus locally, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## ⚖️ License
 
