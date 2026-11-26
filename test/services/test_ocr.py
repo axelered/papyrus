@@ -16,8 +16,7 @@ from server.errors import (
     TooManyPages,
 )
 from server.io.workspace import Workspace
-from server.ocr.base import OcrAdapter, OcrRejected, OcrTimeout, OcrTransient, OcrTruncated
-from server.ocr.base import OcrRateLimited as BackendRateLimited
+from server.ocr.base import OcrAdapter, OcrRejected, OcrThrottled, OcrTimeout, OcrTransient, OcrTruncated
 from server.services.detect import Document, lookup
 from server.services.ocr import ATTEMPTS, MAX_WAIT, OcrService
 from server.services.render import Raster, RenderSpec
@@ -132,7 +131,7 @@ async def test_normalizes_the_answer(answer: str, page: str, workspace: Workspac
     assert await _read(service, workspace, tmp_path) == f'<!-- Page number: 1 -->\n\n{page}'
 
 
-@pytest.mark.parametrize('error', [OcrTransient('down'), OcrTimeout('slow'), BackendRateLimited('busy', 0.01)])
+@pytest.mark.parametrize('error', [OcrTransient('down'), OcrTimeout('slow'), OcrThrottled('busy', 0.01)])
 async def test_retries_and_renders_once(
     error: Exception, workspace: Workspace, tmp_path: Path, caplog: pytest.LogCaptureFixture
 ):
@@ -167,8 +166,8 @@ async def test_later_page_retries_without_rendering_again(workspace: Workspace, 
     [
         (OcrTransient('down'), ATTEMPTS, OcrFailed),
         (OcrTimeout('slow'), ATTEMPTS, ProcessingTimeout),
-        (BackendRateLimited('busy', 0), ATTEMPTS, OcrRateLimited),
-        (BackendRateLimited('busy', MAX_WAIT + 1), 1, OcrRateLimited),
+        (OcrThrottled('busy', 0), ATTEMPTS, OcrRateLimited),
+        (OcrThrottled('busy', MAX_WAIT + 1), 1, OcrRateLimited),
         (OcrRejected('refused'), 1, OcrFailed),
         (OcrTruncated('cut'), 1, OcrFailed),
     ],
@@ -228,7 +227,7 @@ async def test_renders_are_capped_below_the_slots(renders: int, peak: int, works
 
 
 async def test_slot_is_free_while_waiting_for_a_retry(workspace: Workspace, tmp_path: Path):
-    service = _service(FakeAdapter(BackendRateLimited('busy', 0.3)), concurrency=1)
+    service = _service(FakeAdapter(OcrThrottled('busy', 0.3)), concurrency=1)
 
     waiting = asyncio.create_task(_read(service, workspace, tmp_path))
     await asyncio.sleep(0.05)

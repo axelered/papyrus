@@ -17,8 +17,7 @@ from server.errors import (
     UnsupportedFormat,
 )
 from server.io.workspace import Workspace
-from server.ocr.base import OcrAdapter, OcrError, OcrTimeout, OcrTransient
-from server.ocr.base import OcrRateLimited as BackendRateLimited
+from server.ocr.base import OcrAdapter, OcrError, OcrThrottled, OcrTimeout, OcrTransient
 from server.services.base import Service
 from server.services.convert import ConvertService
 from server.services.detect import Document, Format
@@ -208,7 +207,7 @@ class OcrService(Service):
 
     def _wait(self, state: RetryCallState) -> float:
         error = _error(state)
-        if isinstance(error, BackendRateLimited) and error.retry_after is not None:
+        if isinstance(error, OcrThrottled) and error.retry_after is not None:
             return error.retry_after
         return self._backoff(state)
 
@@ -250,7 +249,7 @@ def _clean(markdown: str) -> str:
 
 
 def _retryable(error: BaseException) -> bool:
-    if isinstance(error, BackendRateLimited):
+    if isinstance(error, OcrThrottled):
         return error.retry_after is None or error.retry_after <= MAX_WAIT
     return isinstance(error, (OcrTransient, OcrTimeout))
 
@@ -269,7 +268,7 @@ def _log_retry(number: int) -> Callable[[RetryCallState], None]:
 
 def _problem(number: int, error: OcrError) -> ProblemError:
     detail = f'page {number}: {error}'
-    if isinstance(error, BackendRateLimited):
+    if isinstance(error, OcrThrottled):
         return OcrRateLimited(detail)
     if isinstance(error, OcrTimeout):
         return ProcessingTimeout(detail)

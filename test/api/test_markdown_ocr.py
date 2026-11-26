@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from fsspec import AbstractFileSystem
 
 from server.config import Config
-from server.ocr.base import OcrAdapter, OcrRateLimited, OcrRejected
+from server.ocr.base import OcrAdapter, OcrRejected, OcrThrottled
 from server.services.convert import ConvertService
 from server.services.ocr import OcrService
 from server.types.convert import ConvertFormat
@@ -391,7 +391,7 @@ def test_one_failed_page_fails_the_request(
 
 
 def test_rate_limit_asks_to_retry_later(client: TestClient, auth_headers: dict[str, str], install: Install):
-    install(FakeAdapter(OcrRateLimited('busy', 60)))
+    install(FakeAdapter(OcrThrottled('busy', 60)))
 
     response = _post(client, auth_headers, 'photo.png', samples.image('PNG'))
 

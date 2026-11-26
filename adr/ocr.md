@@ -83,8 +83,8 @@ server/services/ocr.py   OcrService(render, convert, markdown): configured, acce
   wiring import it.
 - **Adapter:** wraps one model family: one call, no policy. `type` names the family, not the protocol, because prompt,
   cleaning, resolution and token limits are model biased. A new model is a new adapter. It maps SDK exceptions to
-  `OcrTransient`, `OcrRateLimited(retry_after)`, `OcrTimeout`, `OcrTruncated`, `OcrRejected` and knows no
-  `ProblemError`.
+  `OcrTransient`, `OcrThrottled(retry_after)`, `OcrTimeout`, `OcrTruncated`, `OcrRejected` and knows no
+  `ProblemError`. `OcrThrottled` is not `server.errors.OcrRateLimited`, the `503` it maps to.
 - **Adapter cleaning:** only what its model adds (table below). `dpi` and `max_pixels` default to the Qwen values,
   which Mistral accepts; an adapter overrides them when its model needs other ones.
 - **Service:** owns the whole OCR read of a document: conversion to PDF, page renders, slots, retries, error

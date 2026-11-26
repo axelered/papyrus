@@ -17,7 +17,7 @@ class OcrTransient(OcrError):
     """Backend or network failure, or an answer that cannot be read; may succeed on retry"""
 
 
-class OcrRateLimited(OcrError):
+class OcrThrottled(OcrError):
     def __init__(self, message: str, retry_after: float | None = None):
         super().__init__(message)
         self.retry_after = retry_after
@@ -60,7 +60,7 @@ async def data_url(image: Path) -> str:
 def status_error(status: int, headers: Mapping[str, str]) -> OcrError:
     message = f'the OCR backend answered HTTP {status}'
     if status == _RATE_LIMITED:
-        return OcrRateLimited(message, _retry_after(headers))
+        return OcrThrottled(message, _retry_after(headers))
     if status == _REQUEST_TIMEOUT or status >= 500:
         return OcrTransient(message)
     return OcrRejected(message)

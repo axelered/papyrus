@@ -5,7 +5,7 @@ from typing import Any
 import httpx2
 import pytest
 
-from server.ocr.base import OcrRateLimited, OcrRejected, OcrTimeout, OcrTransient, OcrTruncated
+from server.ocr.base import OcrRejected, OcrThrottled, OcrTimeout, OcrTransient, OcrTruncated
 from server.ocr.qwen import MAX_TOKENS, PROMPT, QwenAdapter
 from test.fixtures.ocr import Handler, mock_client
 
@@ -109,7 +109,7 @@ async def test_maps_failures_without_sdk_retries(page_image: Path, response: htt
     [({'retry-after': '7'}, 7.0), ({}, None), ({'retry-after': 'Wed, 21 Oct 2026 07:28:00 GMT'}, None)],
 )
 async def test_rate_limit_carries_the_delay(page_image: Path, headers: dict[str, str], delay: float | None):
-    with pytest.raises(OcrRateLimited) as raised:
+    with pytest.raises(OcrThrottled) as raised:
         await _adapter(lambda _: httpx2.Response(429, headers=headers)).read(page_image)
 
     assert raised.value.retry_after == delay

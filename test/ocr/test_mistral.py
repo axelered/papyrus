@@ -5,7 +5,7 @@ from typing import Any
 import httpx2
 import pytest
 
-from server.ocr.base import OcrRateLimited, OcrRejected, OcrTimeout, OcrTransient
+from server.ocr.base import OcrRejected, OcrThrottled, OcrTimeout, OcrTransient
 from server.ocr.mistral import MistralAdapter
 from test.fixtures.ocr import Handler, mock_client
 
@@ -77,7 +77,7 @@ async def test_blank_page_is_empty(page_image: Path):
         (httpx2.Response(401, json={'message': 'bad key'}), OcrRejected),
         (httpx2.Response(422, json={'detail': []}), OcrRejected),
         (httpx2.Response(500, text='busy'), OcrTransient),
-        (httpx2.Response(429, headers={'retry-after': '3'}), OcrRateLimited),
+        (httpx2.Response(429, headers={'retry-after': '3'}), OcrThrottled),
     ],
 )
 async def test_maps_failures_without_sdk_retries(page_image: Path, response: httpx2.Response, error: type[Exception]):
