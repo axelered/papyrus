@@ -80,6 +80,7 @@ const fileFacts = {
 export const fetchInfo = z.object({
   url: z.string(),
   status: z.optional(z.int()),
+  link: z.optional(z.string()),
 })
 
 export const source = z.object({

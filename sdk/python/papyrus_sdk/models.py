@@ -112,6 +112,8 @@ class Fetch(ApiModel):
     """Final URL after redirects"""
     status: int | None = None
     """HTTP status of the document"""
+    link: str | None = None
+    """Share link provider the URL was resolved through, such as `google-drive`; None for other URLs"""
 
 
 class FileInfo(ApiModel):
