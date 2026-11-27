@@ -84,7 +84,7 @@ curl http://127.0.0.1:8000/v1/inspect \
 }
 ```
 
-`source.fetch` has the final URL after redirects and the HTTP status. Storage URIs such as `s3://<connector>/<key>` work the same way; see [URI formats](./uris).
+`source.fetch` has the final URL after redirects and the HTTP status. A public share link, such as a Google Drive file, is inspected as the file it shares and `source.fetch.link` names the provider. Storage URIs such as `s3://<connector>/<key>` work the same way; see [URI formats](./uris).
 
 ## Cost and limits
 
